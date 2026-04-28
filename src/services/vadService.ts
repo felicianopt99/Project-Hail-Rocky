@@ -125,6 +125,16 @@ export class VadService {
         if (nextState) state.tensorState = nextState;
 
         latestProb = results.output.data[0] as number;
+
+        // DEBUG: Log all output keys and values
+        if (Math.random() < 0.05) {
+          log.info("[VAD-DEBUG] Model outputs", {
+            outputKeys: Object.keys(results),
+            output: results.output?.data ? Array.from(results.output.data).slice(0, 5) : "no output tensor",
+            latestProb: latestProb.toFixed(4),
+            sr: this.srTensor
+          });
+        }
         
         // 5. Smoothing (Reduced history for faster reaction to speech end)
         state.probHistory.push(latestProb);
