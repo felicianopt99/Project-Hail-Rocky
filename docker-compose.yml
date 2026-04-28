@@ -1,135 +1,62 @@
 services:
-  app:
+  backend:
     build:
       context: .
-      dockerfile: Dockerfile
-    container_name: rocky-assistant
+      dockerfile: backend/Dockerfile
+    container_name: rocky-backend
     network_mode: host
-    entrypoint: ["sh", "/app/entrypoint.sh"]
     environment:
-      - NODE_ENV=development
-      - DATABASE_URL=file:/app/data/dev.db
-      - PRISMA_CLIENT_ENGINE_TYPE=library
-      - LOCAL_LLM_URL=http://ollama:11434/v1
-      - LOCAL_LLM_MODEL=rocky
-      - NVIDIA_BASE_URL=https://integrate.api.nvidia.com/v1
-
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - NVIDIA_LLM_MODEL=${NVIDIA_LLM_MODEL:-meta/llama-3.1-405b-instruct}
+      - DATABASE_URL=file:../data/dev.db
+      - WEATHER_LAT=${WEATHER_LAT:-38.72}
+      - WEATHER_LON=${WEATHER_LON:-9.13}
+      - WEATHER_CITY=${WEATHER_CITY:-Lisboa}
+      - HA_BASE_URL=${HA_BASE_URL}
+      - HA_ACCESS_TOKEN=${HA_ACCESS_TOKEN}
       - KOKORO_URL=http://127.0.0.1:8880
-      - WAKEWORD_HOST=127.0.0.1
-      - WAKEWORD_PORT=10400
-      - PIPER_HOST=127.0.0.1
-      - PIPER_PORT=10200
-      - DISABLE_HMR=true
+      - PYTHONPATH=/app/backend
+      - PRISMA_CLIENT_ENGINE_TYPE=binary
     env_file:
-      - .env.local
+      - .env
     volumes:
       - .:/app
       - rocky-data:/app/data
-    deploy:
-      resources:
-        limits:
-          cpus: '2.0'
-          memory: 2048M
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3005/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 15s
     develop:
       watch:
         - action: sync
-          path: ./src
-          target: /app/src
-        - action: sync
-          path: ./public
-          target: /app/public
-        - action: sync+restart
-          path: ./server.ts
-          target: /app/server.ts
-        - action: sync+restart
-          path: ./package.json
-          target: /app/package.json
-
-  # Kokoro TTS - State of the art Local TTS
-  kokoro:
-    image: ghcr.io/remsky/kokoro-fastapi-cpu:latest
-    container_name: rocky-kokoro
+          path: ./backend/app
+          target: /app/backend/app
+        - action: rebuild
+          path: ./backend/requirements.txt
+    command: sh -c "prisma generate --schema=prisma/schema.prisma && uvicorn app.main:sio_app --host 0.0.0.0 --port 8000 --reload"
     restart: unless-stopped
-    ports:
-      - "8880:8880"
-    cpu_shares: 1024
-    deploy:
-      resources:
-        limits:
-          cpus: '3.0'
-          memory: 2G
+    depends_on:
+      - homeassistant
+      - kokoro
 
-  # Custom openWakeWord - Specifically for 'hi rocky' and 'amaze'
-  openwakeword:
+  frontend:
     build:
-      context: .
-      dockerfile: scripts/Dockerfile.wakeword
-    container_name: rocky-openwakeword
-    restart: unless-stopped
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: rocky-frontend
+    network_mode: host
+    environment:
+      - NODE_ENV=development
+      - VITE_BACKEND_URL=ws://127.0.0.1:8000
+    env_file:
+      - .env
     volumes:
-      - ./models/wakeword:/app/models/wakeword
-    ports:
-      - "10400:10400"
-    cpu_shares: 512
-    deploy:
-      resources:
-        limits:
-          cpus: '1.0'
-          memory: 1G
+      - ./frontend:/app
     develop:
       watch:
-        - action: sync+restart
-          path: ./scripts/wakeword_detector.py
-          target: /app/wakeword_detector.py
-
-  # Ollama - CPU Optimized
-  ollama:
-    image: ollama/ollama:latest
-    container_name: rocky-ollama
+        - action: sync
+          path: ./frontend/src
+          target: /app/src
+        - action: rebuild
+          path: ./frontend/package.json
     restart: unless-stopped
-    ports:
-      - "11435:11434"
-    environment:
-      - OLLAMA_KEEP_ALIVE=-1
-      - OLLAMA_NUM_THREAD=4
-      - OLLAMA_MAX_LOADED_MODELS=1
-      - OLLAMA_NOPRUNE=1
-    cpu_shares: 2048
-    volumes:
-      - ollama-data:/root/.ollama
-    deploy:
-      resources:
-        limits:
-          cpus: '4.0'
-          memory: 4G
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 60s
-      timeout: 10s
-      retries: 5
 
-  # Piper TTS - Ultra fast local fallback
-  piper:
-    image: rhasspy/wyoming-piper:latest
-    container_name: rocky-piper
-    restart: unless-stopped
-    ports:
-      - "10200:10200"
-    command: --voice en_US-lessac-medium
-    cpu_shares: 512
-    deploy:
-      resources:
-        limits:
-          cpus: '0.5'
-          memory: 256M
-
-  # Home Assistant
   homeassistant:
     container_name: homeassistant
     image: "ghcr.io/home-assistant/home-assistant:stable"
@@ -141,7 +68,32 @@ services:
     privileged: true
     network_mode: host
 
+  kokoro:
+    container_name: rocky-kokoro
+    image: "ghcr.io/remsky/kokoro-fastapi-cpu:latest"
+    network_mode: host
+    restart: unless-stopped
+
+
+  piper:
+    container_name: rocky-piper
+    image: "rhasspy/wyoming-piper:latest"
+    network_mode: host
+    command: --voice en_US-lessac-medium
+    restart: unless-stopped
+
+  openwakeword:
+    build:
+      context: .
+      dockerfile: scripts/Dockerfile.wakeword
+    container_name: rocky-openwakeword
+    network_mode: host
+    volumes:
+      - .:/app
+    command: python scripts/wakeword_detector.py
+    restart: unless-stopped
+
 volumes:
   rocky-data:
-  ollama-data:
   ha-config:
+  rocky-ollama-data:
