@@ -1,4 +1,5 @@
 import logging
+import asyncio
 import socketio
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -126,7 +127,7 @@ async def init_agent():
 
     @agent.events.subscribe
     async def handle_turn_started(event: TurnStartedEvent):
-        await sio.emit("status_update", "speaking")
+        await sio.emit("status_update", "synthesizing_tts")
         await sio.emit("tts_start", {"sampleRate": 24000})
 
     @agent.events.subscribe
