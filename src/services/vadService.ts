@@ -135,7 +135,27 @@ export class VadService {
         const nextState = results.stateN ?? results.out_state ?? results.output_state ?? results.state;
         if (nextState) state.tensorState = nextState;
 
-        latestProb = results.output.data[0] as number;
+        // Extract probability - handle different output formats
+        let outputTensor = results.output;
+        if (!outputTensor && results.output_prob) outputTensor = results.output_prob;
+
+        if (outputTensor && outputTensor.data) {
+          latestProb = outputTensor.data[0] as number;
+        } else if (outputTensor && Array.isArray(outputTensor)) {
+          latestProb = outputTensor[0] as number;
+        } else {
+          latestProb = outputTensor as unknown as number;
+        }
+
+        // Clamp to [0, 1]
+        latestProb = Math.max(0, Math.min(1, latestProb));
+
+        log.info("[VAD-INFERENCE-DEBUG] Raw output", {
+          outputKeys: Object.keys(results),
+          outputType: typeof outputTensor,
+          outputValue: latestProb.toFixed(4),
+          outputTensorData: outputTensor?.data ? Array.from(outputTensor.data).slice(0, 3) : "no data"
+        });
 
         // DEBUG: Log ALL inference results every time
         log.info("[VAD-INFERENCE] Speech probability", {
