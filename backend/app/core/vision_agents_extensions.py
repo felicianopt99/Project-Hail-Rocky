@@ -291,7 +291,7 @@ class KokoroTTS(TTS):
 
     async def stream_audio(self, text: str, *args, **kwargs) -> PcmData:
         if not text:
-            return None
+            raise ValueError("Cannot synthesize empty text")
         try:
             res = await self._client.post(
                 self.url,
@@ -301,8 +301,9 @@ class KokoroTTS(TTS):
             res.raise_for_status()
             return PcmData.from_bytes(res.content)
         except Exception as e:
-            logger.error(f"Kokoro TTS error: {e}")
-            return None
+            logger.error(f"Kokoro TTS failed: {e}")
+            raise
+
 
     async def stop_audio(self) -> None:
         pass
@@ -317,6 +318,11 @@ class WyomingWakeWord:
         self.writer = None
         self.reader = None
         self._connected = False
+        self._callback = None
+
+    def set_callback(self, cb):
+        self._callback = cb
+
 
     async def connect(self):
         if self._connected:
@@ -355,6 +361,8 @@ class WyomingWakeWord:
                     data = event.get("data", {})
                     name = data.get("name", "unknown")
                     logging.getLogger("WyomingClient").info(f"WAKE WORD DETECTED: {name}")
+                    # Trigger callback if set
+                    await self._on_wake_word_fired(name)
                     # Notify frontend
                     await sio.emit("wake_word_detected", {"name": name})
                     await sio.emit("status_update", "listening")
@@ -362,6 +370,11 @@ class WyomingWakeWord:
             logging.getLogger("WyomingClient").error(f"Wyoming listener error: {e}")
         finally:
             self._connected = False
+
+    async def _on_wake_word_fired(self, name: str):
+        if self._callback:
+            await self._callback()
+
 
     async def send_audio(self, pcm_bytes: bytes):
         if not self._connected:

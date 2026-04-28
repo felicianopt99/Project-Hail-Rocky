@@ -102,10 +102,12 @@ async def init_agent():
     await ww_detector.connect()
     
     # Enable turn detection for voice mode
-    agent.setup_event_handling()
-    
-    # Manually start plugins since we're not using agent.join()
+    # Headless mode: initialize event loop for audio without agent.join()
     await stt.start()
+    agent._call_ended_event = asyncio.Event()
+    asyncio.create_task(agent._consume_incoming_audio())
+    logger.info("Headless audio consumer task started.")
+
     
     # Event Subscriptions
     @agent.events.subscribe

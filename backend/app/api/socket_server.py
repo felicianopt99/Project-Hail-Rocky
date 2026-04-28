@@ -118,4 +118,16 @@ async def handle_execute_routine(sid, routine_id):
         "message": f"Routine {routine_id} activated. Amaze!"
     }, to=sid)
 
+@sio.on("ping")
+async def handle_ping(sid, data):
+    ts = data.get("timestamp") if isinstance(data, dict) else None
+    await sio.emit("pong_latency", {"timestamp": ts}, to=sid)
+
+@sio.on("audio_blob")
+async def handle_audio_blob(sid, data):
+    # WebM/Opus fallback — skip for now, log warning
+    logger.warning(f"Received audio_blob from {sid} (MediaRecorder fallback not supported)")
+    await sio.emit("status_update", "idle", to=sid)
+
 state_manager.add_callback(broadcast_state_update)
+
