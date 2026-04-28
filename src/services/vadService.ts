@@ -146,27 +146,39 @@ export class VadService {
         const nextState = results.stateN ?? results.out_state ?? results.output_state ?? results.state;
         if (nextState) state.tensorState = nextState;
 
+        // Extract probability - log ALL possible outputs
+        log.info("[VAD-RAW-OUTPUTS] All model outputs", {
+          outputKeys: Object.keys(results),
+          output: results.output?.data ? Array.from(results.output.data).slice(0, 5) : results.output,
+          stateN: results.stateN ? "tensor" : "null"
+        });
+
         // Extract probability - handle different output formats
         let outputTensor = results.output;
         if (!outputTensor && results.output_prob) outputTensor = results.output_prob;
 
+        let rawValue = 0;
         if (outputTensor && outputTensor.data) {
-          latestProb = outputTensor.data[0] as number;
+          rawValue = outputTensor.data[0] as number;
         } else if (outputTensor && Array.isArray(outputTensor)) {
-          latestProb = outputTensor[0] as number;
+          rawValue = outputTensor[0] as number;
         } else {
-          latestProb = outputTensor as unknown as number;
+          rawValue = outputTensor as unknown as number;
+        }
+
+        // Check if value is in log space (very negative) - need to exp() it
+        latestProb = rawValue;
+        if (rawValue < -1) {
+          // Looks like log-space, convert with exp()
+          latestProb = Math.exp(rawValue);
+          log.info("[VAD-CONVERT] Converted from log-space", {
+            rawValue: rawValue.toFixed(4),
+            converted: latestProb.toFixed(6)
+          });
         }
 
         // Clamp to [0, 1]
         latestProb = Math.max(0, Math.min(1, latestProb));
-
-        log.info("[VAD-INFERENCE-DEBUG] Raw output", {
-          outputKeys: Object.keys(results),
-          outputType: typeof outputTensor,
-          outputValue: latestProb.toFixed(4),
-          outputTensorData: outputTensor?.data ? Array.from(outputTensor.data).slice(0, 3) : "no data"
-        });
 
         // DEBUG: Log ALL inference results every time
         log.info("[VAD-INFERENCE] Speech probability", {
