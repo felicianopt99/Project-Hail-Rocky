@@ -123,7 +123,18 @@ export class VadService {
         state.accumulationBuffer = state.accumulationBuffer.slice(256);
 
         const input = new ort.Tensor("float32", inputData, [1, 512]);
-        
+
+        // Log input samples for debugging
+        const inputSamples = Array.from(inputData).slice(0, 10);
+        const maxSample = Math.max(...Array.from(inputData).map(Math.abs));
+
+        log.info("[VAD-INPUT] Audio chunk", {
+          samples: inputSamples.map(s => s.toFixed(4)),
+          maxAmplitude: maxSample.toFixed(4),
+          inputShape: input.dims,
+          stateShape: state.tensorState.dims
+        });
+
         // 4. Run inference using session's tensorState
         const results = await this.session.run({
           input: input,
