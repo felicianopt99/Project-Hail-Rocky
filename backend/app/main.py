@@ -153,18 +153,25 @@ async def shutdown_event():
         await ww_detector.close()
 
 # Socket.io event for audio streaming
+audio_chunk_count = 0
+
 @sio.on("audio_chunk")
 async def handle_audio_chunk_sio(sid, data):
+    global audio_chunk_count
+    audio_chunk_count += 1
+    if audio_chunk_count % 20 == 0:  # Log every 20 chunks to avoid spam
+        logger.debug(f"[AUDIO] Received chunk #{audio_chunk_count} ({len(data)} bytes)")
+
     if agent:
-        # Send to Vision Agents for STT/Turn detection via the edge events
-        # We must provide a participant so the agent can queue the audio correctly
         user_participant = Participant(original=None, user_id="user", id="user-1")
+
+        # Send to Vision Agents audio pipeline via edge events
         agent.edge.events.send(AudioReceivedEvent(pcm_data=PcmData.from_bytes(data), participant=user_participant))
-        
-        # Send to Wyoming for Wake Word detection
-        if ww_detector:
+
+        # Send to Wyoming for Wake Word detection (separate path)
+        if ww_detector and ww_detector._connected:
             await ww_detector.send_audio(data)
-            
+
         return {"success": True}
     return {"success": False, "error": "Agent not initialized"}
 
