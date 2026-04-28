@@ -186,5 +186,5 @@ export function useRockySockets(addToast: (msg: string, type: any) => void) {
       socket.off("protocol_created",    onProtocolCreated);
       socket.off("protocol_deleted",    onProtocolDeleted);
     };
-  }, [addToast, handleStopSpeaking]);
+  }, [addToast]);
 }
