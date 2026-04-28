@@ -25,15 +25,26 @@ export class VadService {
   private async init() {
     try {
       const modelPath = path.join(process.cwd(), "models", "silero_vad.onnx");
+      log.info("[VAD-INIT] Attempting to load Silero VAD model", {
+        cwd: process.cwd(),
+        modelPath: modelPath
+      });
+
       this.session = await ort.InferenceSession.create(modelPath);
       this.srTensor = new ort.Tensor("int64", BigInt64Array.from([BigInt(this.sampleRate)]), [1]);
-      
-      log.info("Silero VAD initialized", { 
-        inputs: this.session.inputNames, 
-        outputs: this.session.outputNames 
+
+      log.info("[VAD-INIT] ✅ Silero VAD initialized successfully", {
+        inputs: this.session.inputNames,
+        outputs: this.session.outputNames
       });
     } catch (err: any) {
-      log.error("Failed to initialize Silero VAD", { error: err.message });
+      log.error("[VAD-INIT] ❌ CRITICAL: Failed to initialize Silero VAD", {
+        error: err.message,
+        code: err.code,
+        stack: err.stack,
+        cwd: process.cwd()
+      });
+      log.error("[VAD-INIT] This means speech detection will ALWAYS return 0!");
     }
   }
 
@@ -56,7 +67,13 @@ export class VadService {
    * Processes a chunk of audio with session-specific state.
    */
   async isSpeech(state: VadState, chunk: Buffer): Promise<number> {
-    if (!this.session || !this.srTensor) return 0;
+    if (!this.session || !this.srTensor) {
+      log.error("[VAD-INFERENCE] ❌ CRITICAL: VAD session not initialized! Returning 0", {
+        sessionExists: !!this.session,
+        srTensorExists: !!this.srTensor
+      });
+      return 0;
+    }
 
     const startTime = performance.now();
     const HISTORY_SIZE = 8; // Smoother transitions, better for pausing
