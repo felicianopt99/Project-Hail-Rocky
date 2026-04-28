@@ -11,7 +11,7 @@ from vision_agents.core.edge.types import Participant
 from vision_agents.plugins import nvidia
 from vision_agents.core.stt.events import STTTranscriptEvent
 from vision_agents.core.llm.events import LLMResponseChunkEvent
-from vision_agents.core.tts.events import TTSAudioEvent
+from vision_agents.core.tts.events import TTSAudioEvent, TTSSynthesisStartEvent
 from vision_agents.core.turn_detection.events import TurnStartedEvent, TurnEndedEvent
 from vision_agents.core.edge.events import AudioReceivedEvent
 from getstream.video.rtc import PcmData
@@ -124,16 +124,22 @@ async def init_agent():
     async def handle_audio_chunk(event: TTSAudioEvent):
         if event.data:
             await sio.emit("tts_chunk", event.data.to_bytes())
+        if event.is_final_chunk:
+            await sio.emit("status_update", "idle")
+            await sio.emit("tts_end")
 
     @agent.events.subscribe
     async def handle_turn_started(event: TurnStartedEvent):
-        await sio.emit("status_update", "synthesizing_tts")
-        await sio.emit("tts_start", {"sampleRate": 24000})
+        await sio.emit("status_update", "listening")
 
     @agent.events.subscribe
     async def handle_turn_ended(event: TurnEndedEvent):
-        await sio.emit("status_update", "idle")
-        await sio.emit("tts_end")
+        await sio.emit("status_update", "thinking_llm")
+
+    @agent.events.subscribe
+    async def handle_tts_synthesis_start(event: TTSSynthesisStartEvent):
+        await sio.emit("status_update", "synthesizing_tts")
+        await sio.emit("tts_start", {"sampleRate": 24000})
 
 @app.on_event("startup")
 async def startup_event():
@@ -201,6 +207,7 @@ async def handle_chat_request(sid, data):
         # In 0.5.5, we use agent.chat which handles event emissions automatically
         # if subscriptions are set up. If simple_response is used, ensure it triggers events.
         try:
+            await sio.emit("status_update", "thinking_llm")
             await agent.simple_response(content)
             return {"success": True}
         except Exception as e:

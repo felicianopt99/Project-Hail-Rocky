@@ -227,7 +227,13 @@ class GeminiLLM(LLM):
                             output_index=0,
                             sequence_number=0
                         ))
-            
+
+            self.events.send(LLMResponseCompletedEvent(
+                plugin_name="gemini",
+                text=full_text,
+                original={},
+                item_id="gemini-res"
+            ))
             return LLMResponseEvent(original={}, text=full_text)
         except Exception as e:
             logger.error(f"Gemini error: {e}")
