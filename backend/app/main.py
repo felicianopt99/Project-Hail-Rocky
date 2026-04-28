@@ -137,9 +137,18 @@ async def init_agent():
 
 @app.on_event("startup")
 async def startup_event():
+    logger.info("[STARTUP] Starting initialization...")
     await init_db()
+    logger.info("[STARTUP] DB initialized")
     await state_manager.start()
+    logger.info("[STARTUP] State manager started")
     await init_agent()
+    logger.info("[STARTUP] Agent initialized, checking state...")
+    if agent:
+        logger.info(f"[STARTUP] ✓ Agent ready: {agent}")
+        logger.info(f"[STARTUP] ✓ Queues: {list(agent._participant_queues.keys())}")
+    else:
+        logger.error("[STARTUP] ✗ Agent is NONE!")
     logger.info("Rocky Unified Backend is READY. Amaze! Fist-bump!")
 
 @app.on_event("shutdown")
@@ -159,21 +168,29 @@ audio_chunk_count = 0
 async def handle_audio_chunk_sio(sid, data):
     global audio_chunk_count
     audio_chunk_count += 1
-    if audio_chunk_count % 20 == 0:  # Log every 20 chunks to avoid spam
-        logger.debug(f"[AUDIO] Received chunk #{audio_chunk_count} ({len(data)} bytes)")
 
-    if agent:
-        user_participant = Participant(original=None, user_id="user", id="user-1")
+    if audio_chunk_count == 1:
+        logger.info(f"[AUDIO] FIRST CHUNK RECEIVED - {len(data)} bytes")
+    elif audio_chunk_count % 20 == 0:
+        logger.info(f"[AUDIO] Chunk #{audio_chunk_count} ({len(data)} bytes), queues: {list(agent._participant_queues.keys()) if agent else 'N/A'}")
 
-        # Send to Vision Agents audio pipeline via edge events
+    if not agent:
+        logger.error(f"[AUDIO] Agent is NONE! Cannot process audio")
+        return {"success": False, "error": "Agent not initialized"}
+
+    user_participant = Participant(original=None, user_id="user", id="user-1")
+
+    # Send to Vision Agents audio pipeline via edge events
+    try:
         agent.edge.events.send(AudioReceivedEvent(pcm_data=PcmData.from_bytes(data), participant=user_participant))
+    except Exception as e:
+        logger.error(f"[AUDIO] Error sending to agent.edge: {e}")
 
-        # Send to Wyoming for Wake Word detection (separate path)
-        if ww_detector and ww_detector._connected:
-            await ww_detector.send_audio(data)
+    # Send to Wyoming for Wake Word detection (separate path)
+    if ww_detector and ww_detector._connected:
+        await ww_detector.send_audio(data)
 
-        return {"success": True}
-    return {"success": False, "error": "Agent not initialized"}
+    return {"success": True}
 
 @sio.on("chat_request")
 async def handle_chat_request(sid, data):

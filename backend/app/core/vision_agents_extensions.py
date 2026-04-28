@@ -56,7 +56,7 @@ class LocalWhisperSTT(STT):
     async def process_audio(self, pcm_data: PcmData, participant: Participant):
         if not self._vad_session or self.closed:
             if not self._vad_session:
-                logger.warning("VAD session not initialized")
+                logger.error("[VAD] VAD session not initialized!")
             return
 
         # 16kHz PCM mono is 32 bytes per ms (16 bits = 2 bytes)
@@ -65,8 +65,11 @@ class LocalWhisperSTT(STT):
         self._audio_buffer.extend(chunk_bytes)
         chunk_ms = len(chunk_bytes) // 32
 
+        if len(self._audio_buffer) == len(chunk_bytes):  # First chunk
+            logger.info(f"[VAD] FIRST AUDIO RECEIVED - {len(chunk_bytes)} bytes")
+
         if len(self._audio_buffer) % (32 * 500) < 32 * 100:  # Log roughly every 500ms
-            logger.debug(f"[VAD] Buffer size: {len(self._audio_buffer)} bytes, chunks accumulated")
+            logger.info(f"[VAD] Buffer size: {len(self._audio_buffer)} bytes")
         
         # Check VAD
         score = self._vad_session.predict_speech(pcm_data)
