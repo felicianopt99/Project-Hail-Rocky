@@ -146,39 +146,29 @@ export class VadService {
         const nextState = results.stateN ?? results.out_state ?? results.output_state ?? results.state;
         if (nextState) state.tensorState = nextState;
 
-        // Extract probability - log ALL possible outputs
-        log.info("[VAD-RAW-OUTPUTS] All model outputs", {
-          outputKeys: Object.keys(results),
-          output: results.output?.data ? Array.from(results.output.data).slice(0, 5) : results.output,
-          stateN: results.stateN ? "tensor" : "null"
-        });
-
-        // Extract probability - handle different output formats
+        // Extract raw logits from model output
         let outputTensor = results.output;
-        if (!outputTensor && results.output_prob) outputTensor = results.output_prob;
+        let rawLogit = 0;
 
-        let rawValue = 0;
         if (outputTensor && outputTensor.data) {
-          rawValue = outputTensor.data[0] as number;
+          rawLogit = outputTensor.data[0] as number;
         } else if (outputTensor && Array.isArray(outputTensor)) {
-          rawValue = outputTensor[0] as number;
+          rawLogit = outputTensor[0] as number;
         } else {
-          rawValue = outputTensor as unknown as number;
+          rawLogit = outputTensor as unknown as number;
         }
 
-        // Check if value is in log space (very negative) - need to exp() it
-        latestProb = rawValue;
-        if (rawValue < -1) {
-          // Looks like log-space, convert with exp()
-          latestProb = Math.exp(rawValue);
-          log.info("[VAD-CONVERT] Converted from log-space", {
-            rawValue: rawValue.toFixed(4),
-            converted: latestProb.toFixed(6)
+        // Apply sigmoid to convert logits to probability [0, 1]
+        // sigmoid(x) = 1 / (1 + e^(-x))
+        latestProb = 1.0 / (1.0 + Math.exp(-rawLogit));
+
+        // Log the conversion for debugging
+        if (Math.random() < 0.1) {
+          log.info("[VAD-SIGMOID] Logits converted to probability", {
+            rawLogit: rawLogit.toFixed(6),
+            probability: latestProb.toFixed(4)
           });
         }
-
-        // Clamp to [0, 1]
-        latestProb = Math.max(0, Math.min(1, latestProb));
 
         // DEBUG: Log ALL inference results every time
         log.info("[VAD-INFERENCE] Speech probability", {
