@@ -13,7 +13,7 @@ export class PiperService {
   private voice: string;
 
   constructor() {
-    this.host = process.env.PIPER_HOST || "127.0.0.1";
+    this.host = process.env.PIPER_HOST || "rocky-piper";
     this.port = parseInt(process.env.PIPER_PORT || "10200");
     this.voice = process.env.PIPER_VOICE || "en_US-lessac-medium";
   }

@@ -12,7 +12,7 @@ export class KokoroService {
   private defaultVoice: string;
 
   constructor() {
-    this.baseUrl = process.env.KOKORO_URL || "http://127.0.0.1:8880";
+    this.baseUrl = process.env.KOKORO_URL || "http://rocky-kokoro:8880";
     this.defaultVoice = process.env.KOKORO_VOICE || "af_heart";
   }
 
