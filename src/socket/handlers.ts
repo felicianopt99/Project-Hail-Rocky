@@ -32,7 +32,7 @@ interface AudioSession {
 
 const audioSessions = new Map<string, AudioSession>();
 const MAX_AUDIO_BUFFER_SIZE = 5 * 1024 * 1024; // 5MB max
-const AUDIO_CHUNK_TIMEOUT = 5000; // 5s timeout
+const AUDIO_CHUNK_TIMEOUT = 120_000; // 2 min — normal pause before speaking is fine
 const MAX_CONSECUTIVE_SILENCE = 10;
 
 export function setupSocketHandlers(io: Server) {
@@ -176,8 +176,13 @@ export function setupSocketHandlers(io: Server) {
 
     log.info(`[CONNECT] User connected`, { socketId: socket.id, deviceId });
 
+    // Store deviceId on socket for later retrieval (lazy session re-creation)
+    socket.data.deviceId = deviceId;
+
     // Create or retrieve session for this device
     const session = sessionManager.createSession(deviceId, socket.id);
+
+    log.info(`[SESSION-CREATED] Session ready`, { socketId: socket.id, deviceId });
 
     // Initialize audio session
     audioSessions.set(socket.id, {
@@ -208,11 +213,25 @@ export function setupSocketHandlers(io: Server) {
 
     // ========== AUDIO CHUNK HANDLER (ROBUST) ==========
     socket.on("audio_chunk", (data: any, callback?: (ack: any) => void) => {
-      const audioSession = audioSessions.get(socket.id);
+      let audioSession = audioSessions.get(socket.id);
       if (!audioSession) {
-        log.warn(`Audio chunk received but session not found`, { socketId: socket.id });
-        callback?.({ success: false, error: "Session not found" });
-        return;
+        // Entry was evicted by the cleanup interval (user paused > AUDIO_CHUNK_TIMEOUT).
+        // SessionManager still holds the Session — just re-create the local map entry.
+        const recoveredDeviceId: string = socket.data.deviceId ?? deviceId;
+        log.warn(`[SESSION-LAZY-RECREATE] Audio session evicted, re-creating`, {
+          socketId: socket.id,
+          deviceId: recoveredDeviceId,
+        });
+        sessionManager.createSession(recoveredDeviceId, socket.id);
+        audioSession = {
+          socketId: socket.id,
+          audioBuffer: Buffer.alloc(0),
+          audioQueueSize: 0,
+          lastChunkTime: Date.now(),
+          chunkCount: 0,
+          silenceCounter: 0,
+        };
+        audioSessions.set(socket.id, audioSession);
       }
 
       try {
@@ -261,7 +280,8 @@ export function setupSocketHandlers(io: Server) {
 
         // Log every 50 chunks
         if (audioSession.chunkCount % 50 === 0) {
-          log.info(`Audio flowing`, {
+          log.info(`[AUDIO-FLOWING] Audio flowing`, {
+            deviceId: socket.data.deviceId ?? deviceId,
             chunkCount: audioSession.chunkCount,
             bufferSize: audioSession.audioQueueSize,
           });
@@ -415,7 +435,9 @@ export function setupSocketHandlers(io: Server) {
 
       const audioSession = audioSessions.get(socket.id);
       if (audioSession) {
-        log.info(`Cleaning up audio session`, {
+        log.info(`[SESSION-CLEANED] Audio session cleaned on disconnect`, {
+          socketId: socket.id,
+          deviceId,
           chunkCount: audioSession.chunkCount,
           bufferSize: audioSession.audioQueueSize,
         });
@@ -467,7 +489,7 @@ export function setupSocketHandlers(io: Server) {
 
     audioSessions.forEach((session, socketId) => {
       if (now - session.lastChunkTime > AUDIO_CHUNK_TIMEOUT) {
-        log.warn(`Cleaning up stale audio session`, {
+        log.warn(`[SESSION-EVICTED] Stale audio session evicted`, {
           socketId,
           inactiveFor: now - session.lastChunkTime,
         });

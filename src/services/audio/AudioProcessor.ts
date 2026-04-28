@@ -137,14 +137,18 @@ export class AudioProcessor {
     const stopTh = session.speechStopThreshold ?? adaptiveStopTh;
     
     const currentlySpeaking = (session.speechFramesInCommand || 0) > 0;
-    
+
     // Noise Gate: Force silence if energy is extremely low (prevents VAD hallucinations)
     const isEnergyLow = rms < 0.005;
     let isSpeech = !isEnergyLow && speechProb > (currentlySpeaking ? stopTh : startTh);
 
-    if (session.isCommandActive || (session as any).chunkCount % 20 === 0) {
-      log.info(`VAD Trace: rms=${rms.toFixed(4)} prob=${speechProb.toFixed(3)} isSpeech=${isSpeech} startTh=${startTh.toFixed(2)} stopTh=${stopTh.toFixed(2)}`);
-    }
+    // AGGRESSIVE logging for all chunks to debug VAD
+    log.info(`[VAD-DECISION] rms=${rms.toFixed(4)} prob=${speechProb.toFixed(4)} isSpeech=${isSpeech} isEnergyLow=${isEnergyLow} activeCmd=${session.isCommandActive}`, {
+      activeThreshold: currentlySpeaking ? stopTh.toFixed(2) : startTh.toFixed(2),
+      noiseFloor: session.environmentalState.noiseFloor.toFixed(4),
+      isNoisy: session.environmentalState.isNoisy,
+      chunkCount: (session as any).chunkCount
+    });
 
     // 4. Manage Pre-Roll (Always running to capture context before wake word)
     session.preRollBuffer.push(chunk);

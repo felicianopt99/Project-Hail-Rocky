@@ -17,9 +17,14 @@ export class VadService {
   private session: ort.InferenceSession | null = null;
   private sampleRate: number = 16000;
   private srTensor: ort.Tensor | null = null;
+  private initPromise: Promise<void>;
 
   constructor() {
-    this.init();
+    this.initPromise = this.init();
+  }
+
+  async ensureInitialized() {
+    await this.initPromise;
   }
 
   private async init() {
@@ -35,7 +40,8 @@ export class VadService {
 
       log.info("[VAD-INIT] ✅ Silero VAD initialized successfully", {
         inputs: this.session.inputNames,
-        outputs: this.session.outputNames
+        outputs: this.session.outputNames,
+        sampleRate: this.sampleRate
       });
     } catch (err: any) {
       log.error("[VAD-INIT] ❌ CRITICAL: Failed to initialize Silero VAD", {
@@ -45,6 +51,8 @@ export class VadService {
         cwd: process.cwd()
       });
       log.error("[VAD-INIT] This means speech detection will ALWAYS return 0!");
+      // Re-throw to ensure caller knows initialization failed
+      throw err;
     }
   }
 
@@ -67,6 +75,9 @@ export class VadService {
    * Processes a chunk of audio with session-specific state.
    */
   async isSpeech(state: VadState, chunk: Buffer): Promise<number> {
+    // Ensure initialization is complete before processing
+    await this.ensureInitialized();
+
     if (!this.session || !this.srTensor) {
       log.error("[VAD-INFERENCE] ❌ CRITICAL: VAD session not initialized! Returning 0", {
         sessionExists: !!this.session,
@@ -126,15 +137,14 @@ export class VadService {
 
         latestProb = results.output.data[0] as number;
 
-        // DEBUG: Log all output keys and values
-        if (Math.random() < 0.05) {
-          log.info("[VAD-DEBUG] Model outputs", {
-            outputKeys: Object.keys(results),
-            output: results.output?.data ? Array.from(results.output.data).slice(0, 5) : "no output tensor",
-            latestProb: latestProb.toFixed(4),
-            sr: this.srTensor
-          });
-        }
+        // DEBUG: Log ALL inference results every time
+        log.info("[VAD-INFERENCE] Speech probability", {
+          prob: latestProb.toFixed(4),
+          accumBufLen: state.accumulationBuffer.length,
+          historySize: state.probHistory.length,
+          outputKeys: Object.keys(results),
+          sr: this.srTensor
+        });
         
         // 5. Smoothing (Reduced history for faster reaction to speech end)
         state.probHistory.push(latestProb);

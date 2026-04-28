@@ -44,6 +44,8 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
   const socketSessionRef = useRef<string>("");
   const socketReconnectAttempts = useRef(0);
   const maxReconnectAttempts = 5;
+  const audioChunkQueueRef = useRef<any[]>([]);
+  const isSocketReadyRef = useRef(false);
 
   // ========== CORE INITIALIZATION ==========
   useEffect(() => {
@@ -207,15 +209,70 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
           const workletNode = new AudioWorkletNode(audioCtx, "pcm-processor");
 
           workletNode.port.onmessage = (event) => {
-            const { pcmData } = event.data;
-            if (pcmData && isCapturingRef.current) {
-              lastAudioChunkTimeRef.current = Date.now();
-              socket.emit("audio_chunk", pcmData, (ack: any) => {
-                if (!ack?.success) {
-                  log("warn", "Server rejected audio chunk", ack);
-                }
-              });
+            const { pcmData, chunkNumber } = event.data;
+
+            // Diagnostics: log message receipt, buffer size, and socket state
+            log("info", `Received PCM chunk #${chunkNumber}`, {
+              bufferSize: pcmData?.byteLength || 0,
+              socketConnected: socket.connected,
+              isSocketReady: isSocketReadyRef.current,
+              isCapturing: isCapturingRef.current,
+              queueLength: audioChunkQueueRef.current.length,
+            });
+
+            if (!pcmData || !isCapturingRef.current) {
+              log("warn", `Skipping chunk #${chunkNumber}: pcmData missing or not capturing`);
+              return;
             }
+
+            lastAudioChunkTimeRef.current = Date.now();
+
+            // CRITICAL FIX: Auto-recover if socket.connected but flag not set yet
+            // This handles the race condition where socket.connected=true but connect event hasn't fired
+            if (socket.connected && !isSocketReadyRef.current) {
+              log("warn", `AUTO-RECOVERY: Socket connected but flag not set, setting isSocketReady=true`, {
+                socketId: socket.id,
+              });
+              isSocketReadyRef.current = true;
+
+              // Flush any pending queue immediately
+              if (audioChunkQueueRef.current.length > 0) {
+                log("info", `Flushing ${audioChunkQueueRef.current.length} queued chunks after auto-recovery`);
+                const queuedChunks = audioChunkQueueRef.current.splice(0);
+                queuedChunks.forEach(({ pcmData: qData, chunkNumber: qNum }) => {
+                  socket.emit("audio_chunk", qData, (ack: any) => {
+                    if (!ack?.success) {
+                      log("warn", `Queued chunk #${qNum} rejected`, ack);
+                    }
+                  });
+                });
+              }
+            }
+
+            // If socket is still not ready, queue the chunk
+            if (!socket.connected || !isSocketReadyRef.current) {
+              log("warn", `Socket not ready for chunk #${chunkNumber}, queuing...`, {
+                socketConnected: socket.connected,
+                isSocketReady: isSocketReadyRef.current,
+                queueSize: audioChunkQueueRef.current.length + 1,
+              });
+              audioChunkQueueRef.current.push({ pcmData, chunkNumber });
+
+              // Safety limit: don't queue more than 100 chunks (prevents memory leak)
+              if (audioChunkQueueRef.current.length > 100) {
+                log("error", "Audio queue exceeded 100 chunks, dropping oldest", {
+                  dropped: audioChunkQueueRef.current.shift(),
+                });
+              }
+              return;
+            }
+
+            // Socket is ready, emit the chunk
+            socket.emit("audio_chunk", pcmData, (ack: any) => {
+              if (!ack?.success) {
+                log("warn", `Server rejected chunk #${chunkNumber}`, ack);
+              }
+            });
           };
 
           workletNode.port.onerror = (err) => {
@@ -301,7 +358,9 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
 
   // ========== STOP AUDIO CAPTURE ==========
   const stopAudioCapture = useCallback(() => {
-    log("info", "Stopping audio capture...");
+    log("info", "Stopping audio capture...", {
+      queuedChunks: audioChunkQueueRef.current.length,
+    });
     isCapturingRef.current = false;
 
     try {
@@ -329,6 +388,14 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
         silenceTimeoutRef.current = null;
       }
 
+      // Clear any remaining queued chunks
+      if (audioChunkQueueRef.current.length > 0) {
+        log("info", "Clearing audio queue", {
+          discarded: audioChunkQueueRef.current.length,
+        });
+        audioChunkQueueRef.current = [];
+      }
+
       setAudioState("idle");
     } catch (err: any) {
       log("error", "Error stopping audio capture", err.message);
@@ -349,20 +416,55 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
 
   // ========== SOCKET LISTENERS ==========
   useEffect(() => {
+    const flushAudioQueue = () => {
+      if (audioChunkQueueRef.current.length === 0) {
+        log("info", "Audio queue is empty, nothing to flush");
+        return;
+      }
+
+      log("info", "Flushing queued audio chunks", {
+        queueSize: audioChunkQueueRef.current.length,
+      });
+
+      let flushedCount = 0;
+      while (audioChunkQueueRef.current.length > 0 && isCapturingRef.current) {
+        const { pcmData, chunkNumber } = audioChunkQueueRef.current.shift()!;
+
+        socket.emit("audio_chunk", pcmData, (ack: any) => {
+          if (!ack?.success) {
+            log("warn", `Queued chunk #${chunkNumber} rejected by server`, ack);
+          }
+        });
+
+        flushedCount++;
+      }
+
+      log("info", "Audio queue flush complete", {
+        flushed: flushedCount,
+        remaining: audioChunkQueueRef.current.length,
+      });
+    };
+
     const onConnect = () => {
       log("info", "Socket connected successfully", { socketId: socket.id });
       socketReconnectAttempts.current = 0;
+      isSocketReadyRef.current = true;
       addToast("Connected to server", "info");
+
+      // Flush any queued chunks
+      setTimeout(() => flushAudioQueue(), 0);
     };
 
     const onDisconnect = (reason: string) => {
-      log("warn", "Socket disconnected", { reason });
+      log("warn", "Socket disconnected", { reason, queuedChunks: audioChunkQueueRef.current.length });
+      isSocketReadyRef.current = false;
       addToast("Disconnected from server", "warning");
       stopAudioCapture();
     };
 
     const onConnectError = (error: any) => {
       log("error", "Socket connection error", error);
+      isSocketReadyRef.current = false;
       socketReconnectAttempts.current++;
 
       if (socketReconnectAttempts.current > maxReconnectAttempts) {
@@ -389,6 +491,13 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
     socket.on("disconnect", onDisconnect);
     socket.on("connect_error", onConnectError);
     socket.on("status_update", onStatusUpdate);
+
+    // Initialize socket ready state on mount
+    // The "connect" event listener below will set this properly
+    // If already connected when hook mounts, the listener will fire immediately
+    if (socket.connected) {
+      log("info", "Socket already connected on mount, waiting for connect event listener setup");
+    }
 
     return () => {
       socket.off("connect", onConnect);

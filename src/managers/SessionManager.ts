@@ -114,6 +114,10 @@ class SessionManager {
     return this.sessions.get(deviceId);
   }
 
+  getDeviceBySocket(socketId: string): string | undefined {
+    return this.socketToDevice.get(socketId);
+  }
+
   removeSocket(socketId: string) {
     const deviceId = this.socketToDevice.get(socketId);
     if (deviceId) {

@@ -13,6 +13,7 @@ import { sessionManager } from "./src/managers/SessionManager";
 import { kokoroService } from "./src/services/kokoroService";
 import { healthMonitor } from "./src/services/serviceHealthMonitor";
 import "./src/services/audio/AudioProcessor"; // side-effect: registers audio pipeline listeners
+import { vadService } from "./src/services/vadService";
 import { logger } from "./src/lib/logger";
 import { checkHAHealth } from "./src/services/homeAssistantService";
 
@@ -39,6 +40,10 @@ async function startServer() {
 
   // 1. Initialize State Manager
   await systemStateManager.initialize();
+
+  // 1b. Ensure VAD model is loaded before accepting audio
+  await vadService.ensureInitialized();
+  log.info("✅ VAD Service initialized and ready");
 
   // 2. Initialize Socket.io
   initSocketServer(httpServer);
