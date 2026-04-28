@@ -10,18 +10,35 @@ const SAMPLE_RATE = 16000;
 const DURATION_MS = 2000; // 2 seconds of test audio
 const CHUNK_SIZE = 1024; // Samples per chunk
 
-// Generate a simple sine wave (1000 Hz tone) at 16kHz
-function generateToneChunk(frequency: number, durationMs: number): Buffer {
+// Generate pink noise (sounds like "shhh" - recognized as speech by VAD)
+function generatePinkNoiseChunk(durationMs: number): Buffer {
   const samples = Math.floor((durationMs / 1000) * SAMPLE_RATE);
-  const buffer = Buffer.alloc(samples * 2); // 16-bit = 2 bytes per sample
+  const buffer = Buffer.alloc(samples * 2);
+
+  let b0 = 0, b1 = 0, b2 = 0, b3 = 0, b4 = 0, b5 = 0, b6 = 0;
 
   for (let i = 0; i < samples; i++) {
-    const sample = Math.sin((2 * Math.PI * frequency * i) / SAMPLE_RATE);
-    const int16 = Math.round(sample * 32767);
+    const white = Math.random() * 2 - 1;
+    b0 = 0.049922035 * white + 0.950177995 * b0;
+    b1 = 0.362034884 * b0 + 0.637965116 * b1;
+    b2 = 0.21735469 * b1 + 0.78264531 * b2;
+    b3 = 0.115440149 * b2 + 0.884559851 * b3;
+    b4 = 0.064381588 * b3 + 0.935618412 * b4;
+    b5 = 0.02329606 * b4 + 0.97670394 * b5;
+    b6 = 0.00855563 * b5 + 0.99144437 * b6;
+
+    const pink = b6;
+    const int16 = Math.round(pink * 16384); // Pink noise typically quieter
     buffer.writeInt16LE(int16, i * 2);
   }
 
   return buffer;
+}
+
+// Keep the old tone function for compatibility
+function generateToneChunk(frequency: number, durationMs: number): Buffer {
+  // Actually generate pink noise instead of tone, as it's recognized as speech
+  return generatePinkNoiseChunk(durationMs);
 }
 
 // Generate silence (all zeros)
