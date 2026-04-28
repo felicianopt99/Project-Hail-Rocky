@@ -83,21 +83,34 @@ export class AudioProcessor {
     session.environmentalState = noiseMonitor.analyzeChunk(chunk);
 
     // Emit UI hint if noisy status or detected types changed
-    if (session.environmentalState.isNoisy !== prevState.isNoisy || 
+    if (session.environmentalState.isNoisy !== prevState.isNoisy ||
         JSON.stringify(session.environmentalState.detectedTypes) !== JSON.stringify(prevState.detectedTypes)) {
-      eventBus.emit(RockyEvents.UI_HINT, { 
-        sessionId: session.id, 
-        type: "environmental_update", 
-        value: session.environmentalState 
+      eventBus.emit(RockyEvents.UI_HINT, {
+        sessionId: session.id,
+        type: "environmental_update",
+        value: session.environmentalState
       });
     }
 
     // 2. Perform VAD
     let speechProb: number;
     try {
+      if (!session.vadState) {
+        log.warn("VAD state not initialized, creating new state", { sessionId });
+        session.vadState = vadService.createState();
+      }
+
       speechProb = await vadService.isSpeech(session.vadState, chunk);
+
+      // DIAGNOSTIC: Log VAD every time during active command
+      if (session.isCommandActive && (session as any).chunkCount % 10 === 0) {
+        log.info(`[DIAGNOSTIC-VAD] speechProb=${speechProb.toFixed(3)} isCommandActive=${session.isCommandActive}`, {
+          sessionId,
+          chunkCount: (session as any).chunkCount
+        });
+      }
     } catch (err: any) {
-      log.error("VAD inference failed, resetting session state", { sessionId, error: err.message });
+      log.error("VAD inference failed, resetting session state", { sessionId, error: err.message, stack: err.stack });
       session.isCommandActive = false;
       session.isCapturing = false;
       return;
@@ -155,12 +168,23 @@ export class AudioProcessor {
       if (isSpeech) {
         session.silenceFrames = 0;
         session.speechFramesInCommand = (session.speechFramesInCommand || 0) + 1;
+        if ((session as any).chunkCount % 20 === 0) {
+          log.info("[SPEECH-DETECTED] VAD detected speech", {
+            sessionId: session.id,
+            speechFramesInCommand: session.speechFramesInCommand,
+            chunkCount: (session as any).chunkCount
+          });
+        }
         this.resetSilenceTimeout(session);
         eventBus.emit(RockyEvents.VAD_SPEECH_START, session.id);
       } else {
         session.silenceFrames = (session.silenceFrames || 0) + 1;
         if (session.silenceFrames % 5 === 0) {
-           log.debug("Silence accumulating", { sessionId: session.id, frames: session.silenceFrames, isSpeech });
+           log.debug("Silence accumulating", {
+             sessionId: session.id,
+             silenceFrames: session.silenceFrames,
+             speechFramesInCommand: session.speechFramesInCommand || 0
+           });
         }
       }
     }
@@ -330,13 +354,17 @@ export class AudioProcessor {
     const speechRatio = totalFrames > 0 ? speechFrames / totalFrames : 0;
 
     if (duration < MIN_COMMAND_DURATION_MS || speechFrames < MIN_SPEECH_FRAMES || speechRatio < MIN_SPEECH_RATIO) {
-      log.info("Command discarded: insufficient speech or duration", {
+      log.error("[CRITICAL-DISCARD] Command discarded before STT: insufficient speech or duration", {
         sessionId: session.id,
         duration: duration + "ms",
+        minDuration: MIN_COMMAND_DURATION_MS + "ms",
         speechFrames,
+        minSpeechFrames: MIN_SPEECH_FRAMES,
         totalFrames,
-        ratio: speechRatio.toFixed(2),
-        reason: speechFrames < MIN_SPEECH_FRAMES ? "zero_speech" : (duration < MIN_COMMAND_DURATION_MS ? "too_fast" : "low_ratio")
+        ratio: speechRatio.toFixed(3),
+        minRatio: MIN_SPEECH_RATIO.toFixed(3),
+        reason: speechFrames < MIN_SPEECH_FRAMES ? "ZERO_SPEECH_DETECTED" : (duration < MIN_COMMAND_DURATION_MS ? "TOO_FAST" : "LOW_RATIO"),
+        audioBufferSize: audioBuffer.length
       });
 
       // Clear state without emitting COMMAND_READY
@@ -346,10 +374,14 @@ export class AudioProcessor {
       return;
     }
 
-    log.info("Command buffer ready", {
+    log.info("[COMMAND-ACCEPTED] Command buffer ready to send to STT", {
       sessionId: session.id,
-      bufferSize: session.commandBuffers.length,
-      speechFrames
+      audioBufferSize: audioBuffer.length,
+      audioBufferDuration: (audioBuffer.length / 32000).toFixed(2) + "s",
+      totalChunks: totalFrames,
+      speechFrames,
+      speechRatio: speechRatio.toFixed(3),
+      duration: duration + "ms"
     });
 
     // Clear state before emit so new chunks route to idle immediately
