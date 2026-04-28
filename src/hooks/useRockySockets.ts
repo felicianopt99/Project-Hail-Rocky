@@ -24,7 +24,7 @@ function playWakeBeep() {
   }
 }
 
-export function useRockySockets(addToast: (msg: string, type: any) => void, handleStopSpeaking: () => void) {
+export function useRockySockets(addToast: (msg: string, type: any) => void) {
   const store = useRockyStore();
 
   useEffect(() => {
@@ -36,7 +36,7 @@ export function useRockySockets(addToast: (msg: string, type: any) => void, hand
         store.setActiveProtocolId(newMode);
       }
     };
-    
+
     const onStatusUpdate = (newStatus: RockyStatus) => {
       if (newStatus === "error" && store.status !== "error") {
         addToast("System error detected", "error");
@@ -86,7 +86,6 @@ export function useRockySockets(addToast: (msg: string, type: any) => void, hand
 
     const onWakeWordDetected = () => {
       playWakeBeep();
-      handleStopSpeaking();
       store.setMode("visualizer");
       store.setStatus("listening");
       addToast("Listening...", "info");
