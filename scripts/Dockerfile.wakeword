@@ -1,0 +1,24 @@
+FROM python:3.11-slim-bookworm
+
+WORKDIR /app
+
+RUN apt-get update && apt-get install -y libportaudio2 && rm -rf /var/lib/apt/lists/*
+
+COPY scripts/requirements_wakeword.txt .
+RUN pip install --no-cache-dir -r requirements_wakeword.txt
+
+# Pre-download all required openwakeword base models (VAD, feature extractor, demo wake words)
+COPY scripts/download_models.py /tmp/download_models.py
+RUN python /tmp/download_models.py
+
+RUN mkdir -p /app/models/wakeword
+
+COPY scripts/wakeword_detector.py /app/wakeword_detector.py
+
+ENV WAKEWORD_PORT=10400
+ENV WAKEWORD_MODEL_DIR=/app/models/wakeword
+ENV PYTHONUNBUFFERED=1
+
+EXPOSE 10400
+
+CMD ["python", "wakeword_detector.py"]

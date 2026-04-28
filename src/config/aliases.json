@@ -1,0 +1,10 @@
+{
+  "lights": {
+    "techno mode": ["light.studio_strip_1", "light.studio_strip_2"],
+    "studio lights": ["light.studio_main", "light.desk_lamp"],
+    "reading light": ["light.desk_lamp"],
+    "cinema mode": ["light.living_room_dimmer", "light.backlight"],
+    "recording mode": ["light.studio_on_air_sign", "light.studio_main"],
+    "fist bump": ["light.all"]
+  }
+}

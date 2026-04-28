@@ -1,0 +1,417 @@
+import { useEffect, useRef, useState, useCallback } from "react";
+import { Socket } from "socket.io-client";
+
+type AudioState = "idle" | "requesting_mic" | "listening" | "processing" | "speaking" | "error";
+
+interface AudioManagerOptions {
+  socket: Socket;
+  addToast: (msg: string, type: "info" | "error" | "warning") => void;
+}
+
+const LOG_TAG = "[AudioManager]";
+
+function log(level: "info" | "warn" | "error", msg: string, data?: any) {
+  const timestamp = new Date().toISOString();
+  const prefix = `${timestamp} ${LOG_TAG} [${level.toUpperCase()}]`;
+  if (level === "error") {
+    console.error(`${prefix} ${msg}`, data || "");
+  } else if (level === "warn") {
+    console.warn(`${prefix} ${msg}`, data || "");
+  } else {
+    console.log(`${prefix} ${msg}`, data || "");
+  }
+}
+
+export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
+  const [audioState, setAudioState] = useState<AudioState>("idle");
+  const [micAvailable, setMicAvailable] = useState(false);
+
+  // Audio contexts
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analyzerRef = useRef<AnalyserNode | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+
+  // State flags
+  const isCapturingRef = useRef(false);
+  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const silenceCounterRef = useRef(0);
+  const lastAudioChunkTimeRef = useRef(Date.now());
+
+  // Socket state
+  const socketSessionRef = useRef<string>("");
+  const socketReconnectAttempts = useRef(0);
+  const maxReconnectAttempts = 5;
+
+  // ========== CORE INITIALIZATION ==========
+  useEffect(() => {
+    log("info", "Initializing AudioManager...");
+
+    const initAudioContext = async () => {
+      try {
+        if (audioCtxRef.current) return; // Already initialized
+
+        const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+        if (!Ctx) {
+          throw new Error("AudioContext not available in this browser");
+        }
+
+        const audioCtx = new Ctx();
+        log("info", "AudioContext created", {
+          state: audioCtx.state,
+          sampleRate: audioCtx.sampleRate,
+        });
+
+        // Create analyzer for visualization
+        const analyzer = audioCtx.createAnalyser();
+        analyzer.fftSize = 256;
+
+        audioCtxRef.current = audioCtx;
+        analyzerRef.current = analyzer;
+        setMicAvailable(true);
+        log("info", "AudioContext initialized successfully");
+      } catch (err: any) {
+        log("error", "Failed to initialize AudioContext", err.message);
+        addToast("Audio system unavailable", "error");
+        setAudioState("error");
+      }
+    };
+
+    // Check for HTTPS/localhost requirement
+    const isSecure =
+      typeof window !== "undefined" &&
+      (window.location.protocol === "https:" ||
+        window.location.hostname === "localhost" ||
+        window.location.hostname === "127.0.0.1");
+
+    if (!isSecure) {
+      log("warn", "MediaDevices requires HTTPS or localhost", {
+        protocol: window.location.protocol,
+        hostname: window.location.hostname,
+      });
+      addToast(
+        "Microphone requires HTTPS or localhost",
+        "warning"
+      );
+      setAudioState("error");
+      return;
+    }
+
+    initAudioContext();
+  }, [addToast]);
+
+  // ========== LOAD AUDIO WORKLET (with fallback) ==========
+  const loadAudioWorklet = useCallback(async (): Promise<boolean> => {
+    log("info", "Attempting to load AudioWorklet...");
+
+    try {
+      if (!audioCtxRef.current) throw new Error("AudioContext not initialized");
+
+      const audioCtx = audioCtxRef.current;
+
+      // Try to load the worklet
+      try {
+        await audioCtx.audioWorklet.addModule("/pcm-processor.js");
+        log("info", "AudioWorklet loaded successfully");
+        return true;
+      } catch (workletErr: any) {
+        log("warn", "AudioWorklet failed to load, will use MediaRecorder fallback", {
+          error: workletErr.message,
+          possibleCauses: [
+            "File not found (check /public/pcm-processor.js)",
+            "CORS issue",
+            "Browser doesn't support AudioWorklet",
+          ],
+        });
+        return false;
+      }
+    } catch (err: any) {
+      log("error", "Failed to load AudioWorklet", err.message);
+      return false;
+    }
+  }, []);
+
+  // ========== REQUEST MICROPHONE ==========
+  const requestMicrophone = useCallback(async (): Promise<MediaStream | null> => {
+    log("info", "Requesting microphone access...");
+    setAudioState("requesting_mic");
+
+    try {
+      const constraints = {
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+        video: false,
+      };
+
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      log("info", "Microphone access granted", {
+        audioTracks: stream.getAudioTracks().length,
+        trackSettings: stream.getAudioTracks()[0]?.getSettings(),
+      });
+
+      streamRef.current = stream;
+      return stream;
+    } catch (err: any) {
+      log("error", "Microphone access denied", {
+        error: err.name,
+        message: err.message,
+      });
+
+      const errorMsg =
+        err.name === "NotAllowedError"
+          ? "Mic permission denied. Please allow in browser settings."
+          : err.name === "NotFoundError"
+          ? "No microphone found on this device"
+          : "Microphone access failed";
+
+      addToast(errorMsg, "error");
+      setAudioState("error");
+      return null;
+    }
+  }, [addToast]);
+
+  // ========== START AUDIO CAPTURE (with fallback) ==========
+  const startAudioCapture = useCallback(async () => {
+    log("info", "Starting audio capture...");
+    setAudioState("listening");
+
+    try {
+      if (!audioCtxRef.current) {
+        throw new Error("AudioContext not initialized");
+      }
+
+      const stream = await requestMicrophone();
+      if (!stream) return;
+
+      const audioCtx = audioCtxRef.current;
+      if (audioCtx.state === "suspended") {
+        await audioCtx.resume();
+        log("info", "AudioContext resumed from suspended state");
+      }
+
+      // Connect stream to analyzer for visualization
+      const source = audioCtx.createMediaStreamSource(stream);
+      source.connect(analyzerRef.current!);
+
+      // Try AudioWorklet first
+      const workletLoaded = await loadAudioWorklet();
+
+      if (workletLoaded) {
+        log("info", "Using AudioWorklet for audio capture");
+        try {
+          const workletNode = new AudioWorkletNode(audioCtx, "pcm-processor");
+
+          workletNode.port.onmessage = (event) => {
+            const { pcmData } = event.data;
+            if (pcmData && isCapturingRef.current) {
+              lastAudioChunkTimeRef.current = Date.now();
+              socket.emit("audio_chunk", pcmData, (ack: any) => {
+                if (!ack?.success) {
+                  log("warn", "Server rejected audio chunk", ack);
+                }
+              });
+            }
+          };
+
+          workletNode.port.onerror = (err) => {
+            log("error", "AudioWorklet port error", err);
+          };
+
+          source.connect(workletNode);
+          workletNodeRef.current = workletNode;
+
+          isCapturingRef.current = true;
+          log("info", "Audio capture started with AudioWorklet");
+        } catch (workletExecErr: any) {
+          log("error", "Failed to instantiate AudioWorklet, falling back to MediaRecorder", {
+            error: workletExecErr.message,
+          });
+          fallbackToMediaRecorder(stream);
+        }
+      } else {
+        log("warn", "AudioWorklet not available, using MediaRecorder fallback");
+        fallbackToMediaRecorder(stream);
+      }
+
+      addToast("Listening...", "info");
+    } catch (err: any) {
+      log("error", "Failed to start audio capture", err.message);
+      setAudioState("error");
+      addToast("Failed to start listening", "error");
+    }
+  }, [requestMicrophone, loadAudioWorklet, socket, addToast]);
+
+  // ========== FALLBACK: MediaRecorder ==========
+  const fallbackToMediaRecorder = (stream: MediaStream) => {
+    log("info", "Initializing MediaRecorder fallback...");
+
+    try {
+      const mimeType = "audio/webm;codecs=opus";
+      if (!MediaRecorder.isTypeSupported(mimeType)) {
+        log("warn", `MIME type ${mimeType} not supported, trying audio/webm`);
+      }
+
+      const recorder = new MediaRecorder(stream, { mimeType });
+      recordedChunksRef.current = [];
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          recordedChunksRef.current.push(event.data);
+          log("info", "MediaRecorder chunk captured", { size: event.data.size });
+        }
+      };
+
+      recorder.onerror = (event: any) => {
+        log("error", "MediaRecorder error", event.error);
+      };
+
+      recorder.onstart = () => {
+        log("info", "MediaRecorder started");
+        isCapturingRef.current = true;
+      };
+
+      recorder.onstop = async () => {
+        log("info", "MediaRecorder stopped, processing audio blob...");
+        if (recordedChunksRef.current.length > 0) {
+          const audioBlob = new Blob(recordedChunksRef.current, {
+            type: "audio/webm",
+          });
+          recordedChunksRef.current = [];
+          // Send blob to server for STT
+          socket.emit("audio_blob", audioBlob, (ack: any) => {
+            log("info", "Server processed audio blob", ack);
+          });
+        }
+      };
+
+      recorder.start(250); // Emit data every 250ms
+      mediaRecorderRef.current = recorder;
+      isCapturingRef.current = true;
+    } catch (err: any) {
+      log("error", "MediaRecorder initialization failed", err.message);
+      setAudioState("error");
+      addToast("Audio recording not available", "error");
+    }
+  };
+
+  // ========== STOP AUDIO CAPTURE ==========
+  const stopAudioCapture = useCallback(() => {
+    log("info", "Stopping audio capture...");
+    isCapturingRef.current = false;
+
+    try {
+      if (workletNodeRef.current) {
+        workletNodeRef.current.disconnect();
+        workletNodeRef.current = null;
+        log("info", "AudioWorklet disconnected");
+      }
+
+      if (mediaRecorderRef.current && mediaRecorderRef.current.state === "recording") {
+        mediaRecorderRef.current.stop();
+        log("info", "MediaRecorder stopped");
+      }
+
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => {
+          track.stop();
+          log("info", "MediaStream track stopped", { kind: track.kind });
+        });
+        streamRef.current = null;
+      }
+
+      if (silenceTimeoutRef.current) {
+        clearTimeout(silenceTimeoutRef.current);
+        silenceTimeoutRef.current = null;
+      }
+
+      setAudioState("idle");
+    } catch (err: any) {
+      log("error", "Error stopping audio capture", err.message);
+    }
+  }, []);
+
+  // ========== MANUAL TRIGGER (mic button clicked) ==========
+  const handleManualTrigger = useCallback(() => {
+    log("info", "Manual trigger activated by user");
+
+    if (audioState === "listening" || audioState === "processing") {
+      log("info", "Already capturing, stopping...");
+      stopAudioCapture();
+    } else if (audioState === "idle" || audioState === "error") {
+      startAudioCapture();
+    }
+  }, [audioState, startAudioCapture, stopAudioCapture]);
+
+  // ========== SOCKET LISTENERS ==========
+  useEffect(() => {
+    const onConnect = () => {
+      log("info", "Socket connected successfully", { socketId: socket.id });
+      socketReconnectAttempts.current = 0;
+      addToast("Connected to server", "info");
+    };
+
+    const onDisconnect = (reason: string) => {
+      log("warn", "Socket disconnected", { reason });
+      addToast("Disconnected from server", "warning");
+      stopAudioCapture();
+    };
+
+    const onConnectError = (error: any) => {
+      log("error", "Socket connection error", error);
+      socketReconnectAttempts.current++;
+
+      if (socketReconnectAttempts.current > maxReconnectAttempts) {
+        log("error", "Max reconnection attempts reached");
+        setAudioState("error");
+        addToast("Server unreachable", "error");
+      }
+    };
+
+    const onStatusUpdate = (status: string) => {
+      log("info", "Status update from server", { status });
+      if (status === "listening") {
+        setAudioState("listening");
+      } else if (status === "processing_stt" || status === "thinking_llm") {
+        setAudioState("processing");
+      } else if (status === "synthesizing_tts") {
+        setAudioState("speaking");
+      } else if (status === "idle") {
+        setAudioState("idle");
+      }
+    };
+
+    socket.on("connect", onConnect);
+    socket.on("disconnect", onDisconnect);
+    socket.on("connect_error", onConnectError);
+    socket.on("status_update", onStatusUpdate);
+
+    return () => {
+      socket.off("connect", onConnect);
+      socket.off("disconnect", onDisconnect);
+      socket.off("connect_error", onConnectError);
+      socket.off("status_update", onStatusUpdate);
+    };
+  }, [socket, stopAudioCapture, addToast]);
+
+  // ========== CLEANUP ==========
+  useEffect(() => {
+    return () => {
+      log("info", "Cleaning up AudioManager");
+      stopAudioCapture();
+    };
+  }, [stopAudioCapture]);
+
+  return {
+    audioState,
+    micAvailable,
+    analyzerRef,
+    handleManualTrigger,
+    startAudioCapture,
+    stopAudioCapture,
+  };
+}
