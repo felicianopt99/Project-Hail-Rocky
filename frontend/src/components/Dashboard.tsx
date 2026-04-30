@@ -80,7 +80,7 @@ export default function Dashboard() {
   const syncTimerRef = useRef<NodeJS.Timeout>();
 
   useEffect(() => {
-    socket.emit("get_routines");
+    socket.emit("get_routines", {});
   }, []);
 
   const toggleLight = useCallback((device: string) => {
@@ -93,7 +93,7 @@ export default function Dashboard() {
 
   const syncDevices = useCallback(() => {
     setIsSyncing(true);
-    socket.emit("sync_ha");
+    socket.emit("sync_ha", {});
     syncTimerRef.current = setTimeout(() => setIsSyncing(false), 2000);
   }, []);
 
@@ -107,7 +107,7 @@ export default function Dashboard() {
     };
   }, []);
 
-  const { categorizedRooms, otherDevices } = useMemo(() => {
+  const { categorizedRooms, otherDevices } = useMemo((): { categorizedRooms: Record<string, string[]>; otherDevices: string[] } => {
     const rooms: Record<string, string[]> = {};
     const other: string[] = [];
 
@@ -264,7 +264,7 @@ export default function Dashboard() {
 
           <div className="space-y-8 overflow-y-auto pr-2 custom-scrollbar flex-1">
             {Object.entries(categorizedRooms).length > 0 ? (
-              Object.entries(categorizedRooms).sort(([a], [b]) => a.localeCompare(b)).map(([roomName, ids]) => (
+              Object.entries(categorizedRooms).sort(([a], [b]) => a.localeCompare(b)).map(([roomName, ids]: [string, string[]]) => (
                 <div key={roomName} className="space-y-4">
                   <div className="flex items-center justify-between">
                     <h3 className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/40">{roomName}</h3>

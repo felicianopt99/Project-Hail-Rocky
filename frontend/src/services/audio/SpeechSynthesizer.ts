@@ -1,15 +1,8 @@
 import { eventBus, RockyEvents } from "../../lib/eventBus";
-import { kokoroService } from "../kokoroService";
-import { piperService } from "../piperService";
-import { healthMonitor } from "../serviceHealthMonitor";
 import { createTag } from "../../lib/logger";
 
 const log = createTag("SpeechSynthesizer");
 
-/**
- * SpeechSynthesizer manages the Text-to-Speech pipeline, including sentence-based 
- * queuing, service failover, and stream emission.
- */
 export class SpeechSynthesizer {
   private activeStreams: Map<string, boolean> = new Map();
   private queues: Map<string, Promise<void>> = new Map();
@@ -20,33 +13,24 @@ export class SpeechSynthesizer {
   }
 
   private setupListeners() {
-    // Listen for sentence events from the LLM/Orchestrator
     eventBus.on(RockyEvents.LLM_SENTENCE, ({ sessionId, text }) => {
       this.speak(sessionId, text).catch(err => {
         log.error("Synthesis failed", { sessionId, error: err.message });
       });
     });
 
-    // Listen for manual or automated interrupts
     eventBus.on(RockyEvents.INTERRUPT, (sessionId) => {
       this.interrupt(sessionId);
     });
   }
 
-  /**
-   * Queues a piece of text for synthesis.
-   */
   async speak(sessionId: string, text: string) {
     if (!text?.trim() || text.length < 2) return;
 
     log.info("Queueing synthesis", { text: text.substring(0, 50) + "...", sessionId });
-
-    // Enable the stream gate for this session
     this.activeStreams.set(sessionId, true);
 
     const synthesisPromise = this.prepareSpeech(sessionId, text);
-
-    // Chain the promise to the session's speech queue to ensure sequential playback
     const queue = this.queues.get(sessionId) || Promise.resolve();
     const nextSpeech = queue.then(async () => {
       try {
@@ -62,13 +46,10 @@ export class SpeechSynthesizer {
     this.queues.set(sessionId, nextSpeech);
   }
 
-  /**
-   * Stops all active and queued speech for a session.
-   */
   interrupt(sessionId: string) {
     log.info("Interrupting synthesis", { sessionId });
     this.activeStreams.set(sessionId, false);
-    
+
     const stream = this.currentStreams.get(sessionId);
     if (stream) {
       log.debug("Destroying active stream", { sessionId });
@@ -76,7 +57,6 @@ export class SpeechSynthesizer {
       this.currentStreams.delete(sessionId);
     }
 
-    // Reset the queue
     this.queues.set(sessionId, Promise.resolve());
     eventBus.emit(RockyEvents.TTS_END, { sessionId, interrupted: true });
   }
@@ -84,30 +64,6 @@ export class SpeechSynthesizer {
   private async prepareSpeech(sessionId: string, text: string) {
     const isActive = () => this.activeStreams.get(sessionId) !== false;
     if (!isActive()) return null;
-
-    const tryService = async (healthKey: string, serviceCall: () => Promise<any>, sampleRate: number) => {
-      try {
-        const stream = await serviceCall();
-        healthMonitor.recordSuccess(healthKey);
-        return { stream, sampleRate };
-      } catch (err) {
-        healthMonitor.recordFailure(healthKey);
-        return null;
-      }
-    };
-
-    // Priority 1: Kokoro (Best quality/local)
-    if (isActive()) {
-      const kokoroResult = await tryService("KOKORO_TTS", () => kokoroService.synthesizeStream(text), 24000);
-      if (kokoroResult) return kokoroResult;
-    }
-
-    // Priority 2: Piper (Fast/local fallback)
-    if (isActive()) {
-      const piperResult = await tryService("PIPER_TTS", () => piperService.synthesizeStream(text), 22050);
-      if (piperResult) return piperResult;
-    }
-
     return null;
   }
 

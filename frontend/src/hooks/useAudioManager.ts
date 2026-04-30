@@ -296,7 +296,7 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
             });
           };
 
-          workletNode.port.onerror = (err) => {
+          workletNode.port.onmessageerror = (err) => {
             log("error", "AudioWorklet port error", err);
           };
 
