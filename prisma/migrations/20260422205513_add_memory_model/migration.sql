@@ -1,7 +1,0 @@
--- CreateTable
-CREATE TABLE "Memory" (
-    "id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT,
-    "content" TEXT NOT NULL,
-    "category" TEXT NOT NULL DEFAULT 'general',
-    "timestamp" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
