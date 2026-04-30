@@ -85,10 +85,12 @@ export function useRockySockets(addToast: (msg: string, type: any) => void) {
     };
 
     const onWakeWordDetected = () => {
-      playWakeBeep();
-      store.setMode("visualizer");
-      store.setStatus("listening");
-      addToast("Listening...", "info");
+      if (store.status !== "listening") {
+        playWakeBeep();
+        store.setMode("visualizer");
+        store.setStatus("listening");
+        addToast("Listening...", "info");
+      }
     };
 
     const onTimerFired = (data: { label: string }) => {
@@ -134,6 +136,8 @@ export function useRockySockets(addToast: (msg: string, type: any) => void) {
     const onAreas = (data: Record<string, string>) => store.setAreas(data);
     const onLog = (log: LogEntry) => store.setLogs(prev => [log, ...prev].slice(0, 50));
     const onDevice = (data: { device: string; state: LightState }) => store.updateLight(data.device, data.state);
+    const onRoutinesList = (routines: any[]) => store.setRoutines(routines);
+
 
     socket.on("mode_updated", onModeUpdated);
     socket.on("status_update", onStatusUpdate);
@@ -159,6 +163,8 @@ export function useRockySockets(addToast: (msg: string, type: any) => void) {
     socket.on("protocol_updated",   onProtocolUpdated);
     socket.on("protocol_created",   onProtocolCreated);
     socket.on("protocol_deleted",   onProtocolDeleted);
+    socket.on("routines_list",      onRoutinesList);
+
 
     return () => {
       socket.off("mode_updated", onModeUpdated);
@@ -185,6 +191,8 @@ export function useRockySockets(addToast: (msg: string, type: any) => void) {
       socket.off("protocol_updated",    onProtocolUpdated);
       socket.off("protocol_created",    onProtocolCreated);
       socket.off("protocol_deleted",    onProtocolDeleted);
+      socket.off("routines_list",       onRoutinesList);
+
     };
   }, [addToast]);
 }

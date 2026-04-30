@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>OpenClaw Debug</title>
+  <style>
+    body { font-family: monospace; background: #111; color: #0f0; padding: 20px; }
+    #log { height: 400px; overflow-y: auto; border: 1px solid #0f0; padding: 10px; margin-bottom: 20px; white-space: pre-wrap; word-wrap: break-word; }
+    button { padding: 10px; margin-right: 10px; }
+    input { padding: 8px; width: 300px; }
+  </style>
+</head>
+<body>
+  <h1>OpenClaw WebSocket Debug</h1>
+
+  <div>
+    <button onclick="connect()">Connect</button>
+    <button onclick="disconnect()">Disconnect</button>
+    <button onclick="sendChat()">Send Chat</button>
+    <input type="text" id="chatInput" placeholder="Chat message...">
+    <button onclick="clearLog()">Clear Log</button>
+  </div>
+
+  <div id="log"></div>
+
+  <script>
+    const baseUrl = "ws://127.0.0.1:18789";
+    const token = "rocky-secret-token-2026";
+    let ws = null;
+    let msgId = 0;
+
+    function log(msg) {
+      const logDiv = document.getElementById("log");
+      const timestamp = new Date().toLocaleTimeString();
+      logDiv.textContent += `[${timestamp}] ${msg}\n`;
+      logDiv.scrollTop = logDiv.scrollHeight;
+    }
+
+    function clearLog() {
+      document.getElementById("log").textContent = "";
+    }
+
+    function nextMsgId() {
+      return `msg-${++msgId}`;
+    }
+
+    function connect() {
+      log(`Connecting to ${baseUrl}...`);
+      try {
+        ws = new WebSocket(baseUrl);
+
+        ws.onopen = () => {
+          log("✓ WebSocket connected");
+        };
+
+        ws.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            const type = data.type;
+
+            if (type === "event") {
+              log(`EVENT: ${data.event}`);
+
+              if (data.event === "connect.challenge") {
+                handleChallenge(data.payload);
+              } else if (data.event === "hello-ok") {
+                log("✓ Hello-ok received - Connection successful!");
+              } else {
+                log(`  Payload: ${JSON.stringify(data.payload).substring(0, 100)}`);
+              }
+            } else if (type === "res") {
+              log(`RESPONSE: id=${data.id}, ok=${data.ok}`);
+              if (!data.ok) {
+                log(`  Error: ${data.error.message.substring(0, 100)}`);
+              }
+            }
+          } catch (e) {
+            log(`Parse error: ${e.message}`);
+          }
+        };
+
+        ws.onerror = (err) => {
+          log(`✗ Error: ${err}`);
+        };
+
+        ws.onclose = () => {
+          log("✗ WebSocket closed");
+        };
+      } catch (e) {
+        log(`✗ Failed to create WebSocket: ${e.message}`);
+      }
+    }
+
+    function handleChallenge(challenge) {
+      log(`✓ Received challenge: ${challenge.nonce.substring(0, 8)}...`);
+
+      const connectReq = {
+        type: "req",
+        id: nextMsgId(),
+        method: "connect",
+        params: {
+          minProtocol: 3,
+          maxProtocol: 3,
+          client: {
+            id: "webchat",
+            version: "1.0.0",
+            platform: "web",
+            mode: "webchat"
+          },
+          role: "operator",
+          scopes: ["operator.read", "operator.write"],
+          auth: { token: token }
+        }
+      };
+
+      log("Sending connect request...");
+      ws.send(JSON.stringify(connectReq));
+    }
+
+    function sendChat() {
+      const input = document.getElementById("chatInput");
+      const content = input.value.trim();
+      if (!content) return;
+
+      const chatReq = {
+        type: "req",
+        id: nextMsgId(),
+        method: "chat.send",
+        params: { content: content }
+      };
+
+      log(`Sending chat: "${content}"`);
+      ws.send(JSON.stringify(chatReq));
+      input.value = "";
+    }
+
+    function disconnect() {
+      if (ws) {
+        ws.close();
+        log("Disconnecting...");
+      }
+    }
+  </script>
+</body>
+</html>

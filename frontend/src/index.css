@@ -42,8 +42,25 @@
 
 @layer components {
   .vibe-card {
-    @apply border border-white/10 bg-white/5 backdrop-blur-md rounded-lg p-4;
+    @apply border border-white/10 bg-white/[0.03] backdrop-blur-xl rounded-2xl p-5 transition-all duration-500 relative overflow-hidden;
+    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5), inset 0 0 0 1px rgba(255, 255, 255, 0.05);
   }
+
+  .vibe-card::after {
+    content: "";
+    @apply absolute inset-0 opacity-0 transition-opacity duration-500 pointer-events-none;
+    background: radial-gradient(circle at var(--mouse-x, 50%) var(--mouse-y, 50%), rgba(255,255,255,0.06), transparent 80%);
+  }
+
+  .vibe-card:hover {
+    @apply border-white/20 bg-white/[0.05] -translate-y-0.5;
+    box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6), inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+  }
+
+  .vibe-card:hover::after {
+    @apply opacity-100;
+  }
+
 
   .vibe-label {
     @apply text-[10px] uppercase tracking-[0.2em] text-white/40 font-bold;
@@ -54,8 +71,10 @@
   }
 
   .vibe-button {
-    @apply px-4 py-2 border border-white/20 hover:border-amber-500/40 transition-colors uppercase text-[10px] tracking-widest;
+    @apply px-5 py-2.5 rounded-xl border border-white/10 bg-white/[0.02] hover:border-cyan-500/40 hover:bg-cyan-500/5 transition-all uppercase text-[10px] font-bold tracking-[0.2em] text-white/50 hover:text-white flex items-center justify-center gap-2;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   }
+
 
   .xenonite-glass {
     @apply bg-black/40 backdrop-blur-xl border border-white/10;

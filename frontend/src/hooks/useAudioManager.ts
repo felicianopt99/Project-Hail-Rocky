@@ -1,10 +1,19 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { Socket } from "socket.io-client";
+import { useRockyStore } from "../store/useRockyStore";
+
+// The socket from our lib/socket.ts is a custom class, not socket.io-client
+interface CustomSocket {
+  on: (event: string, handler: (data: any) => void) => void;
+  off: (event: string, handler: (data: any) => void) => void;
+  emit: (event: string, data?: any, callback?: any) => void;
+  connected: boolean;
+  id?: string;
+}
 
 type AudioState = "idle" | "requesting_mic" | "listening" | "processing" | "speaking" | "error";
 
 interface AudioManagerOptions {
-  socket: Socket;
+  socket: CustomSocket;
   addToast: (msg: string, type: "info" | "error" | "warning") => void;
 }
 
@@ -117,7 +126,7 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
 
       // Try to load the worklet
       try {
-        await audioCtx.audioWorklet.addModule("/pcm-processor.js");
+        await audioCtx.audioWorklet.addModule("./pcm-processor.js");
         log("info", "AudioWorklet loaded successfully");
         return true;
       } catch (workletErr: any) {
@@ -181,6 +190,12 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
 
   // ========== START AUDIO CAPTURE (with fallback) ==========
   const startAudioCapture = useCallback(async () => {
+    if (isCapturingRef.current) {
+      log("info", "Already capturing, ignoring start request");
+      setAudioState("listening");
+      return;
+    }
+    
     log("info", "Starting audio capture...");
     setAudioState("listening");
 
@@ -204,6 +219,7 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
       
       // Force visualizer to show activity
       setAudioState("listening");
+      socket.emit("manual_activation");
 
       // Try AudioWorklet first
       const workletLoaded = await loadAudioWorklet();
@@ -300,7 +316,10 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
         fallbackToMediaRecorder(stream);
       }
 
-      addToast("Listening...", "info");
+      const store = useRockyStore.getState();
+      if (store.status !== "listening") {
+        addToast("Listening...", "info");
+      }
     } catch (err: any) {
       log("error", "Failed to start audio capture", err.message);
       setAudioState("error");
