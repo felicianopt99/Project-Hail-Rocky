@@ -1,0 +1,83 @@
+# Production environment with optimizations
+# Run: docker compose -f docker-compose.prod.yml up
+
+services:
+  openclaw-gateway:
+    image: ghcr.io/openclaw/openclaw:latest
+    container_name: rocky-gateway-prod
+    network_mode: host
+    environment:
+      - OPENCLAW_HOME=/home/node/.openclaw
+      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
+      - GROQ_API_KEY=${GROQ_API_KEY}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - NODE_ENV=production
+    env_file:
+      - .env
+    volumes:
+      - ./brain:/home/node/.openclaw
+    restart: always
+    privileged: true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:18789/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      target: prod
+      cache_from:
+        - type=registry,ref=ghcr.io/rocky-frontend:cache
+      cache_to:
+        - type=registry,ref=ghcr.io/rocky-frontend:cache,mode=max
+    container_name: rocky-frontend-prod
+    network_mode: host
+    environment:
+      - NODE_ENV=production
+      - VITE_BACKEND_URL=ws://127.0.0.1:18789
+      - VITE_OPENCLAW_TOKEN=${VITE_OPENCLAW_TOKEN}
+    env_file:
+      - .env
+    ports:
+      - "3000:3000"
+    restart: always
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    tmpfs:
+      - /tmp
+      - /var/cache
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  homeassistant:
+    container_name: homeassistant-prod
+    image: "ghcr.io/home-assistant/home-assistant:latest"
+    volumes:
+      - ha-config:/config
+      - /etc/localtime:/etc/localtime:ro
+      - /run/dbus:/run/dbus:ro
+    restart: always
+    privileged: true
+    network_mode: host
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8123/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  ha-config:
+    driver: local
