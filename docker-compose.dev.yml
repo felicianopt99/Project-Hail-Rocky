@@ -1,5 +1,6 @@
-# Development environment with hot reload and debugging
-# Run: docker compose -f docker-compose.dev.yml up
+# Development environment with hot reload
+# Run: docker compose -f docker-compose.dev.yml up --watch
+# Or: docker compose -f docker-compose.dev.yml up -d && docker compose logs -f
 
 services:
   openclaw-gateway:
@@ -18,16 +19,17 @@ services:
       - ./brain:/home/node/.openclaw
     restart: unless-stopped
     privileged: true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:18789/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       target: dev
-      cache_from:
-        - type=gha
-      cache_to:
-        - type=gha,mode=max
     container_name: rocky-frontend-dev
     network_mode: host
     environment:
@@ -40,18 +42,30 @@ services:
     ports:
       - "5173:5173"
     volumes:
-      - ./frontend/src:/app/src
-      - ./frontend/public:/app/public
-      - ./frontend/index.html:/app/index.html
+      # Source code sync
+      - ./frontend/src:/app/src:cached
+      - ./frontend/public:/app/public:cached
+      - ./frontend/index.html:/app/index.html:cached
+      - ./frontend/tsconfig.json:/app/tsconfig.json:cached
+      - ./frontend/vite.config.ts:/app/vite.config.ts:cached
+
+      # Node modules (isolated from host)
       - /app/node_modules
+      - /app/.vite
+      - /app/dist
+
+      # Vite cache directory
+      - frontend-vite-cache:/app/.vite-cache
     develop:
       watch:
-        - action: sync+restart
+        - action: sync
           path: ./frontend/src
           target: /app/src
           ignore:
             - node_modules
-        - action: sync+restart
+            - "**/*.test.ts"
+            - "**/*.spec.ts"
+        - action: sync
           path: ./frontend/public
           target: /app/public
         - action: sync
@@ -62,18 +76,30 @@ services:
         - action: rebuild
           path: ./frontend/vite.config.ts
     restart: unless-stopped
+    depends_on:
+      openclaw-gateway:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:5173/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
 
   homeassistant:
     container_name: homeassistant-dev
     image: "ghcr.io/home-assistant/home-assistant:stable"
     volumes:
-      - ha-config:/config
+      - ha-config-dev:/config
       - /etc/localtime:/etc/localtime:ro
       - /run/dbus:/run/dbus:ro
     restart: unless-stopped
     privileged: true
     network_mode: host
+    environment:
+      - TZ=UTC
 
 volumes:
-  ha-config:
+  ha-config-dev:
+    driver: local
+  frontend-vite-cache:
     driver: local
