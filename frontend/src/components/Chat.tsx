@@ -1,8 +1,20 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useMemo } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Send, X, Cpu, Sparkles, Activity, Mic, GripHorizontal } from "lucide-react";
-import { useRockyStore } from "../store/useRockyStore";
+import { useMessages, useInputValue, useIsTyping, useRockyStore } from "../store/useRockyStore";
 import RichCard from "./widgets/RichCard";
+
+const TYPING_DELAYS = [0, 0.2, 0.4];
+const DOT_ANIMATE = { scale: [1, 1.6, 1], opacity: [0.5, 1, 0.5] };
+const DOT_TRANSITION = { repeat: Infinity, duration: 1 };
+
+function parseJSONSafely(text: string) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
 
 interface ChatProps {
   isOpen: boolean;
@@ -21,7 +33,10 @@ export default function Chat({
   onMicClick,
   onSendMessage
 }: ChatProps) {
-  const { messages, inputValue, setInputValue, isTyping } = useRockyStore();
+  const messages = useMessages();
+  const inputValue = useInputValue();
+  const isTyping = useIsTyping();
+  const setInputValue = useRockyStore((s) => s.setInputValue);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -29,7 +44,7 @@ export default function Chat({
     if (isOpen) {
       chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
     }
-  }, [messages, isOpen, isTyping]);
+  }, [messages, isOpen]);
 
   // Derive container classes
   const containerClasses = isUnified
@@ -142,11 +157,11 @@ export default function Chat({
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
                 <div className="bg-white/5 border border-white/10 px-4 py-3 rounded-2xl rounded-tl-none">
                   <div className="flex gap-1.5 items-center">
-                    {[0, 0.2, 0.4].map((delay, i) => (
+                    {TYPING_DELAYS.map((delay, i) => (
                       <motion.div
                         key={i}
-                        animate={{ scale: [1, 1.6, 1], opacity: [0.5, 1, 0.5] }}
-                        transition={{ repeat: Infinity, duration: 1, delay }}
+                        animate={DOT_ANIMATE}
+                        transition={{ ...DOT_TRANSITION, delay }}
                         className="w-1.5 h-1.5 bg-cyan-400 rounded-full"
                       />
                     ))}
@@ -202,12 +217,4 @@ export default function Chat({
       )}
     </AnimatePresence>
   );
-}
-
-function parseJSONSafely(text: string) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return { type: "error", message: "Failed to parse neural data", raw: text };
-  }
 }

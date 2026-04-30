@@ -1,15 +1,13 @@
-import React, { useEffect, useState, memo } from "react";
+import React, { useEffect, useState, memo, useCallback, useMemo, useRef } from "react";
 import { Cloud, Wifi, RefreshCw, Activity, ListTodo, Cpu } from "lucide-react";
 import socket from "../lib/socket";
 import { motion } from "motion/react";
+import { useRockyStore, LightState, useStats, useLogs, useLights, useWeather, useIsConnected, useLatency, useServiceStatus, useRoutines } from "../store/useRockyStore";
+import RoutineEditor from "./RoutineEditor";
 import { LightButton } from "./LightButton";
-import { useRockyStore, LightState } from "../store/useRockyStore";
+import { Settings2 } from "lucide-react";
 
-const ROUTINES = [
-  { id: "home", label: "I'm Home", icon: Activity, color: "text-cyan-400" },
-  { id: "night", label: "Night", icon: Activity, color: "text-purple-400" },
-  { id: "away", label: "Away", icon: Activity, color: "text-red-400" },
-];
+
 
 const StatCard = memo(function StatCard({
   label,
@@ -68,78 +66,109 @@ const TimeDisplay = memo(function TimeDisplay() {
 });
 
 export default function Dashboard() {
-  const { stats, logs, lights, weather, isConnected, latencyMs, serviceStatus } = useRockyStore();
+  const stats = useStats();
+  const logs = useLogs();
+  const lights = useLights();
+  const weather = useWeather();
+  const isConnected = useIsConnected();
+  const latencyMs = useLatency();
+  const serviceStatus = useServiceStatus();
+  const routines = useRoutines();
+
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isRoutineEditorOpen, setIsRoutineEditorOpen] = useState(false);
+  const syncTimerRef = useRef<NodeJS.Timeout>();
 
-  const toggleLight = (device: string) => {
+  useEffect(() => {
+    socket.emit("get_routines");
+  }, []);
+
+  const toggleLight = useCallback((device: string) => {
     socket.emit("control_device", { device, action: "toggle" });
-  };
+  }, []);
 
-  const updateLight = (device: string, params: Partial<LightState>) => {
+  const updateLight = useCallback((device: string, params: Partial<LightState>) => {
     socket.emit("control_device", { device, action: "set", params });
-  };
+  }, []);
 
-  const syncDevices = () => {
+  const syncDevices = useCallback(() => {
     setIsSyncing(true);
     socket.emit("sync_ha");
-    setTimeout(() => setIsSyncing(false), 2000);
-  };
+    syncTimerRef.current = setTimeout(() => setIsSyncing(false), 2000);
+  }, []);
 
-  const executeRoutine = (routineId: string) => {
+  const executeRoutine = useCallback((routineId: string) => {
     socket.emit("execute_routine", routineId);
-  };
+  }, []);
 
-  const categorizedRooms: Record<string, string[]> = {};
-  const otherDevices: string[] = [];
+  useEffect(() => {
+    return () => {
+      if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
+    };
+  }, []);
 
-  Object.keys(lights).forEach(id => {
-    const light = lights[id];
-    const areaName = light?.areaName;
-    if (areaName) {
-      if (!categorizedRooms[areaName]) categorizedRooms[areaName] = [];
-      categorizedRooms[areaName].push(id);
-    } else {
-      // Use the name for categorization if it contains a clear room hint
-      const name = light.name.toLowerCase();
-      const rooms = ["Living Room", "Bedroom", "Kitchen", "Bathroom", "Office", "Studio", "Hallway", "Garage", "Garden"];
-      const roomMatch = rooms.find(r => name.includes(r.toLowerCase()));
-      
-      if (roomMatch) {
-        if (!categorizedRooms[roomMatch]) categorizedRooms[roomMatch] = [];
-        categorizedRooms[roomMatch].push(id);
+  const { categorizedRooms, otherDevices } = useMemo(() => {
+    const rooms: Record<string, string[]> = {};
+    const other: string[] = [];
+
+    Object.keys(lights).forEach(id => {
+      const light = lights[id];
+      const areaName = light?.areaName;
+      if (areaName) {
+        if (!rooms[areaName]) rooms[areaName] = [];
+        rooms[areaName].push(id);
       } else {
-        const idNamePart = id.split(".")[1];
-        if (idNamePart) {
-          const parts = idNamePart.split("_");
-          if (parts.length > 1) {
-            const room = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-            if (!categorizedRooms[room]) categorizedRooms[room] = [];
-            categorizedRooms[room].push(id);
-          } else {
-            otherDevices.push(id);
-          }
+        const name = light.name.toLowerCase();
+        const roomList = ["Living Room", "Bedroom", "Kitchen", "Bathroom", "Office", "Studio", "Hallway", "Garage", "Garden"];
+        const roomMatch = roomList.find(r => name.includes(r.toLowerCase()));
+
+        if (roomMatch) {
+          if (!rooms[roomMatch]) rooms[roomMatch] = [];
+          rooms[roomMatch].push(id);
         } else {
-          otherDevices.push(id);
+          const idNamePart = id.split(".")[1];
+          if (idNamePart) {
+            const parts = idNamePart.split("_");
+            if (parts.length > 1) {
+              const room = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+              if (!rooms[room]) rooms[room] = [];
+              rooms[room].push(id);
+            } else {
+              other.push(id);
+            }
+          } else {
+            other.push(id);
+          }
         }
       }
-    }
-  });
+    });
+
+    return { categorizedRooms: rooms, otherDevices: other };
+  }, [lights]);
 
   return (
     <div className="flex flex-col p-8 h-full space-y-6 overflow-y-auto custom-scrollbar bg-black">
       {/* Top Bar: Routines & Status */}
       <div className="flex gap-4 justify-between items-center">
         <div className="flex gap-4">
-          {ROUTINES.map(r => (
+          {routines.map(r => (
             <button
               key={r.id}
               onClick={() => executeRoutine(r.id)}
               className="vibe-card px-6 py-3 border-white/5 bg-white/5 hover:border-cyan-500/30 hover:bg-cyan-500/5 transition-all flex items-center gap-3 group"
             >
-              <r.icon size={12} className={`${r.color} opacity-50 group-hover:opacity-100`} />
+              {/* Note: In a real app we'd map icon string to actual Lucide component */}
+              <Activity size={12} className={`${r.color} opacity-50 group-hover:opacity-100`} />
               <span className="text-[10px] font-bold uppercase tracking-widest">{r.label}</span>
             </button>
           ))}
+          <button 
+            onClick={() => setIsRoutineEditorOpen(true)}
+            className="vibe-card px-4 py-3 border-dashed border-white/10 bg-white/[0.02] hover:border-white/20 transition-all flex items-center justify-center text-white/20 hover:text-white/40"
+            title="Edit Routines"
+          >
+            <Settings2 size={12} />
+          </button>
         </div>
 
         {/* Status Indicators */}
@@ -170,19 +199,35 @@ export default function Dashboard() {
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="vibe-card p-6 flex flex-col justify-between h-64"
+            className="vibe-card p-6 flex flex-col justify-between h-72 lg:h-80 relative overflow-hidden"
           >
+            {/* Ambient Background Glow for Weather */}
+            <div className="absolute -top-24 -right-24 w-48 h-48 bg-cyan-500/10 blur-[80px] rounded-full pointer-events-none" />
+
             <TimeDisplay />
-            <div className="mt-8 pt-8 border-t border-white/5">
-              <div className="vibe-label flex items-center gap-2 mb-3">
-                <Cloud size={12} className="text-cyan-400" />
-                Atmosphere
+            <div className="mt-auto pt-6 border-t border-white/5 relative z-10">
+              <div className="flex justify-between items-start mb-4">
+                <div className="vibe-label flex items-center gap-2">
+                  <Cloud size={12} className="text-cyan-400" /> Atmosphere
+                </div>
+                <div className="text-[10px] font-mono text-white/30 uppercase tracking-tighter">
+                  {weather.city}
+                </div>
               </div>
-              <div className="flex items-baseline gap-4">
-                <div className="text-3xl font-light">{weather.temp}°C</div>
-                <div className="text-white/40 text-xs uppercase tracking-widest">{weather.desc}</div>
+              
+              <div className="flex items-center gap-6">
+                <div className="text-4xl font-light tracking-tighter text-white">
+                  {weather.temp}<span className="text-cyan-500/50">°C</span>
+                </div>
+                <div className="flex flex-col">
+                  <div className="text-[10px] font-bold text-white/80 uppercase tracking-[0.1em] leading-tight max-w-[150px] line-clamp-2">
+                    {weather.desc}
+                  </div>
+                  <div className="text-[8px] text-white/30 mt-1 font-mono uppercase">
+                    Local readout · Nominal
+                  </div>
+                </div>
               </div>
-              <div className="text-[9px] text-white/20 mt-2">{weather.city}</div>
             </div>
           </motion.div>
 
@@ -279,7 +324,7 @@ export default function Dashboard() {
             Activity Log
           </div>
           <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
-            {logs.slice().reverse().map((log, i) => (
+            {useMemo(() => [...logs].reverse(), [logs]).map((log, i) => (
               <div key={i} className="flex items-start gap-3 group">
                 <div className="text-[8px] font-mono text-white/20 mt-0.5 shrink-0">
                   {new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: "2-digit", minute: "2-digit" })}
@@ -292,6 +337,7 @@ export default function Dashboard() {
           </div>
         </motion.div>
       </div>
+      <RoutineEditor isOpen={isRoutineEditorOpen} onClose={() => setIsRoutineEditorOpen(false)} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { useRockyStore } from '../store/useRockyStore';
+import React, { useEffect, useRef, useState } from 'react';
+import { useStatus } from '../store/useRockyStore';
 
 const STARS = Array.from({ length: 90 }, () => ({
   x: Math.random(),
@@ -7,12 +7,24 @@ const STARS = Array.from({ length: 90 }, () => ({
   r: Math.random() * 1.1 + 0.2,
   phase: Math.random() * Math.PI * 2,
   speed: 0.4 + Math.random() * 1.4,
+  brightness: Math.round((Math.random() * 2) * 10) / 10,
 }));
 
+function groupBy<T, K extends string | number>(arr: T[], fn: (item: T) => K): Record<K, T[]> {
+  const result = {} as Record<K, T[]>;
+  arr.forEach(item => {
+    const key = fn(item);
+    if (!result[key]) result[key] = [];
+    result[key].push(item);
+  });
+  return result;
+}
+
 export default function AmbientBackground() {
-  const { status } = useRockyStore();
+  const status = useStatus();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const statusRef = useRef(status);
+  const lastResizeRef = useRef(0);
 
   useEffect(() => { statusRef.current = status; }, [status]);
 
@@ -66,12 +78,19 @@ export default function AmbientBackground() {
       drawOrb(width * 0.76 + Math.cos(time * 0.46) * 210, height * 0.65 + Math.sin(time * 0.33) * 160, width * 0.70, c2);
       drawOrb(width * 0.50 + Math.sin(time * 0.22) * 260, height * 0.50 + Math.cos(time * 0.18) * 190, width * 0.38, c1);
 
-      // Star field
-      STARS.forEach(star => {
-        const brightness = 0.25 + Math.sin(time * star.speed + star.phase) * 0.22;
+      // Star field (batch by brightness to reduce draw calls)
+      const starsByBrightness = groupBy(STARS, s => {
+        const b = 0.25 + Math.sin(time * s.speed + s.phase) * 0.22;
+        return Math.round(b * 10) / 10;
+      });
+
+      Object.entries(starsByBrightness).forEach(([brightnessStr, stars]) => {
+        const brightness = parseFloat(brightnessStr);
         ctx.fillStyle = `rgba(255, 240, 220, ${brightness * 0.55})`;
         ctx.beginPath();
-        ctx.arc(star.x * width, star.y * height, star.r, 0, Math.PI * 2);
+        stars.forEach(star => {
+          ctx.arc(star.x * width, star.y * height, star.r, 0, Math.PI * 2);
+        });
         ctx.fill();
       });
 
@@ -87,6 +106,9 @@ export default function AmbientBackground() {
     };
 
     const handleResize = () => {
+      const now = Date.now();
+      if (now - lastResizeRef.current < 100) return;
+      lastResizeRef.current = now;
       canvas.width = window.innerWidth;
       canvas.height = window.innerHeight;
     };

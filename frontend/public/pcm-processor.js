@@ -88,12 +88,16 @@ class PCMProcessor extends AudioWorkletProcessor {
       // Convert Int16Array to Uint8Array for binary transmission
       const uint8View = new Uint8Array(this._buffer.buffer);
 
-      this.port.postMessage({
-        type: "pcm",
-        pcmData: uint8View,
-        timestamp: Date.now(),
-        chunkNumber: this._chunkCount++,
-      });
+      // Transfer ownership of the buffer to avoid copying (zero-copy)
+      this.port.postMessage(
+        {
+          type: "pcm",
+          pcmData: uint8View,
+          timestamp: Date.now(),
+          chunkNumber: this._chunkCount++,
+        },
+        [this._buffer.buffer]  // Transfer ownership of the ArrayBuffer
+      );
 
       this._buffer = new Int16Array(this._bufferSize);
       this._bufferIndex = 0;

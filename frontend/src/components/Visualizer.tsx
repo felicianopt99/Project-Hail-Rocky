@@ -25,6 +25,7 @@ const STATE_CONFIG: Record<RockyStatus, {
 export default function Visualizer({ children, analyzerNode }: VisualizerProps) {
   const { status } = useRockyStore();
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const freqDataRef = useRef<Uint8Array | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -43,7 +44,10 @@ export default function Visualizer({ children, analyzerNode }: VisualizerProps) 
       const { h, s, l, animate } = cfg;
 
       const binCount = analyzerNode ? analyzerNode.frequencyBinCount : 256;
-      const freqData = new Uint8Array(binCount);
+      if (!freqDataRef.current || freqDataRef.current.length !== binCount) {
+        freqDataRef.current = new Uint8Array(binCount);
+      }
+      const freqData = freqDataRef.current;
       if (analyzerNode) analyzerNode.getByteFrequencyData(freqData);
 
       const numBars = 80;
@@ -83,18 +87,12 @@ export default function Visualizer({ children, analyzerNode }: VisualizerProps) 
         const barW = Math.max(1, bw - 1.5);
         const alpha = 0.22 + val * 0.65;
 
-        // Top bar gradient
-        const topG = ctx.createLinearGradient(x, centerY - barH, x, centerY);
-        topG.addColorStop(0, `hsla(${h}, ${s}%, ${l + 22}%, ${alpha * 0.35})`);
-        topG.addColorStop(1, `hsla(${h}, ${s}%, ${l}%, ${alpha})`);
-        ctx.fillStyle = topG;
+        // Top bar (solid color, eliminates gradient allocation)
+        ctx.fillStyle = `hsla(${h}, ${s}%, ${l}%, ${alpha})`;
         ctx.fillRect(x, centerY - barH, barW, barH);
 
-        // Bottom mirror
-        const botG = ctx.createLinearGradient(x, centerY, x, centerY + barH);
-        botG.addColorStop(0, `hsla(${h}, ${s}%, ${l}%, ${alpha})`);
-        botG.addColorStop(1, `hsla(${h}, ${s}%, ${l + 22}%, ${alpha * 0.35})`);
-        ctx.fillStyle = botG;
+        // Bottom mirror with reduced alpha
+        ctx.fillStyle = `hsla(${h}, ${s}%, ${l}%, ${alpha * 0.45})`;
         ctx.fillRect(x, centerY, barW, barH);
 
         // Bright peak tips

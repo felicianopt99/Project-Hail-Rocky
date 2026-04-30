@@ -1,5 +1,24 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Socket } from "socket.io-client";
+
+const earconCache = new Map<string, AudioBuffer>();
+
+async function loadEarcon(file: string, audioCtx: AudioContext): Promise<AudioBuffer | null> {
+  if (earconCache.has(file)) {
+    return earconCache.get(file)!;
+  }
+
+  try {
+    const response = await fetch(file);
+    const arrayBuffer = await response.arrayBuffer();
+    const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+    earconCache.set(file, decoded);
+    return decoded;
+  } catch (error) {
+    console.warn(`[Rocky] Failed to load earcon ${file}:`, error);
+    return null;
+  }
+}
 
 interface AudioPipelineOptions {
   socket: any;
@@ -185,7 +204,7 @@ export function useAudioPipeline({
       setStatus((prev: string) => (prev === "synthesizing_tts" ? "idle" : prev));
     };
 
-    const playEarcon = (type: string) => {
+    const playEarcon = useCallback(async (type: string) => {
       const audioCtx = audioCtxRef.current;
       if (!audioCtx) return;
 
@@ -198,17 +217,18 @@ export function useAudioPipeline({
       const file = fileMap[type];
       if (!file) return;
 
-      fetch(file)
-        .then(r => r.arrayBuffer())
-        .then(buf => audioCtx.decodeAudioData(buf))
-        .then(decoded => {
-          const source = audioCtx.createBufferSource();
-          source.buffer = decoded;
-          source.connect(audioCtx.destination);
-          source.start(0);
-        })
-        .catch(e => console.warn(`[Rocky] Failed to play earcon ${type}:`, e));
-    };
+      const decoded = await loadEarcon(file, audioCtx);
+      if (!decoded) return;
+
+      try {
+        const source = audioCtx.createBufferSource();
+        source.buffer = decoded;
+        source.connect(audioCtx.destination);
+        source.start(0);
+      } catch (e) {
+        console.warn(`[Rocky] Failed to play earcon ${type}:`, e);
+      }
+    }, []);
 
     socket.on("tts_start", onTtsStart);
     socket.on("tts_chunk", onTtsChunk);
@@ -227,7 +247,7 @@ export function useAudioPipeline({
       socket.off("stop_speaking", onStopSpeaking);
       socket.off("sound_trigger");
     };
-  }, [socket, addToast, setStatus, speakBrowserFallback, lastAssistantTextRef]);
+  }, [socket]);
 
   return {
     audioCtxRef,

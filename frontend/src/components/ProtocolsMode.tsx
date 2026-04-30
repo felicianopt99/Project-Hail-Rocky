@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "motion/react";
 import {
   ArrowLeft, Play, Pause, Film, Music2,
   Lightbulb, Sliders, Sun, Moon, Wind, Thermometer,
-  Tv, Activity, SkipForward, Cpu, Zap
+  Tv, Activity, SkipForward, Cpu, Zap, Settings2, Save, Trash2, Plus
 } from "lucide-react";
 import socket from "../lib/socket";
 import { useRockyStore, LightState } from "../store/useRockyStore";
@@ -22,13 +22,18 @@ const CINEMA_PRESETS: Record<string, { brightness: number; color: string; action
 };
 
 function CinemaView() {
-  const { lights } = useRockyStore();
-  const [activePreset, setActivePreset] = useState("soft_glow");
+  const { lights, protocols } = useRockyStore();
+  const protocol = protocols.find(p => p.id === "cinema");
+  const presets = protocol?.settings?.presets || CINEMA_PRESETS;
+  
+  const [activePreset, setActivePreset] = useState(Object.keys(presets)[0] || "soft_glow");
+  const [isEditing, setIsEditing] = useState(false);
+  const [editPresets, setEditPresets] = useState(presets);
 
   const applyPreset = (key: string) => {
     setActivePreset(key);
     const ids = Object.keys(lights);
-    const ps = CINEMA_PRESETS[key];
+    const ps = presets[key];
     if (ps.action === "off") {
       ids.forEach(id => socket.emit("control_device", { device: id, action: "off" }));
     } else if (ps.action === "on") {
@@ -37,6 +42,17 @@ function CinemaView() {
       ids.forEach(id => socket.emit("control_device", { device: id, action: "set", params: { color: ps.color, brightness: ps.brightness } }));
     }
   };
+
+  const saveChanges = () => {
+    socket.emit("save_protocol", {
+      id: "cinema",
+      label: protocol?.label,
+      description: protocol?.description,
+      settings: { ...protocol?.settings, presets: editPresets }
+    });
+    setIsEditing(false);
+  };
+
 
   return (
     <div className="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-2 gap-10 z-10">
@@ -52,26 +68,45 @@ function CinemaView() {
         </div>
 
         {/* TV schematic */}
-        <div className="vibe-card aspect-video border-white/5 bg-white/5 flex items-center justify-center relative overflow-hidden rounded-2xl">
+        <div className="vibe-card aspect-video border-white/5 bg-white/5 flex items-center justify-center relative overflow-hidden rounded-3xl group">
+          {/* Preset-specific ambient glow */}
+          <motion.div 
+            animate={{ 
+              background: presets[activePreset]?.color || "#000",
+              opacity: presets[activePreset]?.brightness ? (presets[activePreset].brightness / 100) * 0.3 : 0
+            }}
+            className="absolute inset-0 blur-[100px] transition-all duration-1000"
+          />
+          
           <div className="absolute inset-0 opacity-10 pointer-events-none">
-            <div className="absolute top-4 left-1/2 -translate-x-1/2 w-32 h-2 bg-white rounded-full" />
-            <div className="absolute bottom-12 left-1/2 -translate-x-1/2 w-48 h-24 border-2 border-white rounded-t-3xl" />
+            <div className="absolute top-4 left-1/2 -translate-x-1/2 w-32 h-2 bg-white/20 rounded-full" />
+            <div className="absolute bottom-12 left-1/2 -translate-x-1/2 w-48 h-24 border-2 border-white/20 rounded-t-3xl" />
           </div>
-          {/* Ambient light dots */}
-          {(Object.entries(lights) as [string, LightState][]).map(([id, state], i) => (
-            <motion.div
-              key={id}
-              animate={{ opacity: state.status === "on" ? state.brightness / 100 : 0, scale: state.status === "on" ? 1 : 0.5 }}
-              transition={{ duration: 0.8 }}
-              className="absolute w-8 h-8 rounded-full blur-xl pointer-events-none"
-              style={{
-                background: state.color || "#ffaa00",
-                top: i % 2 === 0 ? "15%" : "65%",
-                left: i % 3 === 0 ? "10%" : i % 3 === 1 ? "50%" : "80%",
-              }}
-            />
-          ))}
-          <Tv size={40} className="text-white/10 z-10" />
+          
+          <Tv size={48} strokeWidth={1} className="text-white/20 z-10 group-hover:text-white/40 transition-colors" />
+          
+          {/* Floating light particles */}
+          <div className="absolute inset-0 pointer-events-none">
+            {[...Array(6)].map((_, i) => (
+              <motion.div
+                key={i}
+                animate={{
+                  y: [0, -20, 0],
+                  opacity: [0.2, 0.5, 0.2],
+                }}
+                transition={{
+                  duration: 3 + i,
+                  repeat: Infinity,
+                  ease: "easeInOut"
+                }}
+                className="absolute w-1 h-1 bg-white/20 rounded-full"
+                style={{
+                  top: `${20 + i * 10}%`,
+                  left: `${15 + i * 15}%`,
+                }}
+              />
+            ))}
+          </div>
         </div>
 
         {/* Stats */}
@@ -91,41 +126,103 @@ function CinemaView() {
 
       <div className="space-y-5">
         <div className="vibe-card p-6 border-white/10 bg-white/5 space-y-6 rounded-2xl">
-          <div className="vibe-label flex items-center gap-2">
-            <Lightbulb size={13} className="text-yellow-500" /> Lighting Presets
+          <div className="vibe-label flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <Lightbulb size={13} className="text-yellow-500" /> Lighting Presets
+            </div>
+            <button 
+              onClick={() => setIsEditing(!isEditing)}
+              className="p-1 hover:bg-white/10 rounded transition-colors text-white/40 hover:text-white"
+            >
+              {isEditing ? <ArrowLeft size={12} /> : <Settings2 size={12} />}
+            </button>
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            {Object.entries(CINEMA_PRESETS).map(([key, ps]) => (
-              <motion.button
-                key={key}
-                onClick={() => applyPreset(key)}
-                whileTap={{ scale: 0.95 }}
-                className={`relative p-4 rounded-2xl border text-left transition-all touch-manipulation overflow-hidden ${
-                  activePreset === key
-                    ? "border-yellow-500/60 bg-yellow-500/10 shadow-[0_0_16px_rgba(234,179,8,0.15)]"
-                    : "border-white/5 bg-white/5 active:border-white/20"
-                }`}
-              >
-                {/* Color swatch strip at top */}
-                {ps.swatch && (
-                  <div
-                    className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl opacity-80"
-                    style={{ background: ps.swatch }}
-                  />
-                )}
-                {!ps.swatch && (
-                  <div className="absolute top-0 left-0 right-0 h-1 rounded-t-2xl bg-white/10" />
-                )}
-                <div className={`text-[10px] font-bold uppercase tracking-widest mt-1 ${activePreset === key ? "text-yellow-400" : "text-white/50"}`}>
-                  {ps.label}
+          {!isEditing ? (
+            <div className="grid grid-cols-2 gap-3">
+              {Object.entries(presets).map(([key, ps]: [string, any]) => (
+                <motion.button
+                  key={key}
+                  onClick={() => applyPreset(key)}
+                  whileTap={{ scale: 0.95 }}
+                  className={`relative p-4 rounded-2xl border text-left transition-all touch-manipulation overflow-hidden ${
+                    activePreset === key
+                      ? "border-yellow-500/60 bg-yellow-500/10 shadow-[0_0_16px_rgba(234,179,8,0.15)]"
+                      : "border-white/5 bg-white/5 active:border-white/20"
+                  }`}
+                >
+                  <div className={`text-[10px] font-bold uppercase tracking-widest mt-1 ${activePreset === key ? "text-yellow-400" : "text-white/50"}`}>
+                    {ps.label}
+                  </div>
+                  <div className={`text-[9px] font-mono mt-0.5 ${activePreset === key ? "text-yellow-400/60" : "text-white/20"}`}>
+                    {ps.action === "off" ? "Lights off" : `${ps.brightness}% · ${ps.color}`}
+                  </div>
+                </motion.button>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {Object.entries(editPresets).map(([key, ps]: [string, any]) => (
+                <div key={key} className="p-4 border border-white/10 bg-white/5 rounded-xl space-y-3">
+                  <div className="flex justify-between items-center">
+                    <input 
+                      className="bg-transparent border-none text-[10px] font-bold uppercase tracking-widest text-yellow-400 w-full focus:ring-0"
+                      value={ps.label}
+                      onChange={(e) => setEditPresets({...editPresets, [key]: {...ps, label: e.target.value}})}
+                    />
+                    <button 
+                      onClick={() => {
+                        const next = {...editPresets};
+                        delete next[key];
+                        setEditPresets(next);
+                      }}
+                      className="text-red-400/40 hover:text-red-400 p-1"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1">
+                      <div className="text-[8px] text-white/20 uppercase">Brightness</div>
+                      <input 
+                        type="number" min="0" max="100"
+                        className="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] font-mono"
+                        value={ps.brightness}
+                        onChange={(e) => setEditPresets({...editPresets, [key]: {...ps, brightness: parseInt(e.target.value)}})}
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <div className="text-[8px] text-white/20 uppercase">Color</div>
+                      <input 
+                        type="text"
+                        className="w-full bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] font-mono"
+                        value={ps.color}
+                        onChange={(e) => setEditPresets({...editPresets, [key]: {...ps, color: e.target.value}})}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className={`text-[9px] font-mono mt-0.5 ${activePreset === key ? "text-yellow-400/60" : "text-white/20"}`}>
-                  {ps.action === "off" ? "Lights off" : `${ps.brightness}% · ${ps.color}`}
-                </div>
-              </motion.button>
-            ))}
-          </div>
+              ))}
+              <div className="flex gap-2">
+                <button 
+                  onClick={() => {
+                    const id = `preset_${Date.now()}`;
+                    setEditPresets({...editPresets, [id]: {label: "New Preset", brightness: 50, color: "#ffffff"}});
+                  }}
+                  className="flex-1 py-2 border border-dashed border-white/20 rounded-xl text-[10px] uppercase tracking-widest text-white/40 hover:text-white hover:border-white/40 transition-all flex items-center justify-center gap-2"
+                >
+                  <Plus size={12} /> Add Preset
+                </button>
+                <button 
+                  onClick={saveChanges}
+                  className="px-6 py-2 bg-yellow-500 text-black rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center gap-2"
+                >
+                  <Save size={12} /> Save
+                </button>
+              </div>
+            </div>
+          )}
+
 
           {/* Light levels */}
           <div className="pt-4 border-t border-white/5 space-y-3 max-h-40 overflow-y-auto custom-scrollbar pr-1">
@@ -160,9 +257,13 @@ function CinemaView() {
 // ─── Music sub-view ──────────────────────────────────────────────────────────
 
 function MusicView({ analyzerNode }: { analyzerNode?: AnalyserNode | null }) {
-  const { lights } = useRockyStore();
-  const [sensitivity, setSensitivity] = useState(0.8);
-  const [algorithm, setAlgorithm] = useState<"beat" | "freq" | "ambient" | "strobe">("freq");
+  const { lights, protocols } = useRockyStore();
+  const protocol = protocols.find(p => p.id === "music");
+  
+  const [sensitivity, setSensitivity] = useState(protocol?.settings?.sensitivity || 0.8);
+  const [algorithm, setAlgorithm] = useState<"beat" | "freq" | "ambient" | "strobe">(protocol?.settings?.algorithm || "freq");
+  const [isEditing, setIsEditing] = useState(false);
+  
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const algorithmRef = useRef(algorithm);
   const lightsRef = useRef<Record<string, LightState>>({});
@@ -171,6 +272,17 @@ function MusicView({ analyzerNode }: { analyzerNode?: AnalyserNode | null }) {
   const lastBassRef = useRef(0);
   const ambientBrightnessRef = useRef(0);
   const strobeStateRef = useRef(false);
+
+  const saveChanges = () => {
+    socket.emit("save_protocol", {
+      id: "music",
+      label: protocol?.label,
+      description: protocol?.description,
+      settings: { ...protocol?.settings, sensitivity, algorithm }
+    });
+    setIsEditing(false);
+  };
+
 
   useEffect(() => { algorithmRef.current = algorithm; }, [algorithm]);
   useEffect(() => { lightsRef.current = lights; }, [lights]);
@@ -194,14 +306,20 @@ function MusicView({ analyzerNode }: { analyzerNode?: AnalyserNode | null }) {
       );
     };
 
+    const resizeObserver = new ResizeObserver(entries => {
+      for (const entry of entries) {
+        canvas.width = entry.contentRect.width;
+        canvas.height = entry.contentRect.height;
+      }
+    });
+    resizeObserver.observe(canvas);
+
     const draw = () => {
       analyzerNode.getByteFrequencyData(data);
       const freqs = data.slice(0, 32);
       const amplitude = freqs.reduce((a, b) => a + b, 0) / (freqs.length * 255);
       const s = sensitivityRef.current;
 
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
       ctx.clearRect(0, 0, canvas.width, canvas.height);
 
       const barW = canvas.width / freqs.length;
@@ -241,7 +359,10 @@ function MusicView({ analyzerNode }: { analyzerNode?: AnalyserNode | null }) {
     };
 
     frameId = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(frameId);
+    return () => {
+      cancelAnimationFrame(frameId);
+      resizeObserver.disconnect();
+    };
   }, [analyzerNode]);
 
   const ALGO_DESC: Record<string, string> = {
@@ -253,13 +374,24 @@ function MusicView({ analyzerNode }: { analyzerNode?: AnalyserNode | null }) {
 
   return (
     <div className="max-w-5xl w-full space-y-8">
-      <div>
-        <div className="vibe-label text-purple-400 mb-2 flex items-center gap-2">
-          <Music2 size={14} /> Music Sync Protocol
+      <div className="flex justify-between items-end">
+        <div>
+          <div className="vibe-label text-purple-400 mb-2 flex items-center gap-2">
+            <Music2 size={14} /> Music Sync Protocol
+          </div>
+          <h1 className="text-4xl font-bold tracking-tight">Neural Frequency Sync</h1>
+          <p className="text-white/40 mt-2 text-sm">Real-time light synchronisation via microphone analysis.</p>
         </div>
-        <h1 className="text-4xl font-bold tracking-tight">Neural Frequency Sync</h1>
-        <p className="text-white/40 mt-2 text-sm">Real-time light synchronisation via microphone analysis.</p>
+        <button 
+          onClick={() => isEditing ? saveChanges() : setIsEditing(true)}
+          className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 transition-all ${
+            isEditing ? "bg-purple-500 text-white" : "bg-white/5 text-white/40 hover:text-white"
+          }`}
+        >
+          {isEditing ? <><Save size={12} /> Save Config</> : <><Settings2 size={12} /> Edit Config</>}
+        </button>
       </div>
+
 
       <canvas ref={canvasRef} className="w-full h-36 rounded-2xl bg-black/40 border border-white/5" />
 
@@ -316,15 +448,33 @@ const SUNSET_STAGES = [
 const STAGE_DURATION_S = 90; // 90s per stage → ~7.5 min total
 
 function SunsetView() {
-  const { lights } = useRockyStore();
+  const { lights, protocols } = useRockyStore();
+  const protocol = protocols.find(p => p.id === "sunset");
+  const stages = protocol?.settings?.stages || SUNSET_STAGES;
+  const duration = protocol?.settings?.duration || STAGE_DURATION_S;
+
   const [stage, setStage] = useState(-1);            // -1 = not started
   const [running, setRunning] = useState(false);
-  const [secondsLeft, setSecondsLeft] = useState(STAGE_DURATION_S);
+  const [secondsLeft, setSecondsLeft] = useState(duration);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editStages, setEditStages] = useState(stages);
+  const [editDuration, setEditDuration] = useState(duration);
+  
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const saveChanges = () => {
+    socket.emit("save_protocol", {
+      id: "sunset",
+      label: protocol?.label,
+      description: protocol?.description,
+      settings: { ...protocol?.settings, stages: editStages, duration: editDuration }
+    });
+    setIsEditing(false);
+  };
+
   const applyStage = (idx: number) => {
-    if (idx >= SUNSET_STAGES.length) return;
-    const s = SUNSET_STAGES[idx];
+    if (idx >= stages.length) return;
+    const s = stages[idx];
     Object.keys(lights).forEach(id =>
       socket.emit("control_device", { device: id, action: "set", params: { color: s.color, brightness: s.brightness } })
     );
@@ -335,9 +485,10 @@ function SunsetView() {
     const firstStage = 0;
     setStage(firstStage);
     setRunning(true);
-    setSecondsLeft(STAGE_DURATION_S);
+    setSecondsLeft(duration);
     applyStage(firstStage);
   };
+
 
   const stop = () => {
     setRunning(false);
@@ -346,9 +497,9 @@ function SunsetView() {
 
   const skipNext = () => {
     const next = stage + 1;
-    if (next >= SUNSET_STAGES.length) { stop(); return; }
+    if (next >= stages.length) { stop(); return; }
     setStage(next);
-    setSecondsLeft(STAGE_DURATION_S);
+    setSecondsLeft(duration);
     applyStage(next);
   };
 
@@ -364,14 +515,14 @@ function SunsetView() {
           // Advance to next stage
           setStage(cur => {
             const next = cur + 1;
-            if (next >= SUNSET_STAGES.length) {
+            if (next >= stages.length) {
               setRunning(false);
               return cur;
             }
             applyStage(next);
             return next;
           });
-          return STAGE_DURATION_S;
+          return duration;
         }
         return prev - 1;
       });
@@ -379,60 +530,126 @@ function SunsetView() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [running]);
 
-  const currentStage = SUNSET_STAGES[stage];
-  const progressPct = stage < 0 ? 0 : ((stage + (1 - secondsLeft / STAGE_DURATION_S)) / SUNSET_STAGES.length) * 100;
-  const done = stage >= SUNSET_STAGES.length;
+  const currentStage = stages[stage];
+  const progressPct = stage < 0 ? 0 : ((stage + (1 - secondsLeft / duration)) / stages.length) * 100;
+  const done = stage >= stages.length;
 
   return (
     <div className="max-w-5xl w-full grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
       {/* Left — progress */}
       <div className="space-y-6">
-        <div>
-          <div className="vibe-label text-orange-400 mb-2 flex items-center gap-2">
-            <Sun size={14} /> Sunset Protocol
+        <div className="flex justify-between items-end">
+          <div>
+            <div className="vibe-label text-orange-400 mb-2 flex items-center gap-2">
+              <Sun size={14} /> Sunset Protocol
+            </div>
+            <h1 className="text-4xl font-bold tracking-tight">Atmospheric Transition</h1>
+            <p className="text-white/40 mt-2 text-sm leading-relaxed">
+              Gradual progression from golden hour to deep night. Reduces blue light naturally, yes.
+            </p>
           </div>
-          <h1 className="text-4xl font-bold tracking-tight">Atmospheric Transition</h1>
-          <p className="text-white/40 mt-2 text-sm leading-relaxed">
-            Gradual progression from golden hour to deep night. Reduces blue light naturally, yes.
-          </p>
+          <button 
+            onClick={() => isEditing ? saveChanges() : setIsEditing(true)}
+            className={`px-4 py-2 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 transition-all ${
+              isEditing ? "bg-orange-500 text-black" : "bg-white/5 text-white/40 hover:text-white"
+            }`}
+          >
+            {isEditing ? <><Save size={12} /> Save Config</> : <><Settings2 size={12} /> Edit Config</>}
+          </button>
         </div>
+
 
         {/* Overall progress */}
         <div className="vibe-card p-6 border-white/5 bg-white/5 space-y-5 rounded-2xl">
           <div className="vibe-label opacity-40 flex items-center gap-2">
             <Thermometer size={11} /> Solar Cycle Progress
           </div>
-          <div className="relative h-2 w-full bg-white/5 rounded-full overflow-hidden">
+          <div className="relative h-3 w-full bg-white/5 rounded-full overflow-hidden border border-white/5 shadow-inner">
             <motion.div
               animate={{ width: `${progressPct}%` }}
-              transition={{ duration: 0.5 }}
-              className="h-full rounded-full"
+              transition={{ duration: 1, ease: "circOut" }}
+              className="h-full rounded-full relative shadow-[0_0_15px_rgba(249,115,22,0.3)]"
               style={{
                 background: currentStage
                   ? `linear-gradient(to right, #ff8800, ${currentStage.color})`
-                  : "linear-gradient(to right, #ff8800, #110022)"
+                  : "linear-gradient(to right, #ff8800, #550088)"
               }}
-            />
+            >
+              {/* Glow Tip */}
+              <div className="absolute right-0 top-0 bottom-0 w-2 bg-white/20 blur-[3px]" />
+            </motion.div>
           </div>
 
           {/* Stage dots */}
-          <div className="flex items-center justify-between mt-1">
-            {SUNSET_STAGES.map((s, i) => (
-              <div key={s.id} className="flex flex-col items-center gap-1.5">
-                <motion.div
-                  animate={{
-                    scale: stage === i ? 1.3 : 1,
-                    opacity: i <= stage ? 1 : 0.25,
-                  }}
-                  className="w-2.5 h-2.5 rounded-full border border-white/20"
-                  style={{ background: i <= stage ? s.color : "transparent" }}
+          {!isEditing ? (
+            <div className="flex items-center justify-between mt-1">
+              {stages.map((s: any, i: number) => (
+                <div key={i} className="flex flex-col items-center gap-1.5">
+                  <motion.div
+                    animate={{
+                      scale: stage === i ? 1.3 : 1,
+                      opacity: i <= stage ? 1 : 0.25,
+                    }}
+                    className="w-2.5 h-2.5 rounded-full border border-white/20"
+                    style={{ background: i <= stage ? s.color : "transparent" }}
+                  />
+                  <span className="text-[7px] font-mono text-white/20 uppercase hidden sm:block">
+                    {s.label.split(" ")[0]}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3 pt-4 border-t border-white/5">
+               <div className="flex items-center justify-between">
+                <div className="text-[8px] uppercase text-white/30">Step Duration (sec)</div>
+                <input 
+                  type="number"
+                  className="bg-white/5 border border-white/10 rounded px-2 py-1 text-[10px] font-mono w-16"
+                  value={editDuration}
+                  onChange={(e) => setEditDuration(parseInt(e.target.value))}
                 />
-                <span className="text-[7px] font-mono text-white/20 uppercase hidden sm:block">
-                  {s.label.split(" ")[0]}
-                </span>
               </div>
-            ))}
-          </div>
+              <div className="space-y-2">
+                {editStages.map((s: any, i: number) => (
+                  <div key={i} className="flex gap-2 items-center">
+                    <input 
+                      className="bg-white/5 border border-white/10 rounded px-2 py-1 text-[9px] flex-1"
+                      value={s.label}
+                      onChange={(e) => {
+                        const next = [...editStages];
+                        next[i] = {...s, label: e.target.value};
+                        setEditStages(next);
+                      }}
+                    />
+                    <input 
+                      type="text"
+                      className="bg-white/5 border border-white/10 rounded px-2 py-1 text-[9px] w-16 font-mono"
+                      value={s.color}
+                      onChange={(e) => {
+                        const next = [...editStages];
+                        next[i] = {...s, color: e.target.value};
+                        setEditStages(next);
+                      }}
+                    />
+                    <button 
+                      onClick={() => setEditStages(editStages.filter((_: any, idx: number) => idx !== i))}
+                      className="text-red-400/40 p-1"
+                    >
+                      <Trash2 size={10} />
+                    </button>
+                  </div>
+                ))}
+                <button 
+                  onClick={() => setEditStages([...editStages, {label: "New Stage", color: "#ffffff", brightness: 50}])}
+                  className="w-full py-2 border border-dashed border-white/20 rounded-lg text-[8px] uppercase tracking-widest text-white/20 hover:text-white"
+                >
+                  + Add Stage
+                </button>
+              </div>
+            </div>
+          )}
+
         </div>
 
         {/* Current stage info */}

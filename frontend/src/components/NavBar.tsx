@@ -1,7 +1,7 @@
 import React from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { LayoutDashboard, Cpu, Mic } from "lucide-react";
-import { useRockyStore, AppMode, RockyStatus } from "../store/useRockyStore";
+import { useMode, useStatus, useRockyStore, AppMode, RockyStatus } from "../store/useRockyStore";
 
 interface NavBarProps {
   onMicPress: () => void;
@@ -20,7 +20,9 @@ const FAB_STYLES: Record<RockyStatus, { ring: string; icon: string; pulse: boole
 };
 
 export default function NavBar({ onMicPress }: NavBarProps) {
-  const { mode, setMode, status } = useRockyStore();
+  const mode = useMode();
+  const status = useStatus();
+  const setMode = useRockyStore(s => s.setMode);
 
   const fab = FAB_STYLES[status];
   const isDashboard = mode === "dashboard";
@@ -68,24 +70,15 @@ export default function NavBar({ onMicPress }: NavBarProps) {
         >
           <AnimatePresence>
             {fab.pulse && (
-              <motion.div
+              <div
                 key="pulse"
-                className="absolute inset-0 rounded-full border-2"
-                style={{ borderColor: "currentColor" }}
-                initial={{ scale: 1, opacity: 0.6 }}
-                animate={{ scale: 1.8, opacity: 0 }}
-                exit={{ opacity: 0 }}
-                transition={{ repeat: Infinity, duration: 1.5, ease: "easeOut" }}
+                className="absolute inset-0 rounded-full border-2 border-current animate-ping"
               />
             )}
           </AnimatePresence>
           {/* Active ring when in visualizer mode */}
           {isVisualizer && (
-            <motion.div
-              className="absolute inset-[-4px] rounded-full border border-cyan-500/30"
-              animate={{ opacity: [0.4, 1, 0.4] }}
-              transition={{ repeat: Infinity, duration: 2 }}
-            />
+            <div className="absolute inset-[-4px] rounded-full border border-cyan-500/30 animate-pulse" />
           )}
           <Mic size={24} className={`${fab.icon} transition-colors relative z-10`} />
         </motion.button>

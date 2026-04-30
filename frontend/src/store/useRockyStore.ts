@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 
 export type AppMode = "dashboard" | "visualizer" | "neural_center" | "protocols";
 export type RockyStatus = "idle" | "listening" | "processing_stt" | "thinking_llm" | "synthesizing_tts" | "hot_mic" | "error";
@@ -24,8 +25,23 @@ export interface Protocol {
   description: string;
   icon: string;
   color: string;
-  settings: ProtocolSettings;
+  settings: ProtocolSettings | any;
 }
+
+export interface RoutineAction {
+  device: string;
+  action: string;
+  params?: Record<string, any>;
+}
+
+export interface Routine {
+  id: string;
+  label: string;
+  icon: string;
+  color: string;
+  actions: RoutineAction[];
+}
+
 
 export interface Message {
   role: "user" | "model";
@@ -84,6 +100,7 @@ interface RockyState {
   areas: Record<string, string>;
   weather: Weather;
   protocols: Protocol[];
+  routines: Routine[];
   environmentalState: { noiseFloor: number; isNoisy: boolean; detectedTypes: string[] };
 
   // Actions
@@ -99,6 +116,7 @@ interface RockyState {
   setInputValue: (value: string) => void;
   setIsListening: (listening: boolean) => void;
   setEnvironmentalState: (state: { noiseFloor: number; isNoisy: boolean; detectedTypes: string[] }) => void;
+  setRoutines: (routines: Routine[] | ((prev: Routine[]) => Routine[])) => void;
   
   setStats: (stats: Stats) => void;
   setLogs: (logs: LogEntry[] | ((prev: LogEntry[]) => LogEntry[])) => void;
@@ -128,6 +146,7 @@ export const useRockyStore = create<RockyState>((set) => ({
   areas: {},
   weather: { temp: 18, desc: "Clear Sky", city: "Local" },
   protocols: [],
+  routines: [],
 
   // Actions
   setMode: (mode) => set({ mode }),
@@ -166,6 +185,9 @@ export const useRockyStore = create<RockyState>((set) => ({
   setInputValue: (inputValue) => set({ inputValue }),
   setIsListening: (isListening) => set({ isListening }),
   setEnvironmentalState: (environmentalState) => set({ environmentalState }),
+  setRoutines: (routines) => set((state) => ({
+    routines: typeof routines === "function" ? routines(state.routines) : routines,
+  })),
 
   setStats: (stats) => set({ stats }),
   
@@ -184,3 +206,23 @@ export const useRockyStore = create<RockyState>((set) => ({
     lights: { ...prev.lights, [id]: state }
   }))
 }));
+
+// Granular selectors to avoid cascading re-renders
+export const useMode = () => useRockyStore(s => s.mode);
+export const useStatus = () => useRockyStore(s => s.status);
+export const useMessages = () => useRockyStore(s => s.messages);
+export const useStats = () => useRockyStore(s => s.stats);
+export const useLogs = () => useRockyStore(s => s.logs);
+export const useLights = () => useRockyStore(useShallow(s => s.lights));
+export const useAreas = () => useRockyStore(useShallow(s => s.areas));
+export const useWeather = () => useRockyStore(s => s.weather);
+export const useProtocols = () => useRockyStore(s => s.protocols);
+export const useRoutines = () => useRockyStore(s => s.routines);
+export const useIsConnected = () => useRockyStore(s => s.isConnected);
+export const useLatency = () => useRockyStore(s => s.latencyMs);
+export const useIsTyping = () => useRockyStore(s => s.isTyping);
+export const useServiceStatus = () => useRockyStore(useShallow(s => s.serviceStatus));
+export const useInputValue = () => useRockyStore(s => s.inputValue);
+export const useEnvironmentalState = () => useRockyStore(s => s.environmentalState);
+export const useActiveProtocolId = () => useRockyStore(s => s.activeProtocolId);
+export const useIsListening = () => useRockyStore(s => s.isListening);

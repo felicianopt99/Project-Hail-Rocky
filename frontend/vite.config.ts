@@ -8,7 +8,6 @@ export default defineConfig(({mode}) => {
   return {
     plugins: [react(), tailwindcss()],
     define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY),
       'process.env.LOCAL_LLM_URL': JSON.stringify(env.LOCAL_LLM_URL),
       'process.env.LOCAL_LLM_MODEL': JSON.stringify(env.LOCAL_LLM_MODEL),
     },
@@ -20,12 +19,12 @@ export default defineConfig(({mode}) => {
     server: {
       proxy: {
         '/socket.io': {
-          target: 'ws://127.0.0.1:8000',
+          target: 'ws://127.0.0.1:8001',
           ws: true,
           rewrite: (path) => path,
         },
         '/api': {
-          target: 'http://127.0.0.1:8000',
+          target: 'http://127.0.0.1:8001',
           changeOrigin: true,
         },
       },
