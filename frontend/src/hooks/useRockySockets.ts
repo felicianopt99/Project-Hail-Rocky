@@ -80,6 +80,13 @@ export function useRockySockets(addToast: (msg: string, type: any) => void) {
       store.setStatus("idle");
     };
 
+    const onChatError = (error: any) => {
+      addToast("Failed to send message - try again", "error");
+      store.setIsTyping(false);
+      store.setStatus("idle");
+      console.error("[Chat Error]", error);
+    };
+
     const onServiceStatus = (data: { service: string; ok: boolean }) => {
       store.setServiceStatus(data.service, data.ok);
     };
@@ -108,10 +115,20 @@ export function useRockySockets(addToast: (msg: string, type: any) => void) {
 
     const onConnect = () => {
       store.setIsConnected(true);
+      addToast("Connected to Rocky", "success");
     };
 
-    const onDisconnect = () => store.setIsConnected(false);
-    const onConnectError = () => store.setIsConnected(false);
+    const onDisconnect = () => {
+      store.setIsConnected(false);
+      addToast("Connection lost - reconnecting...", "warning");
+    };
+
+    const onConnectError = (error?: any) => {
+      store.setIsConnected(false);
+      const msg = error?.message || "Connection error - check OpenClaw gateway";
+      addToast(msg, "error");
+    };
+
     const onPongLatency = (sentAt: number) => store.setLatencyMs(Date.now() - sentAt);
 
     // Dashboard listeners
@@ -145,6 +162,7 @@ export function useRockySockets(addToast: (msg: string, type: any) => void) {
     socket.on("transcript_result", onTranscriptResult);
     socket.on("chat_token", onChatToken);
     socket.on("chat_response", onChatResponse);
+    socket.on("chat_error", onChatError);
     socket.on("wake_word_detected", onWakeWordDetected);
     socket.on("timer_fired", onTimerFired);
     socket.on("connect", onConnect);
@@ -173,6 +191,7 @@ export function useRockySockets(addToast: (msg: string, type: any) => void) {
       socket.off("transcript_result", onTranscriptResult);
       socket.off("chat_token", onChatToken);
       socket.off("chat_response", onChatResponse);
+      socket.off("chat_error", onChatError);
       socket.off("wake_word_detected", onWakeWordDetected);
       socket.off("timer_fired", onTimerFired);
       socket.off("connect", onConnect);

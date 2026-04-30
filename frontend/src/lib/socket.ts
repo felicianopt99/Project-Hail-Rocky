@@ -1,3 +1,5 @@
+import type { RPCError } from "../types/openclaw";
+
 const LOG_TAG = "[Rocky OpenClaw]";
 
 function log(level: "info" | "warn" | "error", msg: string, data?: any) {
@@ -16,21 +18,21 @@ interface RpcRequest {
   type: "req";
   id: string;
   method: string;
-  params: any;
+  params: Record<string, unknown>;
 }
 
 interface RpcResponse {
   type: "res";
   id: string;
   ok: boolean;
-  payload?: any;
-  error?: { code: number; message: string };
+  payload?: unknown;
+  error?: RPCError;
 }
 
 interface RpcEvent {
   type: "event";
   event: string;
-  payload: any;
+  payload: unknown;
   seq?: number;
   stateVersion?: number;
 }
