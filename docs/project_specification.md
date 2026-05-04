@@ -412,12 +412,10 @@ Adicionar uma nova tool:
 1. Definir schema em definitions.py
 2. Adicionar case em executor.py
 3. Metadata em _TOOL_META em skills.py
-Sem reiniciar OVOS, sem locale files, sem setup.py.
 
-Nota Futura
-Avaliar migração para MCP (Model Context Protocol) quando o ecossistema
-estabilizar — tornaria as tools interoperáveis com Claude Desktop, Cursor,
-e outros agents.
+## 8. Considerações de Interoperabilidade
+
+- **Protocolo Unificado**: Uso de padrões abertos (JSON-RPC/WebSockets) para garantir que as ferramentas sejam interoperáveis com outros sistemas e agentes inteligentes de forma agnóstica.
 7.5 Home Assistant — Smart Home Hub
 Site: https://www.home-assistant.io
 Repositório: https://github.com/home-assistant/core
