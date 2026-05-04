@@ -1,62 +1,81 @@
 services:
-  openclaw-gateway:
-    image: ghcr.io/openclaw/openclaw:latest
-    container_name: rocky-gateway
+  # ── Backend ──────────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rocky-backend
     network_mode: host
-    environment:
-      - OPENCLAW_HOME=/home/node/.openclaw
-      - NVIDIA_API_KEY=${NVIDIA_API_KEY}
-      - GROQ_API_KEY=${GROQ_API_KEY}
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
     env_file:
       - .env
+    environment:
+      - VOICE_ENGINE_URL=http://127.0.0.1:8880
     volumes:
-      - ./brain:/home/node/.openclaw
+      - ./backend/app:/app/app
     restart: unless-stopped
-    privileged: true
-    profiles:
-      - full
-      - gateway
+    depends_on:
+      - redis
 
+  # ── Frontend ─────────────────────────────────────────────────────────────
   frontend:
     build:
       context: ./frontend
       dockerfile: Dockerfile
       target: dev
-      cache_from:
-        - type=registry,ref=localhost:5000/rocky-frontend:cache
-      cache_to:
-        - type=inline
-      args:
-        - BUILDKIT_INLINE_CACHE=1
     container_name: rocky-frontend
     network_mode: host
     environment:
       - NODE_ENV=development
-      - VITE_BACKEND_URL=ws://127.0.0.1:18789
-      - VITE_OPENCLAW_TOKEN=${VITE_OPENCLAW_TOKEN:-rocky-secret-token-2026}
+      - VITE_BACKEND_URL=http://127.0.0.1:8000
     env_file:
       - .env
-    ports:
-      - "5173:5173"
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/index.html:/app/index.html
+      - ./frontend/vite.config.ts:/app/vite.config.ts
     develop:
       watch:
         - action: sync+restart
           path: ./frontend/src
           target: /app/src
-        - action: sync+restart
-          path: ./frontend/public
-          target: /app/public
         - action: sync
           path: ./frontend/index.html
           target: /app/index.html
+        - action: sync+restart
+          path: ./frontend/vite.config.ts
+          target: /app/vite.config.ts
         - action: rebuild
           path: ./frontend/package.json
     restart: unless-stopped
-    profiles:
-      - full
-      - frontend
+    depends_on:
+      - backend
 
+  # ── Redis ─────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: rocky-redis
+    network_mode: host
+    command: redis-server --port 6380 --maxmemory 512mb --maxmemory-policy allkeys-lru
+    restart: unless-stopped
+
+  # ── PostgreSQL (Letta backend — Phase 5) ─────────────────────────────────
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: rocky-postgres
+    network_mode: host
+    command: postgres -p 5433
+    environment:
+      - POSTGRES_DB=rocky
+      - POSTGRES_USER=rocky
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-rocky-secret}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    profiles:
+      - letta
+      - full
+
+  # ── Home Assistant ────────────────────────────────────────────────────────
   homeassistant:
     container_name: homeassistant
     image: "ghcr.io/home-assistant/home-assistant:stable"
@@ -68,12 +87,70 @@ services:
     privileged: true
     network_mode: host
     profiles:
+      - ha
       - full
-      - homeassistant
+
+  # ── Qdrant Vector DB (Phase 5 — Letta memory) ─────────────────────────
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: rocky-qdrant
+    network_mode: host
+    volumes:
+      - qdrant-data:/qdrant/storage
+    restart: unless-stopped
+    profiles:
+      - letta
+      - full
+
+  # ── Letta (Phase 5 — Memory & Agents) ────────────────────────────────
+  letta:
+    image: letta/letta:latest
+    container_name: rocky-letta
+    network_mode: host
+    env_file:
+      - .env
+    volumes:
+      - letta-data:/root/.letta
+    restart: unless-stopped
+    depends_on:
+      - postgres
+      - qdrant
+    profiles:
+      - letta
+      - full
+
+  # ── Rocky Voice Engine (2026 Consolidated Architecture) ───────────────
+  voice_engine:
+    build:
+      context: ./services/voice_engine
+      dockerfile: Dockerfile
+    container_name: rocky-voice-engine
+    network_mode: host
+    env_file:
+      - .env
+    volumes:
+      - ./models:/models
+      - ./services/voice_engine/app:/app/app
+    restart: unless-stopped
+    profiles:
+      - voice
+      - full
+
+  # ── Ollama (offline LLM fallback) ─────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: rocky-ollama
+    network_mode: host
+    volumes:
+      - ollama-data:/root/.ollama
+    restart: unless-stopped
+    profiles:
+      - offline
+      - full
 
 volumes:
+  postgres-data:
   ha-config:
-    driver: local
-    driver_opts:
-      type: tmpfs
-      device: tmpfs
+  qdrant-data:
+  letta-data:
+  ollama-data:

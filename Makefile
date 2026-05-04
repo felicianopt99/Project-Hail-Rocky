@@ -1,86 +1,101 @@
-.PHONY: help docker-build docker-dev docker-prod docker-push docker-bake docker-clean
-
-DOCKER_REGISTRY := localhost:5000
-FRONTEND_IMAGE := rocky-frontend
-FRONTEND_TAG := latest
+.PHONY: help up down logs build dev ha ovos letta full backend-shell frontend-shell hash-password wakeword download-models lint typecheck test
 
 help:
-	@echo "Project Hail Rocky - Docker Commands"
-	@echo "===================================="
-	@echo "make docker-dev      - Start development environment with hot reload"
-	@echo "make docker-prod     - Start production environment"
-	@echo "make docker-build    - Build Docker images with BuildKit"
-	@echo "make docker-bake     - Build all targets with docker buildx bake"
-	@echo "make docker-push     - Push images to registry"
-	@echo "make docker-clean    - Clean up Docker resources"
-	@echo "make docker-logs     - View container logs"
-	@echo "make docker-shell    - Open shell in frontend container"
+	@echo "Project Hail Rocky"
+	@echo "=================="
+	@echo "--- Core ---"
+	@echo "make up              - Start backend + frontend + redis"
+	@echo "make down            - Stop all containers"
+	@echo "make logs            - Tail all logs"
+	@echo "make logs-backend    - Tail backend logs"
+	@echo "make logs-frontend   - Tail frontend logs"
+	@echo "make build           - Rebuild all images"
+	@echo "make dev             - Start with hot reload (docker watch)"
+	@echo "--- Profiles ---"
+	@echo "make ha              - + Home Assistant"
+	@echo "make ovos            - + OVOS skills engine (Phase 3)"
+	@echo "make letta           - + Letta + Postgres + Qdrant (Phase 5)"
+	@echo "make full            - Everything"
+	@echo "--- Validation (run before declaring a task done) ---"
+	@echo "make lint            - ruff (backend) + eslint (frontend)"
+	@echo "make typecheck       - mypy (backend) + tsc (frontend)"
+	@echo "make check           - Run comprehensive system health check"
+	@echo "make test            - pytest (backend) + vitest (frontend)"
+	@echo "--- Utils ---"
+	@echo "make hash-password   - Generate bcrypt hash for ADMIN_PASSWORD_HASH"
+	@echo "make backend-shell   - Shell in backend container"
+	@echo "make frontend-shell  - Shell in frontend container"
+	@echo "make download-models - Download Vosk + Silero VAD models"
+	@echo "make wakeword        - Start wake word detector (runs on host, needs mic)"
 
-docker-dev:
-	@echo "Starting development environment..."
-	docker compose -f docker-compose.dev.yml up --build
+up:
+	docker compose up -d
 
-docker-prod:
-	@echo "Starting production environment..."
-	docker compose -f docker-compose.prod.yml up --build
+down:
+	docker compose down
 
-docker-build:
-	@echo "Building with BuildKit..."
-	DOCKER_BUILDKIT=1 docker build \
-		--target dev \
-		-f frontend/Dockerfile \
-		-t $(FRONTEND_IMAGE):dev \
-		./frontend
-
-docker-bake:
-	@echo "Building all targets with docker buildx bake..."
-	docker buildx bake -f docker-bake.hcl all
-
-docker-prod-build:
-	@echo "Building production image..."
-	DOCKER_BUILDKIT=1 docker build \
-		--target prod \
-		--cache-from type=registry,ref=$(DOCKER_REGISTRY)/$(FRONTEND_IMAGE):cache \
-		--cache-to type=registry,ref=$(DOCKER_REGISTRY)/$(FRONTEND_IMAGE):cache,mode=max \
-		-f frontend/Dockerfile \
-		-t $(FRONTEND_IMAGE):prod \
-		-t $(FRONTEND_IMAGE):$(FRONTEND_TAG) \
-		./frontend
-
-docker-push:
-	@echo "Pushing images to registry..."
-	docker tag $(FRONTEND_IMAGE):dev $(DOCKER_REGISTRY)/$(FRONTEND_IMAGE):dev
-	docker tag $(FRONTEND_IMAGE):prod $(DOCKER_REGISTRY)/$(FRONTEND_IMAGE):prod
-	docker push $(DOCKER_REGISTRY)/$(FRONTEND_IMAGE):dev
-	docker push $(DOCKER_REGISTRY)/$(FRONTEND_IMAGE):prod
-
-docker-clean:
-	@echo "Cleaning Docker resources..."
-	docker compose -f docker-compose.dev.yml down --volumes
-	docker compose -f docker-compose.prod.yml down --volumes
-	docker image prune -f
-	docker builder prune -f
-
-docker-logs:
+logs:
 	docker compose logs -f --tail=100
 
-docker-shell:
+logs-backend:
+	docker compose logs -f --tail=100 backend
+
+logs-frontend:
+	docker compose logs -f --tail=100 frontend
+
+build:
+	docker compose build
+
+dev:
+	docker compose up --watch
+
+ha:
+	docker compose --profile ha up -d
+
+voice:
+	docker compose --profile voice up -d
+
+ovos:
+	docker compose --profile ovos up -d
+
+letta:
+	docker compose --profile letta up -d
+
+full:
+	docker compose --profile full up -d
+
+lint:
+	docker compose exec backend ruff check app/
+	cd frontend && npm run lint
+
+typecheck:
+	docker compose exec backend mypy app/ --ignore-missing-imports
+	cd frontend && npx tsc --noEmit
+
+test:
+	docker compose exec backend pytest
+	cd frontend && npm test -- --run
+
+check:
+	python3 scripts/system_check.py
+
+hash-password:
+	@read -p "Password: " pw; python3 -c "from passlib.context import CryptContext; print(CryptContext(['bcrypt']).hash('$$pw'))"
+
+backend-shell:
+	docker compose exec backend sh
+
+frontend-shell:
 	docker compose exec frontend sh
 
-docker-inspect-frontend:
-	docker inspect $$(docker ps -q -f "ancestor=$(FRONTEND_IMAGE):dev")
+download-models:
+	python3 scripts/download_models.py
 
-buildkit-setup:
-	@echo "Setting up BuildKit builder..."
-	docker buildx create --name rocky-builder --driver docker-container || true
-	docker buildx use rocky-builder
-
-buildkit-inspect:
-	docker buildx inspect --bootstrap
-
-validate:
-	@echo "Validating docker-compose files..."
-	docker compose -f docker-compose.yml config > /dev/null
-	docker compose -f docker-compose.dev.yml config > /dev/null
-	docker compose -f docker-compose.prod.yml config > /dev/null
-	@echo "✓ All compose files are valid"
+wakeword:
+	@echo "Installing wake word dependencies..."
+	pip install -r services/wakeword/requirements.txt
+	@echo "Starting Rocky wake word detector (listening for 'rocky' / 'hey rocky')..."
+	@echo "Backend URL: $${ROCKY_BACKEND_URL:-http://127.0.0.1:8000}"
+	ROCKY_BACKEND_URL=$${ROCKY_BACKEND_URL:-http://127.0.0.1:8000} \
+	VOSK_MODEL_PATH=models/vosk/vosk-model-small-en-us-0.15 \
+	python3 services/wakeword/detector.py

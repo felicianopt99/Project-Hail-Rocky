@@ -11,7 +11,7 @@ class PCMProcessor extends AudioWorkletProcessor {
     super();
     log("info", "Constructor called");
 
-    this._gain = 16.0;  // Amplify audio 16x to reach proper levels for VAD
+    this._gain = 2.0;  // Safe gain to ensure clarity without clipping
     this._targetSampleRate = 16000;
     this._inputSampleRate = sampleRate;
     this._resampleRatio = this._inputSampleRate / this._targetSampleRate;

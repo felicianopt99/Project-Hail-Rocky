@@ -5,7 +5,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 RUN apt-get update && apt-get install -y --no-install-recommends curl tini && \
     rm -rf /var/lib/apt/lists/*
-ENTRYPOINT ["/sbin/tini", "--"]
+ENTRYPOINT ["/usr/bin/tini", "--"]
 
 FROM base AS deps-builder
 ENV NODE_ENV=development

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 
-export type AppMode = "dashboard" | "visualizer" | "neural_center" | "protocols";
+export type AppMode = "dashboard" | "visualizer" | "neural_center" | "protocols" | "skills" | "memories" | "settings";
 export type RockyStatus = "idle" | "listening" | "processing_stt" | "thinking_llm" | "synthesizing_tts" | "hot_mic" | "error";
 
 export interface ProtocolSettings {

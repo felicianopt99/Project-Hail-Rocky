@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import socket from "../lib/socket";
+import { eventBus, RockyEvents } from "../lib/eventBus";
 import { useRockyStore, Message, RockyStatus, AppMode, LightState, Stats, Weather, LogEntry, Protocol, ProtocolSettings } from "../store/useRockyStore";
 
 const NAV_MODES: AppMode[] = ["dashboard", "visualizer", "neural_center"];
@@ -96,8 +97,20 @@ export function useRockySockets(addToast: (msg: string, type: any) => void) {
         playWakeBeep();
         store.setMode("visualizer");
         store.setStatus("listening");
-        addToast("Listening...", "info");
+        addToast("Yes, human?", "info");
+        // Signal AudioManager to activate the mic
+        eventBus.emit(RockyEvents.WAKE_WORD_DETECTED);
       }
+    };
+
+    const onSpeakerIdentified = (data: { name: string }) => {
+      addToast(`${data.name}`, "info");
+    };
+
+    const onSpeakerChanged = (data: { from: string; to: string }) => {
+      addToast(`${data.to}`, "info");
+      // Clear chat display — new speaker, fresh context
+      store.setMessages([]);
     };
 
     const onTimerFired = (data: { label: string }) => {
@@ -164,6 +177,8 @@ export function useRockySockets(addToast: (msg: string, type: any) => void) {
     socket.on("chat_response", onChatResponse);
     socket.on("chat_error", onChatError);
     socket.on("wake_word_detected", onWakeWordDetected);
+    socket.on("speaker_identified", onSpeakerIdentified);
+    socket.on("speaker_changed", onSpeakerChanged);
     socket.on("timer_fired", onTimerFired);
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
@@ -193,6 +208,8 @@ export function useRockySockets(addToast: (msg: string, type: any) => void) {
       socket.off("chat_response", onChatResponse);
       socket.off("chat_error", onChatError);
       socket.off("wake_word_detected", onWakeWordDetected);
+      socket.off("speaker_identified", onSpeakerIdentified);
+      socket.off("speaker_changed", onSpeakerChanged);
       socket.off("timer_fired", onTimerFired);
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);

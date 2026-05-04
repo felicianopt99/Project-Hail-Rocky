@@ -3,11 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>My Google AI Studio App</title>
+    <title>Rocky</title>
+    <script>
+      window.__errors = [];
+      window.onerror = function(msg, src, line, col, err) {
+        window.__errors.push(msg + ' @ ' + src + ':' + line);
+        document.getElementById('debug-errors').style.display = 'block';
+        document.getElementById('debug-errors').textContent = window.__errors.join('\n');
+      };
+      window.addEventListener('unhandledrejection', function(e) {
+        window.__errors.push('Promise: ' + (e.reason?.message || e.reason));
+        document.getElementById('debug-errors').style.display = 'block';
+        document.getElementById('debug-errors').textContent = window.__errors.join('\n');
+      });
+    </script>
   </head>
-  <body>
+  <body style="background:#030508;color:white;font-family:monospace">
+    <pre id="debug-errors" style="display:none;position:fixed;top:0;left:0;right:0;background:red;color:white;z-index:9999;padding:16px;font-size:12px;white-space:pre-wrap"></pre>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
-

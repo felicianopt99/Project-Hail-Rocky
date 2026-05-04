@@ -1,0 +1,75 @@
+import asyncio
+import socketio
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from .core.logging import setup_logging
+from .api import dashboard, socketio_handlers, ha_handlers, auth, skills, settings_api, wakeword, speaker, memory, brain
+from .config import settings
+from .workers.scheduler import setup as setup_scheduler
+
+setup_logging()
+
+sio = socketio.AsyncServer(
+    async_mode="asgi",
+    cors_allowed_origins=[
+        settings.frontend_url,
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    logger=True,
+    engineio_logger=True,
+)
+
+socketio_handlers.register(sio)
+ha_handlers.register(sio)
+wakeword.set_sio(sio)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    metrics_task = asyncio.create_task(ha_handlers.metrics_loop(sio))
+    scheduler = setup_scheduler()
+    scheduler.start()
+    yield
+    metrics_task.cancel()
+    scheduler.shutdown(wait=False)
+
+
+fastapi_app = FastAPI(
+    title="Rocky Backend",
+    version="0.1.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+    lifespan=lifespan,
+)
+
+fastapi_app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        settings.frontend_url,
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+fastapi_app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+fastapi_app.include_router(dashboard.router, prefix="/api/dashboard", tags=["dashboard"])
+fastapi_app.include_router(skills.router, prefix="/api/skills", tags=["skills"])
+fastapi_app.include_router(settings_api.router, prefix="/api/settings", tags=["settings"])
+fastapi_app.include_router(wakeword.router, prefix="/api/wakeword", tags=["wakeword"])
+fastapi_app.include_router(speaker.router, prefix="/api/speaker/profiles", tags=["speaker"])
+fastapi_app.include_router(memory.router, prefix="/api/memory", tags=["memory"])
+fastapi_app.include_router(brain.router, prefix="/api/brain", tags=["brain"])
+
+
+@fastapi_app.get("/api/health")
+async def health():
+    return {"status": "ok", "service": "rocky-backend", "version": "0.1.0"}
+
+
+app = socketio.ASGIApp(sio, other_asgi_app=fastapi_app)

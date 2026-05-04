@@ -82,6 +82,9 @@ export function useAudioPipeline({
     const scheduleNextChunk = () => {
       if (!audioQueueRef.current.length) {
         isPlayingRef.current = false;
+        if (!isSpeakingRef.current) {
+          setStatus("idle");
+        }
         return;
       }
 
@@ -112,8 +115,11 @@ export function useAudioPipeline({
     };
 
     const processAudioQueue = () => {
-      if (!audioQueueRef.current.length || isPlayingRef.current) return;
-      if (audioQueueRef.current.length > 2 || audioCtx.currentTime > nextChunkTimeRef.current - 0.1) {
+      // Schedule ahead as much as possible
+      while (audioQueueRef.current.length > 0) {
+        // If we are scheduling too far ahead (> 1s), stop for now
+        if (nextChunkTimeRef.current > audioCtx.currentTime + 1.0) break;
+        
         isPlayingRef.current = true;
         scheduleNextChunk();
       }
@@ -128,7 +134,8 @@ export function useAudioPipeline({
         console.log(`[Rocky] New TTS Segment. Sample Rate: ${newSampleRate}`);
         currentSampleRateRef.current = newSampleRate;
         if (audioQueueRef.current.length === 0) {
-          nextChunkTimeRef.current = audioCtx.currentTime + (jitterBufferTargetRef.current / 1000);
+          // Increase initial jitter buffer to 400ms for high stability on low-end HW
+          nextChunkTimeRef.current = audioCtx.currentTime + 0.4;
         }
       }
       setStatus("synthesizing_tts");
@@ -198,20 +205,20 @@ export function useAudioPipeline({
     const onStopSpeaking = () => handleStopSpeaking();
 
     const onTtsEnd = () => {
-      console.log("[Rocky] TTS finished naturally.");
+      console.log("[Rocky] TTS transfer finished.");
       isSpeakingRef.current = false;
-      // Only return to idle if we aren't already listening to a follow-up
-      setStatus((prev: string) => (prev === "synthesizing_tts" ? "idle" : prev));
+      // We don't set idle here anymore, source.onended will do it
+      // when the queue is actually empty.
     };
 
-    const playEarcon = useCallback(async (type: string) => {
+    const playEarcon = async (type: string) => {
       const audioCtx = audioCtxRef.current;
       if (!audioCtx) return;
 
       const fileMap: Record<string, string> = {
-        accept: "/test_accept.wav",
-        success: "/test_ai.wav",
-        error: "/test_integrate.wav"
+        accept: "/earcons/accept.wav",
+        success: "/earcons/success.wav",
+        error: "/earcons/error.wav",
       };
 
       const file = fileMap[type];
@@ -228,7 +235,7 @@ export function useAudioPipeline({
       } catch (e) {
         console.warn(`[Rocky] Failed to play earcon ${type}:`, e);
       }
-    }, []);
+    };
 
     socket.on("tts_start", onTtsStart);
     socket.on("tts_chunk", onTtsChunk);

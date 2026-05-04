@@ -47,8 +47,12 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
   // State flags
   const isCapturingRef = useRef(false);
   const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const silenceCounterRef = useRef(0);
+  const silenceStartRef = useRef<number | null>(null);
   const lastAudioChunkTimeRef = useRef(Date.now());
+  
+  // VAD Settings (could be synced from store/settings)
+  const SILENCE_THRESHOLD = 20; // Research-backed threshold for speech vs noise
+  const SILENCE_DURATION = 1000; // ms of silence before auto-stop (shorter = less hallucination)
 
   // Socket state
   const socketSessionRef = useRef<string>("");
@@ -232,21 +236,37 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
           workletNode.port.onmessage = (event) => {
             const { pcmData, chunkNumber } = event.data;
 
-            // Diagnostics: log message receipt, buffer size, and socket state
-            log("info", `Received PCM chunk #${chunkNumber}`, {
-              bufferSize: pcmData?.byteLength || 0,
-              socketConnected: socket.connected,
-              isSocketReady: isSocketReadyRef.current,
-              isCapturing: isCapturingRef.current,
-              queueLength: audioChunkQueueRef.current.length,
-            });
-
-            if (!pcmData || !isCapturingRef.current) {
-              log("warn", `Skipping chunk #${chunkNumber}: pcmData missing or not capturing`);
-              return;
-            }
+            if (!pcmData || !isCapturingRef.current) return;
 
             lastAudioChunkTimeRef.current = Date.now();
+
+            // ── VAD: Simple Volume-based Silence Detection ─────────────────
+            if (analyzerRef.current) {
+              const dataArray = new Uint8Array(analyzerRef.current.fftSize);
+              analyzerRef.current.getByteTimeDomainData(dataArray);
+              
+              // Calculate RMS (Root Mean Square) for volume
+              let sum = 0;
+              for (let i = 0; i < dataArray.length; i++) {
+                const val = (dataArray[i] - 128) / 128;
+                sum += val * val;
+              }
+              const rms = Math.sqrt(sum / dataArray.length) * 100;
+              
+              if (rms < SILENCE_THRESHOLD) {
+                if (!silenceStartRef.current) silenceStartRef.current = Date.now();
+                const silenceMs = Date.now() - silenceStartRef.current;
+                
+                if (silenceMs > SILENCE_DURATION) {
+                  log("info", `Silence detected (${silenceMs}ms), auto-stopping...`);
+                  stopAudioCapture();
+                  socket.emit("manual_stop");
+                  return;
+                }
+              } else {
+                silenceStartRef.current = null; // Reset if noise detected
+              }
+            }
 
             // CRITICAL FIX: Auto-recover if socket.connected but flag not set yet
             // This handles the race condition where socket.connected=true but connect event hasn't fired
@@ -411,6 +431,7 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
         clearTimeout(silenceTimeoutRef.current);
         silenceTimeoutRef.current = null;
       }
+      silenceStartRef.current = null;
 
       // Clear any remaining queued chunks
       if (audioChunkQueueRef.current.length > 0) {
