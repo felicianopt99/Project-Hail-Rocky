@@ -1,0 +1,33 @@
+{
+  "timestamp": "2026-05-05T11:01:35.249716",
+  "levels": {
+    "Health Checks": {
+      "passed": true,
+      "backend": true,
+      "voice": true
+    },
+    "API Functional": {
+      "passed": true,
+      "duration_sec": 5.9,
+      "stdout": "============================= test session starts ==============================\nplatform linux -- Python 3.11.15, pytest-9.0.3, pluggy-1.6.0\nrootdir: /app\nplugins: asyncio-1.3.0, mock-3.15.1, anyio-4.13.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 4 items\n\ntests/test_api.py ....                                                   [100%]\n\n=============================== warnings summary ===============================\napp/config.py:4\n  /app/app/config.py:4: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class Settings(BaseSettings):\n\n../usr/local/lib/python3.11/site-packages/passlib/utils/__init__.py:854\n  /usr/local/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13\n    from crypt import crypt as _crypt\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n======================== 4 passed, 2 warnings in 0.08s =========================\n",
+      "stderr": ""
+    },
+    "Socket.IO Integration": {
+      "passed": true,
+      "duration_sec": 7.64,
+      "stdout": "============================= test session starts ==============================\nplatform linux -- Python 3.11.15, pytest-9.0.3, pluggy-1.6.0\nrootdir: /app\nplugins: asyncio-1.3.0, mock-3.15.1, anyio-4.13.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 3 items\n\ntests/test_voice_loop.py ...                                             [100%]\n\n=============================== warnings summary ===============================\napp/config.py:4\n  /app/app/config.py:4: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class Settings(BaseSettings):\n\n../usr/local/lib/python3.11/site-packages/passlib/utils/__init__.py:854\n  /usr/local/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13\n    from crypt import crypt as _crypt\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n======================== 3 passed, 2 warnings in 2.05s =========================\n",
+      "stderr": ""
+    },
+    "VUI Industry Benchmarks": {
+      "passed": true,
+      "duration_sec": 104.5,
+      "stdout": "\n============================================================\n\u2705 TEST COMPLETE: 8/9 Passed\n\ud83c\udfad Personality Accuracy: 36.67%\n\n\ud83d\udce2 VUI BENCHMARK (ALEXA VS ROCKY)\n------------------------------------------------------------\nMetric                    | Alexa Standard  | Rocky (Avg)\n------------------------------------------------------------\nTTFT (LLM Response)       | ~1.5s - 2.2s    | 631.43    ms\nTTRS (Speech Start)       | ~2.0s - 3.0s    | 650.12    ms\nJitter (Stability)        | < 200ms         | 110.91    ms\n------------------------------------------------------------\n\ud83d\ude80 STATUS: ROCKY IS FASTER THAN ALEXA!\n\n\ud83d\ude80 Avg TPS: 1.72 tokens/sec\n\ud83d\udcc1 Report: /home/feli/Documents/Coding_projects/Project-Hail-Rocky/scripts/reports/report_20260505_110333.json\n============================================================\n\n",
+      "stderr": "05 11:02:02 [INFO] TestBattery: Finished [HOME-001] -> FAIL (Score: 30.0)\n2026-05-05 11:02:02 [INFO] TestBattery: Starting [HOME-002] Living Room Temp\n2026-05-05 11:02:02 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 11:02:07 [INFO] TestBattery: Finished [GREET-001] -> PASS (Score: 25.0)\n2026-05-05 11:02:07 [INFO] TestBattery: Starting [KNOW-001] Moon Landing\n2026-05-05 11:02:07 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 11:02:12 [INFO] TestBattery: Finished [HOME-002] -> PASS (Score: 40.0)\n2026-05-05 11:02:12 [INFO] TestBattery: Starting [KNOW-002] Python History\n2026-05-05 11:02:12 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 11:02:30 [INFO] TestBattery: Finished [KNOW-002] -> PASS (Score: 40.0)\n2026-05-05 11:02:30 [INFO] TestBattery: Starting [GREET-002] Standard Greeting EN\n2026-05-05 11:02:30 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 11:02:33 [INFO] TestBattery: Finished [KNOW-001] -> PASS (Score: 40.0)\n2026-05-05 11:02:33 [INFO] TestBattery: Starting [HOME-003] Living Room Lights EN\n2026-05-05 11:02:33 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 11:02:51 [INFO] TestBattery: Finished [GREET-002] -> PASS (Score: 25.0)\n2026-05-05 11:02:51 [INFO] TestBattery: Starting [KNOW-003] Speed of Light\n2026-05-05 11:02:51 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 11:02:54 [INFO] TestBattery: Finished [HOME-003] -> PASS (Score: 15.0)\n2026-05-05 11:02:54 [INFO] TestBattery: Starting [PERS-002] Rocky Origin EN\n2026-05-05 11:02:54 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 11:03:32 [INFO] TestBattery: Finished [KNOW-003] -> PASS (Score: 65.0)\n2026-05-05 11:03:33 [INFO] TestBattery: Finished [PERS-002] -> PASS (Score: 50.0)\n"
+    }
+  },
+  "summary": {
+    "passed": 4,
+    "failed": 0,
+    "total": 4
+  }
+}

@@ -79,13 +79,27 @@ class PipecatBridge:
                     # Handle control messages (json)
                     try:
                         data = json.loads(message)
-                        log.info("pipecat_bridge_received_control", type=data.get("type"))
-                        if data.get("type") == "tts_start":
+                        msg_type = data.get("type")
+                        log.info("pipecat_bridge_received_control", type=msg_type)
+                        
+                        if msg_type == "tts_start":
                             await self._sio.emit("tts_start", data, to=self._sid)
-                        elif data.get("type") == "tts_end":
+                            await self._sio.emit("status_update", "synthesizing_tts", to=self._sid)
+                        elif msg_type == "tts_end":
                             await self._sio.emit("tts_end", to=self._sid)
-                    except:
-                        log.warning("pipecat_bridge_unknown_message", message=message)
+                            await self._sio.emit("status_update", "idle", to=self._sid)
+                        elif msg_type == "transcript":
+                            await self._sio.emit("transcript_result", data.get("text"), to=self._sid)
+                            await self._sio.emit("status_update", "processing_stt", to=self._sid)
+                        elif msg_type == "chat_token":
+                            await self._sio.emit("chat_token", data.get("token"), to=self._sid)
+                            await self._sio.emit("status_update", "thinking_llm", to=self._sid)
+                        elif msg_type == "chat_response":
+                            await self._sio.emit("chat_response", {"text": data.get("text")}, to=self._sid)
+                            # chat_response usually precedes tts_end or is concurrent. 
+                            # We don't force idle here as TTS might still be playing.
+                    except Exception as e:
+                        log.warning("pipecat_bridge_parse_error", message=message, error=str(e))
         except websockets.ConnectionClosed as e:
             log.info("pipecat_bridge_closed", sid=self._sid, code=e.code, reason=e.reason)
         except Exception as e:

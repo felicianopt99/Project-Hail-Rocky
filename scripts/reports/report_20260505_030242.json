@@ -1,0 +1,182 @@
+{
+  "timestamp": "2026-05-05T03:01:03.191089",
+  "duration_seconds": 99.176166,
+  "summary": {
+    "total": 5,
+    "passed": 4,
+    "failed": 1
+  },
+  "metrics": {
+    "stt_avg_ms": 342.01040267944336,
+    "stt_p95_ms": 405.63626289367676,
+    "llm_ttft_avg_ms": 9834.804594516754,
+    "llm_ttft_p95_ms": 47325.47265291214,
+    "total_latency_avg_ms": 11931.430339813232,
+    "total_latency_p95_ms": 49078.654408454895
+  },
+  "results": [
+    {
+      "id": "KNOW-002",
+      "category": "Knowledge",
+      "name": "Python History",
+      "input": "Who created the Python programming language?",
+      "expected_keywords": [
+        "created",
+        "python",
+        "programming",
+        "language"
+      ],
+      "language": "en",
+      "stt_success": true,
+      "llm_success": false,
+      "stt_latency": 378.2179355621338,
+      "llm_ttft": null,
+      "total_latency": null,
+      "actual_transcript": "Who created the Python programming language?",
+      "actual_response": "",
+      "stt_matches": [
+        "created",
+        "python",
+        "programming",
+        "language"
+      ],
+      "status_history": [
+        "processing_stt",
+        "thinking_llm"
+      ],
+      "status": "FAIL",
+      "reason": "LLM Timeout/Empty"
+    },
+    {
+      "id": "GREET-002",
+      "category": "Personality",
+      "name": "Standard Greeting EN",
+      "input": "Hello Rocky, how are you doing today?",
+      "expected_keywords": [
+        "hello",
+        "rocky",
+        "doing",
+        "today"
+      ],
+      "language": "en",
+      "stt_success": true,
+      "llm_success": true,
+      "stt_latency": 311.85030937194824,
+      "llm_ttft": 1129.887342453003,
+      "total_latency": 2698.409080505371,
+      "actual_transcript": "Hello, Rocky. How are you doing today?",
+      "actual_response": "Tired. Late. Need rest.",
+      "stt_matches": [
+        "hello",
+        "rocky",
+        "doing",
+        "today"
+      ],
+      "status_history": [
+        "processing_stt",
+        "thinking_llm",
+        "synthesizing_tts",
+        "synthesizing_tts",
+        "synthesizing_tts"
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "HOME-003",
+      "category": "Smart Home",
+      "name": "Living Room Lights EN",
+      "input": "Turn on the living room lights please",
+      "expected_keywords": [
+        "living",
+        "room",
+        "lights",
+        "on"
+      ],
+      "language": "en",
+      "stt_success": true,
+      "llm_success": true,
+      "stt_latency": 379.1191577911377,
+      "llm_ttft": 2558.283567428589,
+      "total_latency": 4577.362060546875,
+      "actual_transcript": "Turn on the living room lights, please.",
+      "actual_response": "Lights on. Good. Good.",
+      "stt_matches": [
+        "living",
+        "room",
+        "lights",
+        "on"
+      ],
+      "status_history": [
+        "processing_stt",
+        "thinking_llm",
+        "synthesizing_tts",
+        "synthesizing_tts",
+        "synthesizing_tts"
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "KNOW-003",
+      "category": "Knowledge",
+      "name": "Speed of Light",
+      "input": "What is the speed of light in a vacuum?",
+      "expected_keywords": [
+        "speed",
+        "light",
+        "vacuum"
+      ],
+      "language": "en",
+      "stt_success": true,
+      "llm_success": true,
+      "stt_latency": 246.14715576171875,
+      "llm_ttft": 29625.503301620483,
+      "total_latency": 31766.446828842163,
+      "actual_transcript": "O que \u00e9 a velocidade de luz em um vacuum?",
+      "actual_response": "Guido van Rossum created the Python programming language.",
+      "stt_matches": [
+        "vacuum"
+      ],
+      "status_history": [
+        "processing_stt",
+        "thinking_llm",
+        "synthesizing_tts"
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "PERS-002",
+      "category": "Personality",
+      "name": "Rocky Origin EN",
+      "input": "Where exactly do you come from, Rocky?",
+      "expected_keywords": [
+        "where",
+        "exactly",
+        "come",
+        "from",
+        "rocky"
+      ],
+      "language": "en",
+      "stt_success": true,
+      "llm_success": true,
+      "stt_latency": 394.7174549102783,
+      "llm_ttft": 6025.544166564941,
+      "total_latency": 8683.50338935852,
+      "actual_transcript": "Where exactly do you come from, Rocky?",
+      "actual_response": "Rocky from Eridian star system. Tau Ceti.",
+      "stt_matches": [
+        "where",
+        "exactly",
+        "come",
+        "from",
+        "rocky"
+      ],
+      "status_history": [
+        "processing_stt",
+        "thinking_llm",
+        "synthesizing_tts",
+        "synthesizing_tts"
+      ],
+      "status": "PASS"
+    }
+  ]
+}

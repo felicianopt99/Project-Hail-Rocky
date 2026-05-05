@@ -1,0 +1,29 @@
+{
+  "metadata": {
+    "dataset": "google/fleurs",
+    "language": "pt_br",
+    "model": "whisper-large-v3-turbo",
+    "timestamp": "2026-05-05T11:53:00.111421",
+    "total_samples": 1,
+    "total_duration_sec": 2.674682140350342
+  },
+  "metrics": {
+    "avg_wer": 1.0,
+    "avg_cer": 1.0,
+    "avg_latency_sec": 0.267,
+    "rtf": 0.015
+  },
+  "samples": [
+    {
+      "id": 0,
+      "reference": "segundo informa\u00e7\u00f5es ele estava na casa dos 20 anos em uma declara\u00e7\u00e3o bieber disse que embora eu n\u00e3o estivesse presente nem diretamente envolvido neste tr\u00e1gico incidente meus pensamentos e ora\u00e7\u00f5es est\u00e3o com a fam\u00edlia da v\u00edtima",
+      "hypothesis": "",
+      "ref_norm": "segundo informa\u00e7\u00f5es ele estava na casa dos 20 anos em uma declara\u00e7\u00e3o bieber disse que embora eu n\u00e3o estivesse presente nem diretamente envolvido neste tr\u00e1gico incidente meus pensamentos e ora\u00e7\u00f5es est\u00e3o com a fam\u00edlia da v\u00edtima",
+      "hyp_norm": "",
+      "wer": 1.0,
+      "cer": 1.0,
+      "latency_sec": 0.2671244144439697,
+      "audio_duration_sec": 17.76
+    }
+  ]
+}

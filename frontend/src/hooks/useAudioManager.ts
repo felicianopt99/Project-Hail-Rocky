@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import { useRockyStore } from "../store/useRockyStore";
+import { eventBus, RockyEvents } from "../lib/eventBus";
 
 // The socket from our lib/socket.ts is a custom class, not socket.io-client
 interface CustomSocket {
@@ -51,8 +52,8 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
   const lastAudioChunkTimeRef = useRef(Date.now());
   
   // VAD Settings (could be synced from store/settings)
-  const SILENCE_THRESHOLD = 20; // Research-backed threshold for speech vs noise
-  const SILENCE_DURATION = 1000; // ms of silence before auto-stop (shorter = less hallucination)
+  const SILENCE_THRESHOLD = 25; // Higher = less sensitive (requires louder speech)
+  const SILENCE_DURATION = 2500; // ms of silence before auto-stop (longer = more natural pauses)
 
   // Socket state
   const socketSessionRef = useRef<string>("");
@@ -113,10 +114,13 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
         "warning"
       );
       setAudioState("error");
-      return;
+    } else if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+       log("error", "navigator.mediaDevices.getUserMedia not supported in this browser");
+       addToast("Browser mic access not supported", "error");
+       setAudioState("error");
+    } else {
+      initAudioContext();
     }
-
-    initAudioContext();
   }, [addToast]);
 
   // ========== LOAD AUDIO WORKLET (with fallback) ==========
@@ -521,36 +525,82 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
 
     const onStatusUpdate = (status: string) => {
       log("info", "Status update from server", { status });
+      // Clear any queued audio chunks when entering processing or speaking states
+      // to prevent stale data being sent after status transition
+      if (status === "processing_stt" || status === "thinking_llm" || status === "synthesizing_tts") {
+        if (audioChunkQueueRef.current.length > 0) {
+          log("info", "Clearing audio chunk queue due to status transition", {
+            reason: status,
+            queueSize: audioChunkQueueRef.current.length,
+          });
+          audioChunkQueueRef.current = [];
+        }
+      }
+
       if (status === "listening") {
         setAudioState("listening");
       } else if (status === "processing_stt" || status === "thinking_llm") {
         setAudioState("processing");
+        // Stop capturing while thinking/processing to prevent echo
+        if (isCapturingRef.current) {
+          stopAudioCapture();
+        }
       } else if (status === "synthesizing_tts") {
         setAudioState("speaking");
+        // IMPORTANT: Stop capturing while speaking to prevent feedback loop
+        if (isCapturingRef.current) {
+          log("info", "System speaking, closing mic to prevent loop");
+          stopAudioCapture();
+        }
       } else if (status === "idle") {
         setAudioState("idle");
       }
     };
 
+    // Handle initial state if already connected
+    if (socket.connected) {
+      isSocketReadyRef.current = true;
+    }
+
     socket.on("connect", onConnect);
     socket.on("disconnect", onDisconnect);
     socket.on("connect_error", onConnectError);
     socket.on("status_update", onStatusUpdate);
-
-    // Initialize socket ready state on mount
-    // The "connect" event listener below will set this properly
-    // If already connected when hook mounts, the listener will fire immediately
-    if (socket.connected) {
-      log("info", "Socket already connected on mount, waiting for connect event listener setup");
-    }
+    
+    // ── Wake Word Listener ──
+    const onWakeWord = () => {
+      log("info", "Wake word signal received via EventBus, activating mic...");
+      startAudioCapture();
+    };
+    eventBus.on(RockyEvents.WAKE_WORD_DETECTED, onWakeWord);
 
     return () => {
       socket.off("connect", onConnect);
       socket.off("disconnect", onDisconnect);
       socket.off("connect_error", onConnectError);
       socket.off("status_update", onStatusUpdate);
+      eventBus.off(RockyEvents.WAKE_WORD_DETECTED, onWakeWord);
     };
-  }, [socket, stopAudioCapture, addToast]);
+  }, [socket, stopAudioCapture, addToast, startAudioCapture]);
+
+  // ========== AUTO-RESTART LOOP ==========
+  const currentStatus = useRockyStore(s => s.status);
+  const isListeningGlobal = useRockyStore(s => s.isListening);
+
+  useEffect(() => {
+    // Only restart if we are truly idle and continuous mode is enabled
+    if (currentStatus === "idle" && isListeningGlobal && !isCapturingRef.current && audioState === "idle") {
+      log("info", "Continuous Mode: Scheduling auto-restart...");
+      const timer = setTimeout(() => {
+        // Double check state before starting
+        if (!isCapturingRef.current && useRockyStore.getState().status === "idle") {
+          log("info", "Continuous Mode: Restarting capture");
+          startAudioCapture();
+        }
+      }, 1500); // 1.5s delay to prevent feedback loop
+      return () => clearTimeout(timer);
+    }
+  }, [currentStatus, isListeningGlobal, startAudioCapture, audioState]);
 
   // ========== CLEANUP ==========
   useEffect(() => {

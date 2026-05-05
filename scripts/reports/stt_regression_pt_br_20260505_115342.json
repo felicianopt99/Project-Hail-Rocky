@@ -1,0 +1,40 @@
+{
+  "metadata": {
+    "dataset": "google/fleurs",
+    "language": "pt_br",
+    "model": "whisper-large-v3-turbo",
+    "timestamp": "2026-05-05T11:53:42.736508",
+    "total_samples": 2,
+    "total_duration_sec": 3.2540242671966553
+  },
+  "metrics": {
+    "avg_wer": 0.0356,
+    "avg_cer": 0.0079,
+    "avg_latency_sec": 0.381,
+    "rtf": 0.024
+  },
+  "samples": [
+    {
+      "id": 0,
+      "reference": "segundo informa\u00e7\u00f5es ele estava na casa dos 20 anos em uma declara\u00e7\u00e3o bieber disse que embora eu n\u00e3o estivesse presente nem diretamente envolvido neste tr\u00e1gico incidente meus pensamentos e ora\u00e7\u00f5es est\u00e3o com a fam\u00edlia da v\u00edtima",
+      "hypothesis": " Segundo informa\u00e7\u00f5es, ele estava na casa dos 20 anos. Em uma declara\u00e7\u00e3o, Bieber disse que, embora eu n\u00e3o tivesse presente nem diretamente envolvido neste tr\u00e1gico incidente, meus pensamentos e ora\u00e7\u00f5es est\u00e3o com a fam\u00edlia da v\u00edtima.",
+      "ref_norm": "segundo informa\u00e7\u00f5es ele estava na casa dos 20 anos em uma declara\u00e7\u00e3o bieber disse que embora eu n\u00e3o estivesse presente nem diretamente envolvido neste tr\u00e1gico incidente meus pensamentos e ora\u00e7\u00f5es est\u00e3o com a fam\u00edlia da v\u00edtima",
+      "hyp_norm": "segundo informa\u00e7\u00f5es ele estava na casa dos 20 anos em uma declara\u00e7\u00e3o bieber disse que embora eu n\u00e3o tivesse presente nem diretamente envolvido neste tr\u00e1gico incidente meus pensamentos e ora\u00e7\u00f5es est\u00e3o com a fam\u00edlia da v\u00edtima",
+      "wer": 0.027777777777777776,
+      "cer": 0.008888888888888889,
+      "latency_sec": 0.3992576599121094,
+      "audio_duration_sec": 17.76
+    },
+    {
+      "id": 1,
+      "reference": "constru\u00edda pelos eg\u00edpcios no s\u00e9culo 3 a.c. a grande pir\u00e2mide \u00e9 uma das muitas grandes estruturas de pir\u00e2mide constru\u00eddas para honrar fara\u00f3s mortos",
+      "hypothesis": " Constru\u00edda pelos eg\u00edpcios no s\u00e9culo 3 a.C., a Grande Pir\u00e2mide \u00e9 uma das muitas grandes estruturas da pir\u00e2mide constru\u00eddas para honrar fara\u00f3s mortos.",
+      "ref_norm": "constru\u00edda pelos eg\u00edpcios no s\u00e9culo 3 ac a grande pir\u00e2mide \u00e9 uma das muitas grandes estruturas de pir\u00e2mide constru\u00eddas para honrar fara\u00f3s mortos",
+      "hyp_norm": "constru\u00edda pelos eg\u00edpcios no s\u00e9culo 3 ac a grande pir\u00e2mide \u00e9 uma das muitas grandes estruturas da pir\u00e2mide constru\u00eddas para honrar fara\u00f3s mortos",
+      "wer": 0.043478260869565216,
+      "cer": 0.006944444444444444,
+      "latency_sec": 0.36350345611572266,
+      "audio_duration_sec": 13.62
+    }
+  ]
+}

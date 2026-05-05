@@ -1,0 +1,282 @@
+{
+  "version": "2.0-reliability",
+  "timestamp": "2026-05-05T03:04:41.096844",
+  "duration_seconds": 45.352856,
+  "system": {
+    "backend": "http://127.0.0.1:8000",
+    "voice_engine": "http://127.0.0.1:8881"
+  },
+  "summary": {
+    "total": 5,
+    "passed": 5,
+    "failed": 0,
+    "errors": 0
+  },
+  "benchmarks": {
+    "stt": {
+      "avg": 356.4749240875244,
+      "p95": 702.1122932434082,
+      "max": 565.5601024627686
+    },
+    "ttft": {
+      "avg": 4041.726541519165,
+      "p95": 7785.849809646606,
+      "max": 6601.580381393433
+    },
+    "total": {
+      "avg": 6268.772268295288,
+      "p95": 13313.390254974365,
+      "max": 10798.579692840576
+    }
+  },
+  "detailed_results": [
+    {
+      "id": "KNOW-002",
+      "category": "Knowledge",
+      "name": "Python History",
+      "input": "Who created the Python programming language?",
+      "expected_keywords": [
+        "created",
+        "python",
+        "programming",
+        "language"
+      ],
+      "language": "en",
+      "stt_success": true,
+      "llm_success": true,
+      "stt_latency": 565.5601024627686,
+      "llm_ttft": 3372.187852859497,
+      "total_latency": 4575.863838195801,
+      "actual_transcript": "Who created the Python programming language?",
+      "actual_response": "Guido van Rossum.",
+      "stt_matches": [
+        "created",
+        "python",
+        "programming",
+        "language"
+      ],
+      "status_history": [
+        "processing_stt",
+        "thinking_llm",
+        "synthesizing_tts"
+      ],
+      "logs": [
+        "[03:04:41.111] INFO: Starting Test Case: KNOW-002 - Python History",
+        "[03:04:41.111] INFO: Generating loopback audio for: 'Who created the Python programming language?'",
+        "[03:04:42.178] INFO: Audio generated in 1067ms (116736 bytes)",
+        "[03:04:42.178] INFO: Connecting to http://127.0.0.1:8000...",
+        "[03:04:42.183] INFO: Status Update: idle",
+        "[03:04:42.184] INFO: Socket.io Connected",
+        "[03:04:42.184] INFO: Emitting audio_blob (116736 bytes)",
+        "[03:04:42.194] INFO: Status Update: processing_stt",
+        "[03:04:42.749] INFO: STT Event: Who created the Python programming language?",
+        "[03:04:42.749] INFO: Received STT after 566ms",
+        "[03:04:42.750] INFO: Status Update: thinking_llm",
+        "[03:04:45.556] INFO: Received first LLM token after 3372ms",
+        "[03:04:45.771] INFO: Status Update: synthesizing_tts",
+        "[03:04:46.759] INFO: LLM Final Event: Guido van Rossum....",
+        "[03:04:46.760] INFO: Status Update: idle",
+        "[03:04:46.760] INFO: Received final response after 4576ms"
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "GREET-002",
+      "category": "Personality",
+      "name": "Standard Greeting EN",
+      "input": "Hello Rocky, how are you doing today?",
+      "expected_keywords": [
+        "hello",
+        "rocky",
+        "doing",
+        "today"
+      ],
+      "language": "en",
+      "stt_success": true,
+      "llm_success": true,
+      "stt_latency": 370.4855442047119,
+      "llm_ttft": 4909.766912460327,
+      "total_latency": 7205.993175506592,
+      "actual_transcript": "Hello, Rocky. How are you doing today?",
+      "actual_response": "Tired. Late. Need rest.",
+      "stt_matches": [
+        "hello",
+        "rocky",
+        "doing",
+        "today"
+      ],
+      "status_history": [
+        "processing_stt",
+        "thinking_llm",
+        "synthesizing_tts",
+        "synthesizing_tts",
+        "synthesizing_tts"
+      ],
+      "logs": [
+        "[03:04:47.760] INFO: Starting Test Case: GREET-002 - Standard Greeting EN",
+        "[03:04:47.760] INFO: Generating loopback audio for: 'Hello Rocky, how are you doing today?'",
+        "[03:04:48.773] INFO: Audio generated in 1013ms (106496 bytes)",
+        "[03:04:48.773] INFO: Emitting audio_blob (106496 bytes)",
+        "[03:04:48.784] INFO: Status Update: processing_stt",
+        "[03:04:49.144] INFO: STT Event: Hello, Rocky. How are you doing today?",
+        "[03:04:49.144] INFO: Received STT after 370ms",
+        "[03:04:49.144] INFO: Status Update: thinking_llm",
+        "[03:04:53.683] INFO: Received first LLM token after 4910ms",
+        "[03:04:53.938] INFO: Status Update: synthesizing_tts",
+        "[03:04:54.378] INFO: Status Update: synthesizing_tts",
+        "[03:04:55.159] INFO: Status Update: synthesizing_tts",
+        "[03:04:55.979] INFO: LLM Final Event: Tired. Late. Need rest....",
+        "[03:04:55.979] INFO: Status Update: idle",
+        "[03:04:55.979] INFO: Received final response after 7206ms"
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "HOME-003",
+      "category": "Smart Home",
+      "name": "Living Room Lights EN",
+      "input": "Turn on the living room lights please",
+      "expected_keywords": [
+        "living",
+        "room",
+        "lights",
+        "on"
+      ],
+      "language": "en",
+      "stt_success": true,
+      "llm_success": true,
+      "stt_latency": 286.20052337646484,
+      "llm_ttft": 4313.166379928589,
+      "total_latency": 5930.987358093262,
+      "actual_transcript": "Turn on the living room lights, please.",
+      "actual_response": "Done. Lights on.",
+      "stt_matches": [
+        "living",
+        "room",
+        "lights",
+        "on"
+      ],
+      "status_history": [
+        "processing_stt",
+        "thinking_llm",
+        "synthesizing_tts",
+        "synthesizing_tts"
+      ],
+      "logs": [
+        "[03:04:56.980] INFO: Starting Test Case: HOME-003 - Living Room Lights EN",
+        "[03:04:56.980] INFO: Generating loopback audio for: 'Turn on the living room lights please'",
+        "[03:04:58.653] INFO: Audio generated in 1673ms (91136 bytes)",
+        "[03:04:58.653] INFO: Emitting audio_blob (91136 bytes)",
+        "[03:04:58.657] INFO: Status Update: processing_stt",
+        "[03:04:58.939] INFO: STT Event: Turn on the living room lights, please.",
+        "[03:04:58.939] INFO: Received STT after 286ms",
+        "[03:04:58.940] INFO: Status Update: thinking_llm",
+        "[03:05:02.966] INFO: Received first LLM token after 4313ms",
+        "[03:05:03.019] INFO: Status Update: synthesizing_tts",
+        "[03:05:03.750] INFO: Status Update: synthesizing_tts",
+        "[03:05:04.584] INFO: LLM Final Event: Done. Lights on....",
+        "[03:05:04.584] INFO: Received final response after 5931ms",
+        "[03:05:04.584] INFO: Status Update: idle"
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "KNOW-003",
+      "category": "Knowledge",
+      "name": "Speed of Light",
+      "input": "What is the speed of light in a vacuum?",
+      "expected_keywords": [
+        "speed",
+        "light",
+        "vacuum"
+      ],
+      "language": "en",
+      "stt_success": true,
+      "llm_success": true,
+      "stt_latency": 261.6305351257324,
+      "llm_ttft": 6601.580381393433,
+      "total_latency": 10798.579692840576,
+      "actual_transcript": "O que \u00e9 a velocidade de luz em um vacuum?",
+      "actual_response": "299792458 metros por segundo.",
+      "stt_matches": [
+        "vacuum"
+      ],
+      "status_history": [
+        "processing_stt",
+        "thinking_llm",
+        "synthesizing_tts"
+      ],
+      "logs": [
+        "[03:05:05.585] INFO: Starting Test Case: KNOW-003 - Speed of Light",
+        "[03:05:05.585] INFO: Generating loopback audio for: 'What is the speed of light in a vacuum?'",
+        "[03:05:06.703] INFO: Audio generated in 1118ms (92160 bytes)",
+        "[03:05:06.703] INFO: Emitting audio_blob (92160 bytes)",
+        "[03:05:06.706] INFO: Status Update: processing_stt",
+        "[03:05:06.965] INFO: STT Event: O que \u00e9 a velocidade de luz em um vacuum?",
+        "[03:05:06.965] INFO: Received STT after 262ms",
+        "[03:05:06.965] INFO: Status Update: thinking_llm",
+        "[03:05:13.305] INFO: Received first LLM token after 6602ms",
+        "[03:05:13.615] INFO: Status Update: synthesizing_tts",
+        "[03:05:17.501] INFO: LLM Final Event: 299792458 metros por segundo....",
+        "[03:05:17.501] INFO: Status Update: idle",
+        "[03:05:17.502] INFO: Received final response after 10799ms"
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "PERS-002",
+      "category": "Personality",
+      "name": "Rocky Origin EN",
+      "input": "Where exactly do you come from, Rocky?",
+      "expected_keywords": [
+        "where",
+        "exactly",
+        "come",
+        "from",
+        "rocky"
+      ],
+      "language": "en",
+      "stt_success": true,
+      "llm_success": true,
+      "stt_latency": 298.49791526794434,
+      "llm_ttft": 1011.9311809539795,
+      "total_latency": 2832.43727684021,
+      "actual_transcript": "Where exactly do you come from, Rocky?",
+      "actual_response": "Eridian star system. Tau Ceti.",
+      "stt_matches": [
+        "where",
+        "exactly",
+        "come",
+        "from",
+        "rocky"
+      ],
+      "status_history": [
+        "processing_stt",
+        "thinking_llm",
+        "synthesizing_tts",
+        "synthesizing_tts"
+      ],
+      "logs": [
+        "[03:05:18.503] INFO: Starting Test Case: PERS-002 - Rocky Origin EN",
+        "[03:05:18.503] INFO: Generating loopback audio for: 'Where exactly do you come from, Rocky?'",
+        "[03:05:19.612] INFO: Audio generated in 1109ms (94208 bytes)",
+        "[03:05:19.612] INFO: Emitting audio_blob (94208 bytes)",
+        "[03:05:19.615] INFO: Status Update: processing_stt",
+        "[03:05:19.910] INFO: STT Event: Where exactly do you come from, Rocky?",
+        "[03:05:19.910] INFO: Received STT after 298ms",
+        "[03:05:19.911] INFO: Status Update: thinking_llm",
+        "[03:05:20.624] INFO: Received first LLM token after 1012ms",
+        "[03:05:20.851] INFO: Status Update: synthesizing_tts",
+        "[03:05:21.729] INFO: Status Update: synthesizing_tts",
+        "[03:05:22.444] INFO: LLM Final Event: Eridian star system. Tau Ceti....",
+        "[03:05:22.444] INFO: Received final response after 2832ms",
+        "[03:05:22.445] INFO: Status Update: idle",
+        "[03:05:23.447] INFO: Status Update: processing_stt",
+        "[03:05:23.656] INFO: STT Event: E a\u00ed",
+        "[03:05:23.657] INFO: Status Update: thinking_llm",
+        "[03:05:26.448] WARN: Socket.io Disconnected"
+      ],
+      "status": "PASS"
+    }
+  ]
+}

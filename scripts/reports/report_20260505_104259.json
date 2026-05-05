@@ -1,0 +1,274 @@
+{
+  "metadata": {
+    "version": "4.0-personality-pro",
+    "timestamp": "2026-05-05T10:39:27.786349",
+    "duration_seconds": 211.448349,
+    "concurrency": 5
+  },
+  "summary": {
+    "total": 7,
+    "passed": 2,
+    "failed": 5,
+    "avg_personality_score": 50.71
+  },
+  "benchmarks": {
+    "stt_latency": {
+      "avg": 402.26,
+      "p95": 963.55,
+      "jitter": 166.37
+    },
+    "llm_ttft": {
+      "avg": 5392.87,
+      "p95": 38751.42,
+      "jitter": 9339.35
+    },
+    "tokens_per_second": {
+      "avg": 2.12,
+      "p95": 3.84,
+      "jitter": 0.7
+    }
+  },
+  "raw_results": [
+    {
+      "test_case": {
+        "id": "PERS-DEEP-001",
+        "name": "Identity and Origin",
+        "input": "Rocky, who exactly are you and where do you come from?",
+        "expected_keywords": [
+          "rocky",
+          "erid",
+          "planet",
+          "alien",
+          "friend"
+        ],
+        "expected_traits": [
+          "short_sentences",
+          "scientific"
+        ],
+        "category": "Personality",
+        "language": "en"
+      },
+      "status": "FAIL",
+      "metrics": {
+        "stt_latency_ms": 761.4142894744873,
+        "llm_ttft_ms": 2524.4131088256836,
+        "total_latency_ms": 42158.95128250122,
+        "audio_gen_time_ms": 4902.767896652222,
+        "tokens_count": 89,
+        "tps": 2.2455160457287247,
+        "personality_score": 75.0
+      },
+      "actual_transcript": "Rocky, who exactly are you and where do you come from?",
+      "actual_response": "Yes, human? Rocky from Eridian star system. Born on planet near Tau Ceti star. Engineer, scientist, by trade. Lived on spaceship with human, Ryland Grace. Helped him survive... Very amaze... Experience shaped Rocky. Now, live with human here, on Earth. Learn about humans, help with tasks. Curious about human life... Question, human: What is most interesting thing about being human?",
+      "reason": "Latency too high (2524ms)",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "PERS-DEEP-002",
+        "name": "The Grace Bond",
+        "input": "Do you remember Ryland Grace?",
+        "expected_keywords": [
+          "grace",
+          "friend",
+          "human",
+          "save"
+        ],
+        "expected_traits": [
+          "emotional_but_direct",
+          "fist_bump"
+        ],
+        "category": "Personality",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 259.6476078033447,
+        "llm_ttft_ms": 633.9073181152344,
+        "total_latency_ms": 24686.027765274048,
+        "audio_gen_time_ms": 2650.1588821411133,
+        "tokens_count": 55,
+        "tps": 2.2867002190927663,
+        "personality_score": 40.0
+      },
+      "actual_transcript": "Do you remember Ryland Grace?",
+      "actual_response": "Yes, human. Rocky remember Ryland. Good man. We survive Hail Mary mission together. Rocky help Ryland with ship repairs. Ryland teach Rocky about humans. Rocky learn much from Ryland. Question, human: What you know about Hail Mary mission?",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "PERS-DEEP-003",
+        "name": "Scientific Curiosity",
+        "input": "What do you think about the Astrophage problem?",
+        "expected_keywords": [
+          "astrophage",
+          "scary",
+          "eat",
+          "sun",
+          "energy"
+        ],
+        "expected_traits": [
+          "scientific",
+          "short_sentences",
+          "amaze"
+        ],
+        "category": "Personality",
+        "language": "en"
+      },
+      "status": "FAIL",
+      "metrics": {
+        "stt_latency_ms": 326.4505863189697,
+        "llm_ttft_ms": 26234.760284423828,
+        "total_latency_ms": 45057.018518447876,
+        "audio_gen_time_ms": 2510.5085372924805,
+        "tokens_count": 24,
+        "tps": 1.2750858821264133,
+        "personality_score": 50.0
+      },
+      "actual_transcript": "What do you think about the Astrophage problem?",
+      "actual_response": "Question, human: What Astrophage problem? You mean, like, from Ryland's mission? Yes, human?",
+      "reason": "Latency too high (26234ms)",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "PERS-DEEP-004",
+        "name": "Social Interaction",
+        "input": "Rocky, I'm feeling a bit tired today.",
+        "expected_keywords": [
+          "sleep",
+          "watch",
+          "human",
+          "friend"
+        ],
+        "expected_traits": [
+          "caring",
+          "short_sentences"
+        ],
+        "category": "Personality",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 379.84156608581543,
+        "llm_ttft_ms": 886.8119716644287,
+        "total_latency_ms": 10485.332012176514,
+        "audio_gen_time_ms": 3937.2823238372803,
+        "tokens_count": 17,
+        "tps": 1.7711057555274736,
+        "personality_score": 40.0
+      },
+      "actual_transcript": "Rocky, I'm feeling a bit tired today.",
+      "actual_response": "Human need sleep. Rocky understand. You rest, Rocky help with tasks. Yes?",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "PERS-DEEP-005",
+        "name": "Technical Knowledge",
+        "input": "Can you explain how you hear things without ears?",
+        "expected_keywords": [
+          "carapace",
+          "vibration",
+          "sound",
+          "notes"
+        ],
+        "expected_traits": [
+          "technical",
+          "scientific"
+        ],
+        "category": "Personality",
+        "language": "en"
+      },
+      "status": "FAIL",
+      "metrics": {
+        "stt_latency_ms": 424.52025413513184,
+        "llm_ttft_ms": 5373.66795539856,
+        "total_latency_ms": 40982.43737220764,
+        "audio_gen_time_ms": 3258.0647468566895,
+        "tokens_count": 52,
+        "tps": 1.4603142298977212,
+        "personality_score": 80.0
+      },
+      "actual_transcript": "Can you explain how you hear things without ears?",
+      "actual_response": "Yes, human. Eridians hear through skin. Vibration, yes? Skin absorbs sound waves. We interpret through nervous system. Like... echo location, but with entire body. Very amaze, this way of hearing. No ears needed. Understand?",
+      "reason": "Latency too high (5373ms)",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "PERS-PT-001",
+        "name": "Greeting and Style PT",
+        "input": "Ol\u00e1 Rocky, como est\u00e1 o teu dia?",
+        "expected_keywords": [
+          "dia",
+          "bem",
+          "pergunta",
+          "amigo"
+        ],
+        "expected_traits": [
+          "question_prefix",
+          "short_sentences"
+        ],
+        "category": "Personality",
+        "language": "pt"
+      },
+      "status": "FAIL",
+      "metrics": {
+        "stt_latency_ms": 324.59282875061035,
+        "llm_ttft_ms": 939.2118453979492,
+        "total_latency_ms": 13002.278327941895,
+        "audio_gen_time_ms": 2567.546844482422,
+        "tokens_count": 30,
+        "tps": 2.4869291029325273,
+        "personality_score": 50.0
+      },
+      "actual_transcript": "Ol\u00e1, Rocky. Como est\u00e1 o teu dia?",
+      "actual_response": "Ol\u00e1, humano. Dia bom. Fiz caf\u00e9 para voc\u00ea. Question, human: voc\u00ea gosta de caf\u00e9 com a\u00e7\u00facar ou sem?",
+      "reason": "Keyword match low (25%)",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "PERS-PT-002",
+        "name": "Scientific PT",
+        "input": "O que achas do sol da Terra?",
+        "expected_keywords": [
+          "sol",
+          "quente",
+          "luz",
+          "brilhante"
+        ],
+        "expected_traits": [
+          "scientific",
+          "amaze"
+        ],
+        "category": "Personality",
+        "language": "pt"
+      },
+      "status": "FAIL",
+      "metrics": {
+        "stt_latency_ms": 339.31970596313477,
+        "llm_ttft_ms": 1157.2954654693604,
+        "total_latency_ms": 12868.25180053711,
+        "audio_gen_time_ms": 2242.9158687591553,
+        "tokens_count": 39,
+        "tps": 3.330213909295657,
+        "personality_score": 20.0
+      },
+      "actual_transcript": "O que aches do sol de terra?",
+      "actual_response": "Sol de Terra... Question, human: Voc\u00ea est\u00e1 perguntando sobre o que eu acho do Sol da Terra em compara\u00e7\u00e3o com o nosso sol na estrela Tau Ceti?",
+      "reason": "Keyword match low (25%)",
+      "retries_used": 0,
+      "logs": []
+    }
+  ]
+}

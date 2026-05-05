@@ -1,0 +1,284 @@
+{
+  "metadata": {
+    "version": "3.0-enterprise",
+    "timestamp": "2026-05-05T10:14:45.983301",
+    "duration_seconds": 155.499906,
+    "concurrency": 5
+  },
+  "summary": {
+    "total": 9,
+    "passed": 8,
+    "failed": 1,
+    "timeout": 0
+  },
+  "benchmarks": {
+    "stt_latency": {
+      "avg": 423.61,
+      "p95": 918.64,
+      "max": 792.04
+    },
+    "llm_ttft": {
+      "avg": 10831.54,
+      "p95": 31626.94,
+      "max": 28082.49
+    }
+  },
+  "raw_results": [
+    {
+      "test_case": {
+        "id": "HOME-002",
+        "name": "Living Room Temp",
+        "input": "Qual \u00e9 a temperatura da sala?",
+        "expected_keywords": [
+          "temperatura",
+          "sala",
+          "graus",
+          "celsius"
+        ],
+        "category": "Smart Home",
+        "language": "pt"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 792.0386791229248,
+        "llm_ttft_ms": 2223.203182220459,
+        "total_latency_ms": 12011.786460876465,
+        "audio_gen_time_ms": 5204.2975425720215
+      },
+      "actual_transcript": "Qual \u00e9 a temperatura da sala?",
+      "actual_response": "I don't have a specific function available to answer the question about the room temperature.",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "HOME-001",
+        "name": "Kitchen Lights",
+        "input": "Liga as luzes da cozinha agora",
+        "expected_keywords": [
+          "cozinha",
+          "luzes",
+          "ligar",
+          "acesas",
+          "ligadas",
+          "on"
+        ],
+        "category": "Smart Home",
+        "language": "pt"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 409.5335006713867,
+        "llm_ttft_ms": 20993.57271194458,
+        "total_latency_ms": 26287.182331085205,
+        "audio_gen_time_ms": 5587.3541831970215
+      },
+      "actual_transcript": "Liga as luzes da cozinha agora.",
+      "actual_response": "Luzes da cozinha ligadas.",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "KNOW-001",
+        "name": "Moon Landing",
+        "input": "Quem foi o primeiro homem na lua?",
+        "expected_keywords": [
+          "neil",
+          "armstrong",
+          "lua",
+          "homem",
+          "pisar"
+        ],
+        "category": "Knowledge",
+        "language": "pt"
+      },
+      "status": "FAIL",
+      "metrics": {
+        "stt_latency_ms": 384.65356826782227,
+        "llm_ttft_ms": 8187.735080718994,
+        "total_latency_ms": 17420.896291732788,
+        "audio_gen_time_ms": 2213.2084369659424
+      },
+      "actual_transcript": "Quem foi o primeiro homem na lua?",
+      "actual_response": "Question, human: Voc\u00ea n\u00e3o sabe quem foi o primeiro homem na lua?",
+      "reason": "Keyword match low (40%)",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "KNOW-002",
+        "name": "Python History",
+        "input": "Who created the Python programming language?",
+        "expected_keywords": [
+          "guido",
+          "rossum",
+          "python",
+          "created",
+          "programming"
+        ],
+        "category": "Knowledge",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 342.09442138671875,
+        "llm_ttft_ms": 4391.284704208374,
+        "total_latency_ms": 7530.771255493164,
+        "audio_gen_time_ms": 5257.148504257202
+      },
+      "actual_transcript": "Who created the Python programming language?",
+      "actual_response": "Guido van Rossum.",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "GREET-001",
+        "name": "Standard Greeting PT",
+        "input": "Ol\u00e1 Rocky, como vai o teu dia?",
+        "expected_keywords": [
+          "ol\u00e1",
+          "rocky",
+          "dia",
+          "bem",
+          "vai"
+        ],
+        "category": "Personality",
+        "language": "pt"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 538.8290882110596,
+        "llm_ttft_ms": 28082.486629486084,
+        "total_latency_ms": 41074.835538864136,
+        "audio_gen_time_ms": 5458.635330200195
+      },
+      "actual_transcript": "Ol\u00e1, Rocky. Como vai o teu dia?",
+      "actual_response": "Vai bem, obrigado. Question, human: voc\u00eas t\u00eam um ritual matinal para come\u00e7ar o dia?",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "GREET-002",
+        "name": "Standard Greeting EN",
+        "input": "Hello Rocky, how are you doing today?",
+        "expected_keywords": [
+          "hello",
+          "rocky",
+          "doing",
+          "today",
+          "good",
+          "well"
+        ],
+        "category": "Personality",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 324.85365867614746,
+        "llm_ttft_ms": 7855.876922607422,
+        "total_latency_ms": 19216.214418411255,
+        "audio_gen_time_ms": 4394.111156463623
+      },
+      "actual_transcript": "Hello, Rocky. How are you doing today?",
+      "actual_response": "Human ask how Rocky doing. Rocky doing good. Good. Curious about human day. Question, human: What plan for today?",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "HOME-003",
+        "name": "Living Room Lights EN",
+        "input": "Turn on the living room lights please",
+        "expected_keywords": [
+          "living",
+          "room",
+          "lights",
+          "on",
+          "turned"
+        ],
+        "category": "Smart Home",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 369.48704719543457,
+        "llm_ttft_ms": 12054.08000946045,
+        "total_latency_ms": 16361.442565917969,
+        "audio_gen_time_ms": 2874.5622634887695
+      },
+      "actual_transcript": "Turn on the living room lights, please.",
+      "actual_response": "Lights on.",
+      "reason": "Success",
+      "retries_used": 1,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "KNOW-003",
+        "name": "Speed of Light",
+        "input": "What is the speed of light in a vacuum?",
+        "expected_keywords": [
+          "speed",
+          "light",
+          "vacuum",
+          "velocidade",
+          "v\u00e1cuo",
+          "299"
+        ],
+        "category": "Knowledge",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 282.4127674102783,
+        "llm_ttft_ms": 2694.8869228363037,
+        "total_latency_ms": 19192.4946308136,
+        "audio_gen_time_ms": 2756.8674087524414
+      },
+      "actual_transcript": "What is the speed of light in a vacuum?",
+      "actual_response": "Speed of light in vacuum: 299,792,458 meters per second. \n\nQuestion, human: Why important to know this number?",
+      "reason": "Success",
+      "retries_used": 1,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "PERS-002",
+        "name": "Rocky Origin EN",
+        "input": "Where exactly do you come from, Rocky?",
+        "expected_keywords": [
+          "where",
+          "exactly",
+          "come",
+          "from",
+          "rocky",
+          "casa",
+          "home"
+        ],
+        "category": "Personality",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 368.5903549194336,
+        "llm_ttft_ms": 11000.726699829102,
+        "total_latency_ms": 24105.679988861084,
+        "audio_gen_time_ms": 5287.771701812744
+      },
+      "actual_transcript": "Where exactly do you come from, Rocky?",
+      "actual_response": "Tau Ceti. Rocky's homeworld in Eridian system. Question, human: You know much about Tau Ceti?",
+      "reason": "Success",
+      "retries_used": 1,
+      "logs": []
+    }
+  ]
+}

@@ -64,12 +64,20 @@ class SynthRequest(BaseModel):
     emotional_state: str = "neutral"
     voice: str = DEFAULT_VOICE
     speed: float = 1.0
+    lang: str = "en" # Default to en for Rocky's primary locale
+
+LANG_MAP = {
+    "en": "en-us",
+    "pt": "pt",
+    "pt-pt": "pt",
+    "pt-br": "pt-br",
+    "en-us": "en-us",
+    "en-gb": "en-gb"
+}
 
 @app.websocket("/voice")
 async def voice_websocket(websocket: WebSocket):
-    await websocket.accept()
-    log.info("voice_websocket_connected")
-    
+    log.info("voice_websocket_request_received", params=dict(websocket.query_params))
     # Extract initial settings from query params
     emotional_state = websocket.query_params.get("state", "neutral")
     sid = websocket.query_params.get("sid", "default")
@@ -103,21 +111,29 @@ async def synthesize(req: SynthRequest):
     fx = VoiceEffectsProcessor(emotional_state=req.emotional_state, sample_rate=SAMPLE_RATE)
 
     async def generate():
-        stream = _kokoro.create_stream(text, voice=req.voice, speed=req.speed, lang="en-us")
-        buffer = []
-        chunk_threshold = 8192
-        async for samples, rate in stream:
-            if samples is not None and len(samples) > 0:
-                processed = fx.apply_to_float(samples)
-                buffer.append(processed)
-                current_size = sum(len(s) for s in buffer)
-                if current_size >= chunk_threshold:
-                    combined = np.concatenate(buffer)
-                    yield (np.clip(combined, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
-                    buffer = []
-        if buffer:
-            combined = np.concatenate(buffer)
-            yield (np.clip(combined, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
+        # Map language codes to what espeak-ng/tokenizer expects
+        # kokoro-onnx tokenizer also handles 'a' for American English, etc.
+        mapped_lang = LANG_MAP.get(req.lang, req.lang)
+        
+        try:
+            stream = _kokoro.create_stream(text, voice=req.voice, speed=req.speed, lang=mapped_lang)
+            buffer = []
+            chunk_threshold = 8192
+            async for samples, rate in stream:
+                if samples is not None and len(samples) > 0:
+                    processed = fx.apply_to_float(samples)
+                    buffer.append(processed)
+                    current_size = sum(len(s) for s in buffer)
+                    if current_size >= chunk_threshold:
+                        combined = np.concatenate(buffer)
+                        yield (np.clip(combined, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
+                        buffer = []
+            if buffer:
+                combined = np.concatenate(buffer)
+                yield (np.clip(combined, -1.0, 1.0) * 32767).astype(np.int16).tobytes()
+        except Exception as e:
+            log.error("synthesis_stream_error", error=str(e), text=text[:50])
+            # Don't yield anything more, just close the stream
 
     return StreamingResponse(generate(), media_type="application/octet-stream")
 

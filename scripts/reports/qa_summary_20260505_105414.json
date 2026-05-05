@@ -1,0 +1,33 @@
+{
+  "timestamp": "2026-05-05T10:54:08.301613",
+  "levels": {
+    "Health Checks": {
+      "passed": true,
+      "backend": true,
+      "voice": true
+    },
+    "API Functional": {
+      "passed": false,
+      "duration_sec": 2.82,
+      "stdout": "",
+      "stderr": "ImportError while loading conftest '/app/tests/conftest.py'.\ntests/conftest.py:5: in <module>\n    from app.main import fastapi_app, sio\nE   ModuleNotFoundError: No module named 'app'\n"
+    },
+    "Socket.IO Integration": {
+      "passed": false,
+      "duration_sec": 2.03,
+      "stdout": "",
+      "stderr": "ImportError while loading conftest '/app/tests/conftest.py'.\ntests/conftest.py:5: in <module>\n    from app.main import fastapi_app, sio\nE   ModuleNotFoundError: No module named 'app'\n"
+    },
+    "Enterprise Personality Check": {
+      "passed": false,
+      "duration_sec": 1.31,
+      "stdout": "",
+      "stderr": "2026-05-05 10:54:14 [INFO] TestBattery: Running Pre-flight Health Check...\n2026-05-05 10:54:14 [INFO] httpx: HTTP Request: GET http://127.0.0.1:8000/api/health \"HTTP/1.1 200 OK\"\n2026-05-05 10:54:14 [INFO] httpx: HTTP Request: GET http://127.0.0.1:8881/synthesize \"HTTP/1.1 405 Method Not Allowed\"\nTraceback (most recent call last):\n  File \"/home/feli/Documents/Coding_projects/Project-Hail-Rocky/scripts/enterprise_test_battery.py\", line 347, in <module>\n    asyncio.run(battery.run(concurrency=args.concurrency))\n    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.14/asyncio/runners.py\", line 204, in run\n    return runner.run(main)\n           ~~~~~~~~~~^^^^^^\n  File \"/usr/lib/python3.14/asyncio/runners.py\", line 127, in run\n    return self._loop.run_until_complete(task)\n           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^\n  File \"/usr/lib/python3.14/asyncio/base_events.py\", line 719, in run_until_complete\n    return future.result()\n           ~~~~~~~~~~~~~^^\n  File \"/home/feli/Documents/Coding_projects/Project-Hail-Rocky/scripts/enterprise_test_battery.py\", line 261, in run\n    test_cases = [TestCase(**tc) for tc in data.get(\"scenarios\", [])]\n                  ~~~~~~~~^^^^^^\nTypeError: TestCase.__init__() got an unexpected keyword argument 'intent'\n"
+    }
+  },
+  "summary": {
+    "passed": 1,
+    "failed": 3,
+    "total": 4
+  }
+}

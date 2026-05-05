@@ -18,7 +18,7 @@ INITIAL_HUMAN_BLOCK = (
 )
 
 # Model names passed to Letta — must match what Letta's LiteLLM proxy resolves
-LETTA_LLM_MODEL = "groq/llama-3.3-70b-versatile"
+LETTA_LLM_MODEL = "groq/llama-3.1-8b-instant"
 LETTA_EMBEDDING_MODEL = "letta/letta-free"  # or "hugging-face/BAAI/bge-m3" when Qdrant is ready
 
 AGENT_DESCRIPTION = (

@@ -1,0 +1,51 @@
+{
+  "timestamp": "2026-05-05T12:02:37.250702",
+  "levels": {
+    "Health Checks": {
+      "passed": true,
+      "backend": true,
+      "voice": true
+    },
+    "API Functional": {
+      "passed": false,
+      "duration_sec": 2.23,
+      "stdout": "OCI runtime exec failed: exec failed: unable to start container process: exec: \"pytest\": executable file not found in $PATH\n",
+      "stderr": ""
+    },
+    "Socket.IO Integration": {
+      "passed": false,
+      "duration_sec": 2.2,
+      "stdout": "OCI runtime exec failed: exec failed: unable to start container process: exec: \"pytest\": executable file not found in $PATH\n",
+      "stderr": ""
+    },
+    "VUI Industry Benchmarks": {
+      "passed": true,
+      "duration_sec": 145.93,
+      "stdout": "\n============================================================\n\u2705 TEST COMPLETE: 8/9 Passed\n\ud83c\udfad Personality Accuracy: 33.33%\n\n\ud83d\udce2 VUI BENCHMARK (ALEXA VS ROCKY)\n------------------------------------------------------------\nMetric                    | Alexa Standard  | Rocky (Avg)\n------------------------------------------------------------\nTTFT (LLM Response)       | ~1.5s - 2.2s    | 567.76    ms\nTTRS (Speech Start)       | ~2.0s - 3.0s    | 575.78    ms\nJitter (Stability)        | < 200ms         | 76.8      ms\n------------------------------------------------------------\n\ud83d\ude80 STATUS: ROCKY IS FASTER THAN ALEXA!\n\n\ud83d\ude80 Avg TPS: 3.58 tokens/sec\n\ud83d\udcc1 Report: /home/feli/Documents/Coding_projects/Project-Hail-Rocky/tests/benchmarks/reports/report_20260505_120507.json\n============================================================\n\n",
+      "stderr": "arting [KNOW-001] Moon Landing\n2026-05-05 12:03:05 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 12:04:01 [WARNING] TestRunner-HOME-002: Timeout reached. Retrying once...\n2026-05-05 12:04:01 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 12:04:06 [WARNING] TestRunner-KNOW-001: Timeout reached. Retrying once...\n2026-05-05 12:04:06 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 12:04:19 [INFO] TestBattery: Finished [KNOW-001] -> PASS (Score: 40.0)\n2026-05-05 12:04:19 [INFO] TestBattery: Starting [KNOW-002] Python History\n2026-05-05 12:04:19 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 12:04:30 [INFO] TestBattery: Finished [KNOW-002] -> PASS (Score: 30.0)\n2026-05-05 12:04:30 [INFO] TestBattery: Starting [GREET-002] Standard Greeting EN\n2026-05-05 12:04:30 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 12:04:37 [INFO] TestBattery: Finished [GREET-002] -> PASS (Score: 40.0)\n2026-05-05 12:04:37 [INFO] TestBattery: Starting [HOME-003] Living Room Lights EN\n2026-05-05 12:04:37 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 12:04:43 [INFO] TestBattery: Finished [HOME-003] -> PASS (Score: 15.0)\n2026-05-05 12:04:43 [INFO] TestBattery: Starting [KNOW-003] Speed of Light\n2026-05-05 12:04:43 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 12:04:56 [INFO] TestBattery: Finished [KNOW-003] -> PASS (Score: 35.0)\n2026-05-05 12:04:56 [INFO] TestBattery: Starting [PERS-002] Rocky Origin EN\n2026-05-05 12:04:56 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 12:05:02 [INFO] TestBattery: Finished [HOME-002] -> TIMEOUT (Score: 0.0)\n2026-05-05 12:05:07 [INFO] TestBattery: Finished [PERS-002] -> PASS (Score: 50.0)\n"
+    },
+    "Ground Truth Quality": {
+      "passed": true,
+      "duration_sec": 131.57,
+      "stdout": "\n\ud83d\ude80 Iniciando Avalia\u00e7\u00e3o via NVIDIA NIM\n\ud83d\udd17 URL: https://integrate.api.nvidia.com/v1/\n\ud83d\udcca Dataset: 9 cen\u00e1rios.\n\n\ud83e\uddea GREET-001: Standard Greeting PT\n  - \ud83c\udfad Personalidade: 0.80 \u2705\n  - \ud83c\udfaf Relev\u00e2ncia:    0.75 \u2705\n  - \u23f1\ufe0f Dura\u00e7\u00e3o:       53.38s\n\n\ud83e\uddea HOME-001: Kitchen Lights\nError 429: {\"status\":429,\"title\":\"Too Many Requests\"}\n  \ud83d\udca5 Falha no teste: Evaluation LLM outputted an invalid JSON. Please use a better evaluation model.\n\n\ud83e\uddea HOME-002: Living Room Temp\n  - \ud83c\udfad Personalidade: 0.40 \u274c\n  - \ud83c\udfaf Relev\u00e2ncia:    0.25 \u274c\n  - \u23f1\ufe0f Dura\u00e7\u00e3o:       54.40s\n\n\ud83e\uddea KNOW-001: Moon Landing\nError 429: {\"status\":429,\"title\":\"Too Many Requests\"}\n  \ud83d\udca5 Falha no teste: Evaluation LLM outputted an invalid JSON. Please use a better evaluation model.\n\n\ud83e\uddea KNOW-002: Python History\nError 429: {\"status\":429,\"title\":\"Too Many Requests\"}\n  \ud83d\udca5 Falha no teste: Evaluation LLM outputted an invalid JSON. Please use a better evaluation model.\n\n\ud83e\uddea GREET-002: Standard Greeting EN\nError 429: {\"status\":429,\"title\":\"Too Many Requests\"}\n  \ud83d\udca5 Falha no teste: Evaluation LLM outputted an invalid JSON. Please use a better evaluation model.\n\n\ud83e\uddea HOME-003: Living Room Lights EN\nError 429: {\"status\":429,\"title\":\"Too Many Requests\"}\n  \ud83d\udca5 Falha no teste: Evaluation LLM outputted an invalid JSON. Please use a better evaluation model.\n\n\ud83e\uddea KNOW-003: Speed of Light\nError 429: {\"status\":429,\"title\":\"Too Many Requests\"}\n  \ud83d\udca5 Falha no teste: Evaluation LLM outputted an invalid JSON. Please use a better evaluation model.\n\n\ud83e\uddea PERS-002: Rocky Origin EN\nError 429: {\"status\":429,\"title\":\"Too Many Requests\"}\n  \ud83d\udca5 Falha no teste: Evaluation LLM outputted an invalid JSON. Please use a better evaluation model.\n",
+      "stderr": "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/tests/quality/personality_eval.py:9: DeprecationWarning: 'LLMTestCaseParams' is deprecated and will be removed in a future release. Use 'SingleTurnParams' instead.\n  from deepeval.test_case import LLMTestCase, LLMTestCaseParams\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+    },
+    "STT Accuracy (English)": {
+      "passed": true,
+      "duration_sec": 10.68,
+      "stdout": "\ud83d\ude80 Starting STT Regression: google/fleurs [en_us]\n\ud83d\udce6 Split: test | Model: whisper-large-v3-turbo | Limit: 10\n\n\u2705 Regression Complete!\n\ud83d\udcca AVG WER: 7.51%\n\ud83d\udcca AVG CER: 2.89%\n\ud83d\udcc1 Detailed Report: /home/feli/Documents/Coding_projects/Project-Hail-Rocky/tests/quality/../../scripts/reports/stt_regression_en_us_20260505_120729.json\n\ud83d\udcdd Summary: /home/feli/Documents/Coding_projects/Project-Hail-Rocky/tests/quality/../../scripts/reports/stt_regression_en_us_20260505_120729.md\n",
+      "stderr": "\nProcessing samples:   0%|          | 0/10 [00:00<?, ?it/s]\nProcessing samples:  10%|\u2588         | 1/10 [00:03<00:30,  3.43s/it]\nProcessing samples:  20%|\u2588\u2588        | 2/10 [00:03<00:13,  1.63s/it]\nProcessing samples:  30%|\u2588\u2588\u2588       | 3/10 [00:04<00:07,  1.06s/it]\nProcessing samples:  40%|\u2588\u2588\u2588\u2588      | 4/10 [00:04<00:04,  1.27it/s]\nProcessing samples:  50%|\u2588\u2588\u2588\u2588\u2588     | 5/10 [00:04<00:03,  1.53it/s]\nProcessing samples:  60%|\u2588\u2588\u2588\u2588\u2588\u2588    | 6/10 [00:05<00:02,  1.84it/s]\nProcessing samples:  70%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588   | 7/10 [00:05<00:01,  2.13it/s]\nProcessing samples:  80%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  | 8/10 [00:06<00:01,  1.98it/s]\nProcessing samples:  90%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588 | 9/10 [00:06<00:00,  2.11it/s]\nProcessing samples: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 10/10 [00:07<00:00,  1.82it/s]\nProcessing samples: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 10/10 [00:07<00:00,  1.37it/s]\n"
+    },
+    "STT Accuracy (Portuguese)": {
+      "passed": true,
+      "duration_sec": 9.76,
+      "stdout": "\ud83d\ude80 Starting STT Regression: google/fleurs [pt_br]\n\ud83d\udce6 Split: test | Model: whisper-large-v3-turbo | Limit: 10\n\n\u2705 Regression Complete!\n\ud83d\udcca AVG WER: 6.50%\n\ud83d\udcca AVG CER: 2.67%\n\ud83d\udcc1 Detailed Report: /home/feli/Documents/Coding_projects/Project-Hail-Rocky/tests/quality/../../scripts/reports/stt_regression_pt_br_20260505_120739.json\n\ud83d\udcdd Summary: /home/feli/Documents/Coding_projects/Project-Hail-Rocky/tests/quality/../../scripts/reports/stt_regression_pt_br_20260505_120739.md\n",
+      "stderr": "\nProcessing samples:   0%|          | 0/10 [00:00<?, ?it/s]\nProcessing samples:  10%|\u2588         | 1/10 [00:02<00:25,  2.83s/it]\nProcessing samples:  20%|\u2588\u2588        | 2/10 [00:03<00:11,  1.44s/it]\nProcessing samples:  30%|\u2588\u2588\u2588       | 3/10 [00:03<00:06,  1.06it/s]\nProcessing samples:  40%|\u2588\u2588\u2588\u2588      | 4/10 [00:04<00:04,  1.40it/s]\nProcessing samples:  50%|\u2588\u2588\u2588\u2588\u2588     | 5/10 [00:04<00:02,  1.72it/s]\nProcessing samples:  60%|\u2588\u2588\u2588\u2588\u2588\u2588    | 6/10 [00:04<00:02,  1.98it/s]\nProcessing samples:  70%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588   | 7/10 [00:05<00:01,  2.18it/s]\nProcessing samples:  80%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  | 8/10 [00:05<00:01,  1.98it/s]\nProcessing samples:  90%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588 | 9/10 [00:06<00:00,  2.12it/s]\nProcessing samples: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 10/10 [00:06<00:00,  2.19it/s]\nProcessing samples: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 10/10 [00:06<00:00,  1.54it/s]\n"
+    }
+  },
+  "summary": {
+    "passed": 5,
+    "failed": 2,
+    "total": 7
+  }
+}

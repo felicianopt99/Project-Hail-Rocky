@@ -1,0 +1,269 @@
+{
+  "metadata": {
+    "version": "3.0-enterprise",
+    "timestamp": "2026-05-05T09:52:06.101406",
+    "duration_seconds": 52.682055,
+    "concurrency": 5
+  },
+  "summary": {
+    "total": 9,
+    "passed": 3,
+    "failed": 1,
+    "timeout": 0
+  },
+  "benchmarks": {
+    "stt_latency": {
+      "avg": 471.71,
+      "p95": 754.53,
+      "max": 640.72
+    },
+    "llm_ttft": {
+      "avg": 13959.12,
+      "p95": 25286.52,
+      "max": 24715.45
+    }
+  },
+  "raw_results": [
+    {
+      "test_case": {
+        "id": "HOME-001",
+        "name": "Kitchen Lights",
+        "input": "Liga as luzes da cozinha agora",
+        "expected_keywords": [
+          "cozinha",
+          "luzes",
+          "ligar",
+          "ok"
+        ],
+        "category": "Smart Home",
+        "language": "pt"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 488.97290229797363,
+        "llm_ttft_ms": 5227.33736038208,
+        "total_latency_ms": 10248.359203338623,
+        "audio_gen_time_ms": 3962.0399475097656
+      },
+      "actual_transcript": "Liga as luzes da cozinha agora.",
+      "actual_response": "Luzes da cozinha ligadas. Good.",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "HOME-002",
+        "name": "Living Room Temp",
+        "input": "Qual \u00e9 a temperatura da sala?",
+        "expected_keywords": [
+          "temperatura",
+          "sala",
+          "graus"
+        ],
+        "category": "Smart Home",
+        "language": "pt"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 640.7196521759033,
+        "llm_ttft_ms": 1939.685344696045,
+        "total_latency_ms": 22982.95497894287,
+        "audio_gen_time_ms": 3794.6937084198
+      },
+      "actual_transcript": "Qual \u00e9 a temperatura da sala?",
+      "actual_response": "The function provided does not have a specific function to get the temperature of a room. However, I can suggest a possible function call that could be used to get the current weather and today's forecast for a city, which might include the temperature.\n\n{\"name\": \"get_weather\", \"parameters\": {\"city\": \"Lisbon\"}}",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "KNOW-002",
+        "name": "Python History",
+        "input": "Who created the Python programming language?",
+        "expected_keywords": [
+          "created",
+          "python",
+          "programming",
+          "language"
+        ],
+        "category": "Knowledge",
+        "language": "en"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": null
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Audio generation failed",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "GREET-002",
+        "name": "Standard Greeting EN",
+        "input": "Hello Rocky, how are you doing today?",
+        "expected_keywords": [
+          "hello",
+          "rocky",
+          "doing",
+          "today"
+        ],
+        "category": "Personality",
+        "language": "en"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": null
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Audio generation failed",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "HOME-003",
+        "name": "Living Room Lights EN",
+        "input": "Turn on the living room lights please",
+        "expected_keywords": [
+          "living",
+          "room",
+          "lights",
+          "on"
+        ],
+        "category": "Smart Home",
+        "language": "en"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": null
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Audio generation failed",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "KNOW-003",
+        "name": "Speed of Light",
+        "input": "What is the speed of light in a vacuum?",
+        "expected_keywords": [
+          "speed",
+          "light",
+          "vacuum"
+        ],
+        "category": "Knowledge",
+        "language": "en"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": null
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Audio generation failed",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "PERS-002",
+        "name": "Rocky Origin EN",
+        "input": "Where exactly do you come from, Rocky?",
+        "expected_keywords": [
+          "where",
+          "exactly",
+          "come",
+          "from",
+          "rocky"
+        ],
+        "category": "Personality",
+        "language": "en"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": null
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Audio generation failed",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "GREET-001",
+        "name": "Standard Greeting PT",
+        "input": "Ol\u00e1 Rocky, como vai o teu dia?",
+        "expected_keywords": [
+          "ol\u00e1",
+          "rocky",
+          "dia",
+          "bem"
+        ],
+        "category": "Personality",
+        "language": "pt"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 429.99863624572754,
+        "llm_ttft_ms": 24715.449810028076,
+        "total_latency_ms": 39916.661977767944,
+        "audio_gen_time_ms": 4021.249532699585
+      },
+      "actual_transcript": "Ol\u00e1, Rocky. Como vai o teu dia?",
+      "actual_response": "Bom dia, humano. Dia vai bem. Fiz caf\u00e9 para voc\u00ea. Question, humano: Voc\u00ea gosta de caf\u00e9 forte ou fraco?",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "KNOW-001",
+        "name": "Moon Landing",
+        "input": "Quem foi o primeiro homem na lua?",
+        "expected_keywords": [
+          "neil",
+          "armstrong",
+          "lua"
+        ],
+        "category": "Knowledge",
+        "language": "pt"
+      },
+      "status": "FAIL",
+      "metrics": {
+        "stt_latency_ms": 327.1503448486328,
+        "llm_ttft_ms": 23954.02479171753,
+        "total_latency_ms": 32615.411043167114,
+        "audio_gen_time_ms": 2755.160093307495
+      },
+      "actual_transcript": "Quem foi o primeiro homem na lua?",
+      "actual_response": "Question, human: Voc\u00ea quer saber quem foi o primeiro homem a pisar na lua? Resposta: Neil Armstrong. Yes?",
+      "reason": "STT mismatch",
+      "retries_used": 0,
+      "logs": []
+    }
+  ]
+}

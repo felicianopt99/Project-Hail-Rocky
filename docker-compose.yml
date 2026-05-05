@@ -8,10 +8,9 @@ services:
     network_mode: host
     env_file:
       - .env
-    environment:
-      - VOICE_ENGINE_URL=http://127.0.0.1:8880
     volumes:
       - ./backend/app:/app/app
+      - ./tests/functional:/app/tests
     restart: unless-stopped
     depends_on:
       - redis
@@ -55,7 +54,7 @@ services:
     image: redis:7-alpine
     container_name: rocky-redis
     network_mode: host
-    command: redis-server --port 6380 --maxmemory 512mb --maxmemory-policy allkeys-lru
+    command: redis-server --port 6381 --maxmemory 512mb --maxmemory-policy allkeys-lru
     restart: unless-stopped
 
   # ── PostgreSQL (Letta backend — Phase 5) ─────────────────────────────────
@@ -131,6 +130,7 @@ services:
     volumes:
       - ./models:/models
       - ./services/voice_engine/app:/app/app
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8881"]
     restart: unless-stopped
     profiles:
       - voice

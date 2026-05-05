@@ -1,0 +1,33 @@
+{
+  "timestamp": "2026-05-05T10:50:05.879586",
+  "levels": {
+    "Health Checks": {
+      "passed": true,
+      "backend": true,
+      "voice": true
+    },
+    "API Functional": {
+      "passed": false,
+      "duration_sec": 2.3,
+      "stdout": "============================= test session starts ==============================\nplatform linux -- Python 3.11.15, pytest-9.0.3, pluggy-1.6.0\nrootdir: /app\nplugins: asyncio-1.3.0, mock-3.15.1, anyio-4.13.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 0 items\n\n============================ no tests ran in 0.01s =============================\n",
+      "stderr": "ERROR: file or directory not found: backend/tests/test_api.py\n\n"
+    },
+    "Socket.IO Integration": {
+      "passed": false,
+      "duration_sec": 1.61,
+      "stdout": "============================= test session starts ==============================\nplatform linux -- Python 3.11.15, pytest-9.0.3, pluggy-1.6.0\nrootdir: /app\nplugins: asyncio-1.3.0, mock-3.15.1, anyio-4.13.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 0 items\n\n============================ no tests ran in 0.00s =============================\n",
+      "stderr": "ERROR: file or directory not found: backend/tests/test_voice_loop.py\n\n"
+    },
+    "Enterprise Personality Check": {
+      "passed": false,
+      "duration_sec": 1.61,
+      "stdout": "",
+      "stderr": "2026-05-05 10:50:11 [INFO] TestBattery: Running Pre-flight Health Check...\n2026-05-05 10:50:11 [INFO] httpx: HTTP Request: GET http://127.0.0.1:8000/api/health \"HTTP/1.1 200 OK\"\n2026-05-05 10:50:11 [INFO] httpx: HTTP Request: GET http://127.0.0.1:8881/synthesize \"HTTP/1.1 405 Method Not Allowed\"\nTraceback (most recent call last):\n  File \"/home/feli/Documents/Coding_projects/Project-Hail-Rocky/scripts/enterprise_test_battery.py\", line 347, in <module>\n    asyncio.run(battery.run(concurrency=args.concurrency))\n    ~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/lib/python3.14/asyncio/runners.py\", line 204, in run\n    return runner.run(main)\n           ~~~~~~~~~~^^^^^^\n  File \"/usr/lib/python3.14/asyncio/runners.py\", line 127, in run\n    return self._loop.run_until_complete(task)\n           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^\n  File \"/usr/lib/python3.14/asyncio/base_events.py\", line 719, in run_until_complete\n    return future.result()\n           ~~~~~~~~~~~~~^^\n  File \"/home/feli/Documents/Coding_projects/Project-Hail-Rocky/scripts/enterprise_test_battery.py\", line 261, in run\n    test_cases = [TestCase(**tc) for tc in data.get(\"scenarios\", [])]\n                  ~~~~~~~~^^^^^^\nTypeError: TestCase.__init__() got an unexpected keyword argument 'intent'\n"
+    }
+  },
+  "summary": {
+    "passed": 1,
+    "failed": 3,
+    "total": 4
+  }
+}

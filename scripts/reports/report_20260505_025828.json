@@ -1,0 +1,199 @@
+{
+  "timestamp": "2026-05-05T02:56:54.902652",
+  "duration_seconds": 93.471199,
+  "summary": {
+    "total": 6,
+    "passed": 3,
+    "failed": 3
+  },
+  "metrics": {
+    "stt_avg_ms": 360.750675201416,
+    "stt_p95_ms": 590.0845646858215,
+    "llm_ttft_avg_ms": 5129.039096832275,
+    "llm_ttft_p95_ms": 30038.765025138855,
+    "total_latency_avg_ms": 7766.535186767578,
+    "total_latency_p95_ms": 33352.21998691559
+  },
+  "results": [
+    {
+      "id": "GREET-001",
+      "category": "Personality",
+      "name": "Standard Greeting PT",
+      "input": "Ol\u00e1 Rocky, como vai o teu dia?",
+      "expected_keywords": [
+        "ol\u00e1",
+        "rocky",
+        "dia",
+        "bem"
+      ],
+      "language": "pt",
+      "stt_success": false,
+      "llm_success": true,
+      "stt_latency": 314.03207778930664,
+      "llm_ttft": 1064.8910999298096,
+      "total_latency": 3430.924654006958,
+      "actual_transcript": "Al\u00e1hraki, como vai o tudaya?",
+      "actual_response": "Rocky understand. You want to know how Rocky is doing today.",
+      "stt_matches": [],
+      "status_history": [
+        "processing_stt",
+        "thinking_llm",
+        "synthesizing_tts",
+        "synthesizing_tts"
+      ],
+      "status": "FAIL",
+      "reason": "STT mismatch"
+    },
+    {
+      "id": "HOME-001",
+      "category": "Smart Home",
+      "name": "Kitchen Lights",
+      "input": "Liga as luzes da cozinha agora",
+      "expected_keywords": [
+        "cozinha",
+        "luzes",
+        "ligar",
+        "ok"
+      ],
+      "language": "pt",
+      "stt_success": true,
+      "llm_success": true,
+      "stt_latency": 305.64332008361816,
+      "llm_ttft": 1903.7375450134277,
+      "total_latency": 4277.136325836182,
+      "actual_transcript": "Liga \u00e9 luzes da causa na agora.",
+      "actual_response": "Lights... on. Yes?",
+      "stt_matches": [
+        "luzes"
+      ],
+      "status_history": [
+        "processing_stt",
+        "thinking_llm",
+        "synthesizing_tts",
+        "synthesizing_tts",
+        "synthesizing_tts"
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "HOME-002",
+      "category": "Smart Home",
+      "name": "Living Room Temp",
+      "input": "Qual \u00e9 a temperatura da sala?",
+      "expected_keywords": [
+        "temperatura",
+        "sala",
+        "graus"
+      ],
+      "language": "pt",
+      "stt_success": true,
+      "llm_success": false,
+      "stt_latency": 546.2062358856201,
+      "llm_ttft": null,
+      "total_latency": null,
+      "actual_transcript": "Qual \u00e9 acute a temperatura da sala?",
+      "actual_response": "",
+      "stt_matches": [
+        "temperatura",
+        "sala"
+      ],
+      "status_history": [
+        "processing_stt",
+        "thinking_llm"
+      ],
+      "status": "FAIL",
+      "reason": "LLM Timeout/Empty"
+    },
+    {
+      "id": "KNOW-001",
+      "category": "Knowledge",
+      "name": "Moon Landing",
+      "input": "Quem foi o primeiro homem na lua?",
+      "expected_keywords": [
+        "neil",
+        "armstrong",
+        "lua"
+      ],
+      "language": "pt",
+      "stt_success": true,
+      "llm_success": true,
+      "stt_latency": 278.61571311950684,
+      "llm_ttft": 18589.749813079834,
+      "total_latency": 21968.437910079956,
+      "actual_transcript": "Quem foi o primeiro homo na lua?",
+      "actual_response": "Rocky check. Room temperature... 20.5 degrees Celsius. Yes?",
+      "stt_matches": [
+        "lua"
+      ],
+      "status_history": [
+        "processing_stt",
+        "thinking_llm",
+        "synthesizing_tts",
+        "synthesizing_tts",
+        "synthesizing_tts",
+        "synthesizing_tts"
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "KNOW-002",
+      "category": "Knowledge",
+      "name": "Python History",
+      "input": "Who created the Python programming language?",
+      "expected_keywords": [
+        "guido",
+        "van",
+        "rossum",
+        "python"
+      ],
+      "language": "en",
+      "stt_success": true,
+      "llm_success": true,
+      "stt_latency": 478.701114654541,
+      "llm_ttft": 2234.013795852661,
+      "total_latency": 3450.284957885742,
+      "actual_transcript": "Who created the Python programming language?",
+      "actual_response": "Guido van Rossum.",
+      "stt_matches": [
+        "python"
+      ],
+      "status_history": [
+        "processing_stt",
+        "thinking_llm",
+        "synthesizing_tts"
+      ],
+      "status": "PASS"
+    },
+    {
+      "id": "PERS-001",
+      "category": "Personality",
+      "name": "Rocky Identity",
+      "input": "Explica-me quem \u00e9s tu e de onde vieste",
+      "expected_keywords": [
+        "rocky",
+        "alien",
+        "espa\u00e7o",
+        "hail"
+      ],
+      "language": "pt",
+      "stt_success": false,
+      "llm_success": true,
+      "stt_latency": 241.30558967590332,
+      "llm_ttft": 1852.8032302856445,
+      "total_latency": 5705.892086029053,
+      "actual_transcript": "Explique-me, Quim. E acutes two-e de and Vist.",
+      "actual_response": "Guido van Rossum. Dutch. Create Python. Yes?",
+      "stt_matches": [],
+      "status_history": [
+        "processing_stt",
+        "thinking_llm",
+        "synthesizing_tts",
+        "synthesizing_tts",
+        "synthesizing_tts",
+        "synthesizing_tts"
+      ],
+      "status": "FAIL",
+      "reason": "STT mismatch"
+    }
+  ]
+}

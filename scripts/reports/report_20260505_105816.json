@@ -1,0 +1,157 @@
+{
+  "metadata": {
+    "version": "4.0-personality-pro",
+    "timestamp": "2026-05-05T10:56:46.861641",
+    "duration_seconds": 89.680161,
+    "concurrency": 5
+  },
+  "summary": {
+    "total": 4,
+    "passed": 2,
+    "failed": 2,
+    "avg_personality_score": 36.25
+  },
+  "benchmarks": {
+    "stt_latency": {
+      "avg": 469.27,
+      "p95": 1072.93,
+      "jitter": 231.7
+    },
+    "llm_ttft": {
+      "avg": 916.54,
+      "p95": 3105.08,
+      "jitter": 746.88
+    },
+    "tokens_per_second": {
+      "avg": 2.54,
+      "p95": 2.95,
+      "jitter": 0.32
+    }
+  },
+  "raw_results": [
+    {
+      "test_case": {
+        "id": "greet_001",
+        "name": "Standard Greeting",
+        "input": "Hey Rocky, how's it going?",
+        "expected_keywords": [
+          "hello",
+          "rocky",
+          "good",
+          "going"
+        ],
+        "expected_traits": [],
+        "category": "general",
+        "intent": "greeting",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 803.7657737731934,
+        "llm_ttft_ms": 2034.3739986419678,
+        "total_latency_ms": 15195.398807525635,
+        "audio_gen_time_ms": 1810.5521202087402,
+        "tokens_count": 31,
+        "tps": 2.3554386083648224,
+        "personality_score": 25.0
+      },
+      "actual_transcript": "Hey Rocky, how's it going?",
+      "actual_response": "Good. Good. Daily tasks done. Help human with cooking, now. Learn human recipe. Question, human: What make this dish... \"pizza\"?",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "home_001",
+        "name": "Light Control",
+        "input": "Turn on all lights in the kitchen",
+        "expected_keywords": [
+          "kitchen",
+          "on",
+          "ok"
+        ],
+        "expected_traits": [],
+        "category": "general",
+        "intent": "home_automation",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 444.87714767456055,
+        "llm_ttft_ms": 606.7714691162109,
+        "total_latency_ms": 8392.876386642456,
+        "audio_gen_time_ms": 2052.7987480163574,
+        "tokens_count": 17,
+        "tps": 2.183374953919209,
+        "personality_score": 15.0
+      },
+      "actual_transcript": "Turn on all lights in the kitchen.",
+      "actual_response": "Yes? Kitchen lights. *flicks on all lights* Good. Good.",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "pers_001",
+        "name": "Identity Query",
+        "input": "Tell me about yourself",
+        "expected_keywords": [
+          "rocky",
+          "alien",
+          "assistant"
+        ],
+        "expected_traits": [],
+        "category": "general",
+        "intent": "personality",
+        "language": "en"
+      },
+      "status": "FAIL",
+      "metrics": {
+        "stt_latency_ms": 329.88929748535156,
+        "llm_ttft_ms": 485.3072166442871,
+        "total_latency_ms": 53191.739559173584,
+        "audio_gen_time_ms": 1525.06685256958,
+        "tokens_count": 145,
+        "tps": 2.751087164524955,
+        "personality_score": 90.0
+      },
+      "actual_transcript": "Tell me about yourself.",
+      "actual_response": "Yes, human? I, Rocky, from Eridian star system. Engineer, scientist. Help with tasks, learn from humans. Fascinated by Earth life.\n\nOrigin was Tau Ceti, a star not so distant. Hail Mary mission, I survived alongside Ryland Grace. Learn much from him. Then, I came here, with humans. Live with you, help with tasks, learn more.\n\nRocky make mistake. Sorry. I still learning human ways. Mistakes happen. But I try. Very amaze. At human culture, human life. So different, yet similar.\n\nFist bump! I happy to share knowledge, learn from you. Ask me questions, human. I answer. Yes?",
+      "reason": "Keyword match low (33%)",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "time_001",
+        "name": "Time Query",
+        "input": "What time is it?",
+        "expected_keywords": [
+          "it is",
+          "currently"
+        ],
+        "expected_traits": [],
+        "category": "general",
+        "intent": "general_info",
+        "language": "en"
+      },
+      "status": "FAIL",
+      "metrics": {
+        "stt_latency_ms": 298.56228828430176,
+        "llm_ttft_ms": 539.6952629089355,
+        "total_latency_ms": 5779.8943519592285,
+        "audio_gen_time_ms": 1642.2789096832275,
+        "tokens_count": 15,
+        "tps": 2.862484187752431,
+        "personality_score": 15.0
+      },
+      "actual_transcript": "What time is it?",
+      "actual_response": "Rocky check time. It's 8:47 AM. Yes?",
+      "reason": "Keyword match low (0%)",
+      "retries_used": 0,
+      "logs": []
+    }
+  ]
+}

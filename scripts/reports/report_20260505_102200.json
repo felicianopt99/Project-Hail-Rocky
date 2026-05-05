@@ -1,0 +1,274 @@
+{
+  "metadata": {
+    "version": "4.0-personality-pro",
+    "timestamp": "2026-05-05T10:21:30.137691",
+    "duration_seconds": 30.017157,
+    "concurrency": 5
+  },
+  "summary": {
+    "total": 7,
+    "passed": 0,
+    "failed": 0,
+    "avg_personality_score": 0.0
+  },
+  "benchmarks": {
+    "stt_latency": {
+      "avg": 0,
+      "p95": 0,
+      "jitter": 0
+    },
+    "llm_ttft": {
+      "avg": 0,
+      "p95": 0,
+      "jitter": 0
+    },
+    "tokens_per_second": {
+      "avg": 0,
+      "p95": 0,
+      "jitter": 0
+    }
+  },
+  "raw_results": [
+    {
+      "test_case": {
+        "id": "PERS-DEEP-001",
+        "name": "Identity and Origin",
+        "input": "Rocky, who exactly are you and where do you come from?",
+        "expected_keywords": [
+          "rocky",
+          "erid",
+          "planet",
+          "alien",
+          "friend"
+        ],
+        "expected_traits": [
+          "short_sentences",
+          "scientific"
+        ],
+        "category": "Personality",
+        "language": "en"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 4037.221670150757,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "One or more namespaces failed to connect: ",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "PERS-DEEP-002",
+        "name": "The Grace Bond",
+        "input": "Do you remember Ryland Grace?",
+        "expected_keywords": [
+          "grace",
+          "friend",
+          "human",
+          "save"
+        ],
+        "expected_traits": [
+          "emotional_but_direct",
+          "fist_bump"
+        ],
+        "category": "Personality",
+        "language": "en"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 2583.5509300231934,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "One or more namespaces failed to connect: ",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "PERS-DEEP-003",
+        "name": "Scientific Curiosity",
+        "input": "What do you think about the Astrophage problem?",
+        "expected_keywords": [
+          "astrophage",
+          "scary",
+          "eat",
+          "sun",
+          "energy"
+        ],
+        "expected_traits": [
+          "scientific",
+          "short_sentences",
+          "amaze"
+        ],
+        "category": "Personality",
+        "language": "en"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 3271.0323333740234,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "One or more namespaces failed to connect: ",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "PERS-DEEP-004",
+        "name": "Social Interaction",
+        "input": "Rocky, I'm feeling a bit tired today.",
+        "expected_keywords": [
+          "sleep",
+          "watch",
+          "human",
+          "friend"
+        ],
+        "expected_traits": [
+          "caring",
+          "short_sentences"
+        ],
+        "category": "Personality",
+        "language": "en"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 3124.080181121826,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "One or more namespaces failed to connect: ",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "PERS-DEEP-005",
+        "name": "Technical Knowledge",
+        "input": "Can you explain how you hear things without ears?",
+        "expected_keywords": [
+          "carapace",
+          "vibration",
+          "sound",
+          "notes"
+        ],
+        "expected_traits": [
+          "technical",
+          "scientific"
+        ],
+        "category": "Personality",
+        "language": "en"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 3655.5418968200684,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "One or more namespaces failed to connect: ",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "PERS-PT-001",
+        "name": "Greeting and Style PT",
+        "input": "Ol\u00e1 Rocky, como est\u00e1 o teu dia?",
+        "expected_keywords": [
+          "dia",
+          "bem",
+          "pergunta",
+          "amigo"
+        ],
+        "expected_traits": [
+          "question_prefix",
+          "short_sentences"
+        ],
+        "category": "Personality",
+        "language": "pt"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 3210.7086181640625,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "One or more namespaces failed to connect: ",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "PERS-PT-002",
+        "name": "Scientific PT",
+        "input": "O que achas do sol da Terra?",
+        "expected_keywords": [
+          "sol",
+          "quente",
+          "luz",
+          "brilhante"
+        ],
+        "expected_traits": [
+          "scientific",
+          "amaze"
+        ],
+        "category": "Personality",
+        "language": "pt"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 3029.0205478668213,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "One or more namespaces failed to connect: ",
+      "retries_used": 0,
+      "logs": []
+    }
+  ]
+}

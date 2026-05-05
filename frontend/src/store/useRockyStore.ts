@@ -137,7 +137,7 @@ export const useRockyStore = create<RockyState>((set) => ({
   isTyping: false,
   serviceStatus: { wakeword: false },
   inputValue: "",
-  isListening: true,
+  isListening: false,
   environmentalState: { noiseFloor: 0.005, isNoisy: false, detectedTypes: [] },
 
   stats: { cpu: 0, ram: 0, totalRam: 16, temp: 0 },

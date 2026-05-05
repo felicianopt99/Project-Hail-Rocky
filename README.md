@@ -3,11 +3,6 @@
 **A Privacy-First, Personality-Driven AI Smart Home Companion**
 
 Project Rocky is a sophisticated, self-hosted AI assistant designed to live on your local hardware. Inspired by the engineer alien Rocky from Andy Weir's *Project Hail Mary*, this assistant combines advanced voice processing, long-term memory, and smart home integration into a single, cohesive experience.
-
-![Portfolio Showcase](https://img.shields.io/badge/Focus-Privacy--First-blueviolet)
-![Tech Stack](https://img.shields.io/badge/Stack-FastAPI%20%7C%20React%20%7C%20Pipecat-blue)
-![Architecture](https://img.shields.io/badge/Architecture-Microservices-green)
-
 ---
 
 ## 🌟 Key Features

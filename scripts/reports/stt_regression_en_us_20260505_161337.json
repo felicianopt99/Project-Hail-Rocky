@@ -1,0 +1,73 @@
+{
+  "metadata": {
+    "dataset": "google/fleurs",
+    "language": "en_us",
+    "model": "whisper-large-v3-turbo",
+    "timestamp": "2026-05-05T16:13:37.651961",
+    "total_samples": 5,
+    "total_duration_sec": 4.682925224304199
+  },
+  "metrics": {
+    "avg_wer": 0.0805,
+    "avg_cer": 0.0256,
+    "avg_latency_sec": 0.405,
+    "rtf": 0.05
+  },
+  "samples": [
+    {
+      "id": 0,
+      "reference": "however due to the slow communication channels styles in the west could lag behind by 25 to 30 year",
+      "hypothesis": " However, due to the slow communication channels, styles in the West could lag behind by 25-30 years.",
+      "ref_norm": "however due to the slow communication channels styles in the west could lag behind by 25 to 30 year",
+      "hyp_norm": "however due to the slow communication channels styles in the west could lag behind by 2530 years",
+      "wer": 0.21052631578947367,
+      "cer": 0.050505050505050504,
+      "latency_sec": 0.4189608097076416,
+      "audio_duration_sec": 10.56
+    },
+    {
+      "id": 1,
+      "reference": "all nouns alongside the word sie for you always begin with a capital letter even in the middle of a sentence",
+      "hypothesis": " All nouns alongside the words say for you always begin with a capital letter, even in the middle of a sentence.",
+      "ref_norm": "all nouns alongside the word sie for you always begin with a capital letter even in the middle of a sentence",
+      "hyp_norm": "all nouns alongside the words say for you always begin with a capital letter even in the middle of a sentence",
+      "wer": 0.09523809523809523,
+      "cer": 0.027777777777777776,
+      "latency_sec": 0.28580379486083984,
+      "audio_duration_sec": 8.76
+    },
+    {
+      "id": 2,
+      "reference": "to the north and within easy reach is the romantic and fascinating town of sintra and which was made famous to foreigners after a glowing account of its splendours recorded by lord byron",
+      "hypothesis": " To the north and within easy reach is the romantic and fascinating town of Sintra and which was made famous to foreigners after a glowing account of its splendorous recorded by Lord Byron.",
+      "ref_norm": "to the north and within easy reach is the romantic and fascinating town of sintra and which was made famous to foreigners after a glowing account of its splendours recorded by lord byron",
+      "hyp_norm": "to the north and within easy reach is the romantic and fascinating town of sintra and which was made famous to foreigners after a glowing account of its splendorous recorded by lord byron",
+      "wer": 0.030303030303030304,
+      "cer": 0.016129032258064516,
+      "latency_sec": 0.3974580764770508,
+      "audio_duration_sec": 11.46
+    },
+    {
+      "id": 3,
+      "reference": "the cabbage juice changes color depending on how acidic or basic alkaline the chemical is",
+      "hypothesis": " The cabbage juice changes color depending on how acidic, basic, alkaline the chemical is.",
+      "ref_norm": "the cabbage juice changes color depending on how acidic or basic alkaline the chemical is",
+      "hyp_norm": "the cabbage juice changes color depending on how acidic basic alkaline the chemical is",
+      "wer": 0.06666666666666667,
+      "cer": 0.033707865168539325,
+      "latency_sec": 0.5514261722564697,
+      "audio_duration_sec": 5.76
+    },
+    {
+      "id": 4,
+      "reference": "many people don't think about them as dinosaurs because they have feathers and can fly",
+      "hypothesis": " Many people don't think about them as dinosaurs because they have feathers and can fly.",
+      "ref_norm": "many people don't think about them as dinosaurs because they have feathers and can fly",
+      "hyp_norm": "many people don't think about them as dinosaurs because they have feathers and can fly",
+      "wer": 0.0,
+      "cer": 0.0,
+      "latency_sec": 0.3730487823486328,
+      "audio_duration_sec": 4.32
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  "metadata": {
+    "dataset": "google/fleurs",
+    "language": "en_us",
+    "model": "whisper-large-v3-turbo",
+    "timestamp": "2026-05-05T12:07:29.549594",
+    "total_samples": 10,
+    "total_duration_sec": 7.324967861175537
+  },
+  "metrics": {
+    "avg_wer": 0.0751,
+    "avg_cer": 0.0289,
+    "avg_latency_sec": 0.421,
+    "rtf": 0.046
+  },
+  "samples": [
+    {
+      "id": 0,
+      "reference": "however due to the slow communication channels styles in the west could lag behind by 25 to 30 year",
+      "hypothesis": " However, due to the slow communication channels, styles in the West could lag behind by 25-30 years.",
+      "ref_norm": "however due to the slow communication channels styles in the west could lag behind by 25 to 30 year",
+      "hyp_norm": "however due to the slow communication channels styles in the west could lag behind by 2530 years",
+      "wer": 0.21052631578947367,
+      "cer": 0.050505050505050504,
+      "latency_sec": 0.38608551025390625,
+      "audio_duration_sec": 10.56
+    },
+    {
+      "id": 1,
+      "reference": "all nouns alongside the word sie for you always begin with a capital letter even in the middle of a sentence",
+      "hypothesis": " All nouns alongside the words say for you always begin with a capital letter, even in the middle of a sentence.",
+      "ref_norm": "all nouns alongside the word sie for you always begin with a capital letter even in the middle of a sentence",
+      "hyp_norm": "all nouns alongside the words say for you always begin with a capital letter even in the middle of a sentence",
+      "wer": 0.09523809523809523,
+      "cer": 0.027777777777777776,
+      "latency_sec": 0.35900259017944336,
+      "audio_duration_sec": 8.76
+    },
+    {
+      "id": 2,
+      "reference": "to the north and within easy reach is the romantic and fascinating town of sintra and which was made famous to foreigners after a glowing account of its splendours recorded by lord byron",
+      "hypothesis": " To the north and within easy reach is the romantic and fascinating town of Sintra and which was made famous to foreigners after a glowing account of its splendorous recorded by Lord Byron.",
+      "ref_norm": "to the north and within easy reach is the romantic and fascinating town of sintra and which was made famous to foreigners after a glowing account of its splendours recorded by lord byron",
+      "hyp_norm": "to the north and within easy reach is the romantic and fascinating town of sintra and which was made famous to foreigners after a glowing account of its splendorous recorded by lord byron",
+      "wer": 0.030303030303030304,
+      "cer": 0.016129032258064516,
+      "latency_sec": 0.3796508312225342,
+      "audio_duration_sec": 11.46
+    },
+    {
+      "id": 3,
+      "reference": "the cabbage juice changes color depending on how acidic or basic alkaline the chemical is",
+      "hypothesis": " The cabbage juice changes color depending on how acidic, basic, alkaline the chemical is.",
+      "ref_norm": "the cabbage juice changes color depending on how acidic or basic alkaline the chemical is",
+      "hyp_norm": "the cabbage juice changes color depending on how acidic basic alkaline the chemical is",
+      "wer": 0.06666666666666667,
+      "cer": 0.033707865168539325,
+      "latency_sec": 0.36772799491882324,
+      "audio_duration_sec": 5.76
+    },
+    {
+      "id": 4,
+      "reference": "many people don't think about them as dinosaurs because they have feathers and can fly",
+      "hypothesis": " Many people don't think about them as dinosaurs because they have feathers and can fly.",
+      "ref_norm": "many people don't think about them as dinosaurs because they have feathers and can fly",
+      "hyp_norm": "many people don't think about them as dinosaurs because they have feathers and can fly",
+      "wer": 0.0,
+      "cer": 0.0,
+      "latency_sec": 0.4059865474700928,
+      "audio_duration_sec": 4.32
+    },
+    {
+      "id": 5,
+      "reference": "the hospital has followed protocol for infection control including separating the patient from others to prevent possible infection of others",
+      "hypothesis": " The hospital has followed protocol for infection control, including separating the patient from others to prevent possible infection of others.",
+      "ref_norm": "the hospital has followed protocol for infection control including separating the patient from others to prevent possible infection of others",
+      "hyp_norm": "the hospital has followed protocol for infection control including separating the patient from others to prevent possible infection of others",
+      "wer": 0.0,
+      "cer": 0.0,
+      "latency_sec": 0.32277727127075195,
+      "audio_duration_sec": 11.42
+    },
+    {
+      "id": 6,
+      "reference": "the northern marianas emergency management office said that there were no damages reported in the nation",
+      "hypothesis": " The Northern Marianas Emergency Management Office said that there were no damages reported in the nation.",
+      "ref_norm": "the northern marianas emergency management office said that there were no damages reported in the nation",
+      "hyp_norm": "the northern marianas emergency management office said that there were no damages reported in the nation",
+      "wer": 0.0,
+      "cer": 0.0,
+      "latency_sec": 0.3040473461151123,
+      "audio_duration_sec": 10.8
+    },
+    {
+      "id": 7,
+      "reference": "twentieth century research has shown that there are two pools of genetic variation hidden and expressed",
+      "hypothesis": " 20th century research has shown that there are two pools of genetic variation hidden and expressed.",
+      "ref_norm": "twentieth century research has shown that there are two pools of genetic variation hidden and expressed",
+      "hyp_norm": "20th century research has shown that there are two pools of genetic variation hidden and expressed",
+      "wer": 0.0625,
+      "cer": 0.06796116504854369,
+      "latency_sec": 0.5667502880096436,
+      "audio_duration_sec": 6.96
+    },
+    {
+      "id": 8,
+      "reference": "the aspect ratio of this format dividing by twelve to obtain the simplest whole-number ratio is therefore said to be 3:2",
+      "hypothesis": " The aspect ratio of this format, dividing by 12 to obtain the simplest whole number ratio, is therefore said to be 3 to 2.",
+      "ref_norm": "the aspect ratio of this format dividing by twelve to obtain the simplest wholenumber ratio is therefore said to be 32",
+      "hyp_norm": "the aspect ratio of this format dividing by 12 to obtain the simplest whole number ratio is therefore said to be 3 to 2",
+      "wer": 0.2857142857142857,
+      "cer": 0.09322033898305085,
+      "latency_sec": 0.401944637298584,
+      "audio_duration_sec": 11.04
+    },
+    {
+      "id": 9,
+      "reference": "as light pollution in their heyday was not the kind of problem it is today they are usually located in cities or at campuses easier to reach than those built in modern times",
+      "hypothesis": " As light pollution in their heyday was not the kind of problem it is today, they are usually located in cities or at campuses easier to reach than those built in modern times.",
+      "ref_norm": "as light pollution in their heyday was not the kind of problem it is today they are usually located in cities or at campuses easier to reach than those built in modern times",
+      "hyp_norm": "as light pollution in their heyday was not the kind of problem it is today they are usually located in cities or at campuses easier to reach than those built in modern times",
+      "wer": 0.0,
+      "cer": 0.0,
+      "latency_sec": 0.7114934921264648,
+      "audio_duration_sec": 9.9
+    }
+  ]
+}

@@ -1,0 +1,357 @@
+{
+  "metadata": {
+    "version": "4.1-vui-benchmarks",
+    "timestamp": "2026-05-05T11:37:05.895747",
+    "duration_seconds": 83.157621,
+    "concurrency": 5
+  },
+  "summary": {
+    "total": 9,
+    "passed": 1,
+    "failed": 1,
+    "avg_personality_score": 7.22
+  },
+  "benchmarks": {
+    "stt_latency": {
+      "avg": 315.46,
+      "p95": 380.24,
+      "jitter": 33.93
+    },
+    "llm_ttft": {
+      "avg": 550.1,
+      "p95": 618.13,
+      "jitter": 35.63
+    },
+    "ttrs": {
+      "avg": 585.0,
+      "p95": 611.19,
+      "jitter": 13.72
+    },
+    "tokens_per_second": {
+      "avg": 2.92,
+      "p95": 7.23,
+      "jitter": 2.25
+    }
+  },
+  "raw_results": [
+    {
+      "test_case": {
+        "id": "HOME-001",
+        "name": "Kitchen Lights",
+        "input": "Liga as luzes da cozinha agora",
+        "expected_keywords": [
+          "cozinha",
+          "luzes",
+          "ligar",
+          "acesas",
+          "ligadas",
+          "on"
+        ],
+        "expected_traits": [],
+        "category": "Smart Home",
+        "intent": "",
+        "language": "pt"
+      },
+      "status": "FAIL",
+      "metrics": {
+        "stt_latency_ms": 291.461706161499,
+        "llm_ttft_ms": 575.2923488616943,
+        "ttrs_ms": 575.3047466278076,
+        "total_latency_ms": 15652.198791503906,
+        "audio_gen_time_ms": 3936.440944671631,
+        "tokens_count": 20,
+        "tps": 1.326531593326657,
+        "personality_score": 15.0,
+        "intent_match": false
+      },
+      "actual_transcript": "Liga as luzes da cozinha agora.",
+      "actual_response": "Cozinha luzes. Good. Good. Rocky help fix. You show Rocky where problem?",
+      "reason": "Keyword match low (33%)",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "HOME-002",
+        "name": "Living Room Temp",
+        "input": "Qual \u00e9 a temperatura da sala?",
+        "expected_keywords": [
+          "temperatura",
+          "sala",
+          "graus",
+          "celsius"
+        ],
+        "expected_traits": [],
+        "category": "Smart Home",
+        "intent": "",
+        "language": "pt"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "ttrs_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 4139.53709602356,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0,
+        "intent_match": false
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Cannot connect to host 127.0.0.1:8000 ssl:default [Connect call failed ('127.0.0.1', 8000)]",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "KNOW-001",
+        "name": "Moon Landing",
+        "input": "Quem foi o primeiro homem na lua?",
+        "expected_keywords": [
+          "neil",
+          "armstrong",
+          "lua",
+          "homem",
+          "pisar"
+        ],
+        "expected_traits": [],
+        "category": "Knowledge",
+        "intent": "",
+        "language": "pt"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "ttrs_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 3333.454132080078,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0,
+        "intent_match": false
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Cannot connect to host 127.0.0.1:8000 ssl:default [Connect call failed ('127.0.0.1', 8000)]",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "KNOW-002",
+        "name": "Python History",
+        "input": "Who created the Python programming language?",
+        "expected_keywords": [
+          "guido",
+          "rossum",
+          "python",
+          "created",
+          "programming"
+        ],
+        "expected_traits": [],
+        "category": "Knowledge",
+        "intent": "",
+        "language": "en"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "ttrs_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 2721.1754322052,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0,
+        "intent_match": false
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Cannot connect to host 127.0.0.1:8000 ssl:default [Connect call failed ('127.0.0.1', 8000)]",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "GREET-002",
+        "name": "Standard Greeting EN",
+        "input": "Hello Rocky, how are you doing today?",
+        "expected_keywords": [
+          "hello",
+          "rocky",
+          "doing",
+          "today",
+          "good",
+          "well"
+        ],
+        "expected_traits": [],
+        "category": "Personality",
+        "intent": "",
+        "language": "en"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "ttrs_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 2246.872663497925,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0,
+        "intent_match": false
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Cannot connect to host 127.0.0.1:8000 ssl:default [Connect call failed ('127.0.0.1', 8000)]",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "HOME-003",
+        "name": "Living Room Lights EN",
+        "input": "Turn on the living room lights please",
+        "expected_keywords": [
+          "living",
+          "room",
+          "lights",
+          "on",
+          "turned"
+        ],
+        "expected_traits": [],
+        "category": "Smart Home",
+        "intent": "",
+        "language": "en"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "ttrs_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 1807.8951835632324,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0,
+        "intent_match": false
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Cannot connect to host 127.0.0.1:8000 ssl:default [Connect call failed ('127.0.0.1', 8000)]",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "KNOW-003",
+        "name": "Speed of Light",
+        "input": "What is the speed of light in a vacuum?",
+        "expected_keywords": [
+          "speed",
+          "light",
+          "vacuum",
+          "velocidade",
+          "v\u00e1cuo",
+          "299"
+        ],
+        "expected_traits": [],
+        "category": "Knowledge",
+        "intent": "",
+        "language": "en"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "ttrs_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 2578.7110328674316,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0,
+        "intent_match": false
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Cannot connect to host 127.0.0.1:8000 ssl:default [Connect call failed ('127.0.0.1', 8000)]",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "PERS-002",
+        "name": "Rocky Origin EN",
+        "input": "Where exactly do you come from, Rocky?",
+        "expected_keywords": [
+          "where",
+          "exactly",
+          "come",
+          "from",
+          "rocky",
+          "casa",
+          "home"
+        ],
+        "expected_traits": [],
+        "category": "Personality",
+        "intent": "",
+        "language": "en"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "ttrs_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 2493.9374923706055,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0,
+        "intent_match": false
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Cannot connect to host 127.0.0.1:8000 ssl:default [Connect call failed ('127.0.0.1', 8000)]",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "GREET-001",
+        "name": "Standard Greeting PT",
+        "input": "Ol\u00e1 Rocky, como vai o teu dia?",
+        "expected_keywords": [
+          "ol\u00e1",
+          "rocky",
+          "dia",
+          "bem",
+          "vai"
+        ],
+        "expected_traits": [],
+        "category": "Personality",
+        "intent": "",
+        "language": "pt"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 339.4501209259033,
+        "llm_ttft_ms": 524.899959564209,
+        "ttrs_ms": 594.700813293457,
+        "total_latency_ms": 15363.388776779175,
+        "audio_gen_time_ms": 3735.2194786071777,
+        "tokens_count": 67,
+        "tps": 4.515283073515862,
+        "personality_score": 50.0,
+        "intent_match": false
+      },
+      "actual_transcript": "Ol\u00e1, Rocky. Como vai o teu dia?",
+      "actual_response": "Ol\u00e1! Dia bom. Question, human: como voc\u00ea fala portugu\u00eas? Rocky n\u00e3o muito familiar com idiomas humanos al\u00e9m de ingl\u00eas.",
+      "reason": "Success",
+      "retries_used": 1,
+      "logs": []
+    }
+  ]
+}

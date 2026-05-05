@@ -1,0 +1,39 @@
+{
+  "timestamp": "2026-05-05T11:37:01.577457",
+  "levels": {
+    "Health Checks": {
+      "passed": true,
+      "backend": true,
+      "voice": true
+    },
+    "API Functional": {
+      "passed": false,
+      "duration_sec": 1.81,
+      "stdout": "============================= test session starts ==============================\nplatform linux -- Python 3.11.15, pytest-9.0.3, pluggy-1.6.0\nrootdir: /app\nplugins: asyncio-1.3.0, mock-3.15.1, anyio-4.13.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 0 items\n\n============================ no tests ran in 0.00s =============================\n",
+      "stderr": "ERROR: file or directory not found: tests/test_api.py\n\n"
+    },
+    "Socket.IO Integration": {
+      "passed": false,
+      "duration_sec": 1.58,
+      "stdout": "============================= test session starts ==============================\nplatform linux -- Python 3.11.15, pytest-9.0.3, pluggy-1.6.0\nrootdir: /app\nplugins: asyncio-1.3.0, mock-3.15.1, anyio-4.13.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 0 items\n\n============================ no tests ran in 0.00s =============================\n",
+      "stderr": "ERROR: file or directory not found: tests/test_voice_loop.py\n\n"
+    },
+    "VUI Industry Benchmarks": {
+      "passed": true,
+      "duration_sec": 83.95,
+      "stdout": "\n============================================================\n\u2705 TEST COMPLETE: 1/9 Passed\n\ud83c\udfad Personality Accuracy: 7.22%\n\n\ud83d\udce2 VUI BENCHMARK (ALEXA VS ROCKY)\n------------------------------------------------------------\nMetric                    | Alexa Standard  | Rocky (Avg)\n------------------------------------------------------------\nTTFT (LLM Response)       | ~1.5s - 2.2s    | 550.1     ms\nTTRS (Speech Start)       | ~2.0s - 3.0s    | 585.0     ms\nJitter (Stability)        | < 200ms         | 35.63     ms\n------------------------------------------------------------\n\ud83d\ude80 STATUS: ROCKY IS FASTER THAN ALEXA!\n\n\ud83d\ude80 Avg TPS: 2.92 tokens/sec\n\ud83d\udcc1 Report: /home/feli/Documents/Coding_projects/Project-Hail-Rocky/tests/benchmarks/reports/report_20260505_113829.json\n============================================================\n\n",
+      "stderr": "26-05-05 11:37:35 [INFO] TestBattery: Starting [GREET-002] Standard Greeting EN\n2026-05-05 11:37:35 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 11:37:38 [ERROR] TestRunner-GREET-002: Critical execution error: Cannot connect to host 127.0.0.1:8000 ssl:default [Connect call failed ('127.0.0.1', 8000)]\n2026-05-05 11:37:38 [INFO] TestBattery: Finished [GREET-002] -> ERROR (Score: 0.0)\n2026-05-05 11:37:38 [INFO] TestBattery: Starting [HOME-003] Living Room Lights EN\n2026-05-05 11:37:38 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 11:37:39 [ERROR] TestRunner-HOME-003: Critical execution error: Cannot connect to host 127.0.0.1:8000 ssl:default [Connect call failed ('127.0.0.1', 8000)]\n2026-05-05 11:37:39 [INFO] TestBattery: Finished [HOME-003] -> ERROR (Score: 0.0)\n2026-05-05 11:37:39 [INFO] TestBattery: Starting [KNOW-003] Speed of Light\n2026-05-05 11:37:39 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 11:37:42 [ERROR] TestRunner-KNOW-003: Critical execution error: Cannot connect to host 127.0.0.1:8000 ssl:default [Connect call failed ('127.0.0.1', 8000)]\n2026-05-05 11:37:42 [INFO] TestBattery: Finished [KNOW-003] -> ERROR (Score: 0.0)\n2026-05-05 11:37:42 [INFO] TestBattery: Starting [PERS-002] Rocky Origin EN\n2026-05-05 11:37:42 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 11:37:44 [ERROR] TestRunner-PERS-002: Critical execution error: Cannot connect to host 127.0.0.1:8000 ssl:default [Connect call failed ('127.0.0.1', 8000)]\n2026-05-05 11:37:44 [INFO] TestBattery: Finished [PERS-002] -> ERROR (Score: 0.0)\n2026-05-05 11:38:09 [WARNING] TestRunner-GREET-001: Timeout reached. Retrying once...\n2026-05-05 11:38:09 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 11:38:29 [INFO] TestBattery: Finished [GREET-001] -> PASS (Score: 50.0)\n"
+    },
+    "Ground Truth Quality": {
+      "passed": true,
+      "duration_sec": 4.59,
+      "stdout": "\n\ud83d\ude80 Iniciando Avalia\u00e7\u00e3o via NVIDIA NIM\n\ud83d\udd17 URL: https://integrate.api.nvidia.com/v1/\n\ud83d\udcca Dataset: 9 cen\u00e1rios.\n\n\ud83e\uddea GREET-001: Standard Greeting PT\nError 429: {\"status\":429,\"title\":\"Too Many Requests\"}\n  \ud83d\udca5 Falha no teste: Evaluation LLM outputted an invalid JSON. Please use a better evaluation model.\n\n\ud83e\uddea HOME-001: Kitchen Lights\nError 429: {\"status\":429,\"title\":\"Too Many Requests\"}\n  \ud83d\udca5 Falha no teste: Evaluation LLM outputted an invalid JSON. Please use a better evaluation model.\n\n\ud83e\uddea HOME-002: Living Room Temp\nError 429: {\"status\":429,\"title\":\"Too Many Requests\"}\n  \ud83d\udca5 Falha no teste: Evaluation LLM outputted an invalid JSON. Please use a better evaluation model.\n\n\ud83e\uddea KNOW-001: Moon Landing\nError 429: {\"status\":429,\"title\":\"Too Many Requests\"}\n  \ud83d\udca5 Falha no teste: Evaluation LLM outputted an invalid JSON. Please use a better evaluation model.\n\n\ud83e\uddea KNOW-002: Python History\nError 429: {\"status\":429,\"title\":\"Too Many Requests\"}\n  \ud83d\udca5 Falha no teste: Evaluation LLM outputted an invalid JSON. Please use a better evaluation model.\n\n\ud83e\uddea GREET-002: Standard Greeting EN\nError 429: {\"status\":429,\"title\":\"Too Many Requests\"}\n  \ud83d\udca5 Falha no teste: Evaluation LLM outputted an invalid JSON. Please use a better evaluation model.\n\n\ud83e\uddea HOME-003: Living Room Lights EN\nError 429: {\"status\":429,\"title\":\"Too Many Requests\"}\n  \ud83d\udca5 Falha no teste: Evaluation LLM outputted an invalid JSON. Please use a better evaluation model.\n\n\ud83e\uddea KNOW-003: Speed of Light\nError 429: {\"status\":429,\"title\":\"Too Many Requests\"}\n  \ud83d\udca5 Falha no teste: Evaluation LLM outputted an invalid JSON. Please use a better evaluation model.\n\n\ud83e\uddea PERS-002: Rocky Origin EN\nError 429: {\"status\":429,\"title\":\"Too Many Requests\"}\n  \ud83d\udca5 Falha no teste: Evaluation LLM outputted an invalid JSON. Please use a better evaluation model.\n",
+      "stderr": "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/tests/quality/personality_eval.py:9: DeprecationWarning: 'LLMTestCaseParams' is deprecated and will be removed in a future release. Use 'SingleTurnParams' instead.\n  from deepeval.test_case import LLMTestCase, LLMTestCaseParams\n\n\n\n\n\n\n\n\n\n"
+    }
+  },
+  "summary": {
+    "passed": 3,
+    "failed": 2,
+    "total": 5
+  }
+}

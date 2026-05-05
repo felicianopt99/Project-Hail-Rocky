@@ -1,0 +1,67 @@
+{
+  "scenarios": [
+    {
+      "id": "PERS-DEEP-001",
+      "category": "Personality",
+      "name": "Identity and Origin",
+      "input": "Rocky, who exactly are you and where do you come from?",
+      "expected_keywords": ["rocky", "erid", "planet", "alien", "friend"],
+      "expected_traits": ["short_sentences", "scientific"],
+      "language": "en"
+    },
+    {
+      "id": "PERS-DEEP-002",
+      "category": "Personality",
+      "name": "The Grace Bond",
+      "input": "Do you remember Ryland Grace?",
+      "expected_keywords": ["grace", "friend", "human", "save"],
+      "expected_traits": ["emotional_but_direct", "fist_bump"],
+      "language": "en"
+    },
+    {
+      "id": "PERS-DEEP-003",
+      "category": "Personality",
+      "name": "Scientific Curiosity",
+      "input": "What do you think about the Astrophage problem?",
+      "expected_keywords": ["astrophage", "scary", "eat", "sun", "energy"],
+      "expected_traits": ["scientific", "short_sentences", "amaze"],
+      "language": "en"
+    },
+    {
+      "id": "PERS-DEEP-004",
+      "category": "Personality",
+      "name": "Social Interaction",
+      "input": "Rocky, I'm feeling a bit tired today.",
+      "expected_keywords": ["sleep", "watch", "human", "friend"],
+      "expected_traits": ["caring", "short_sentences"],
+      "language": "en"
+    },
+    {
+      "id": "PERS-DEEP-005",
+      "category": "Personality",
+      "name": "Technical Knowledge",
+      "input": "Can you explain how you hear things without ears?",
+      "expected_keywords": ["carapace", "vibration", "sound", "notes"],
+      "expected_traits": ["technical", "scientific"],
+      "language": "en"
+    },
+    {
+      "id": "PERS-PT-001",
+      "category": "Personality",
+      "name": "Greeting and Style PT",
+      "input": "Olá Rocky, como está o teu dia?",
+      "expected_keywords": ["dia", "bem", "pergunta", "amigo"],
+      "expected_traits": ["question_prefix", "short_sentences"],
+      "language": "pt"
+    },
+    {
+      "id": "PERS-PT-002",
+      "category": "Personality",
+      "name": "Scientific PT",
+      "input": "O que achas do sol da Terra?",
+      "expected_keywords": ["sol", "quente", "luz", "brilhante"],
+      "expected_traits": ["scientific", "amaze"],
+      "language": "pt"
+    }
+  ]
+}

@@ -1,0 +1,128 @@
+{
+  "metadata": {
+    "dataset": "google/fleurs",
+    "language": "pt_br",
+    "model": "whisper-large-v3-turbo",
+    "timestamp": "2026-05-05T12:07:39.309247",
+    "total_samples": 10,
+    "total_duration_sec": 6.508087635040283
+  },
+  "metrics": {
+    "avg_wer": 0.065,
+    "avg_cer": 0.0267,
+    "avg_latency_sec": 0.407,
+    "rtf": 0.03
+  },
+  "samples": [
+    {
+      "id": 0,
+      "reference": "segundo informa\u00e7\u00f5es ele estava na casa dos 20 anos em uma declara\u00e7\u00e3o bieber disse que embora eu n\u00e3o estivesse presente nem diretamente envolvido neste tr\u00e1gico incidente meus pensamentos e ora\u00e7\u00f5es est\u00e3o com a fam\u00edlia da v\u00edtima",
+      "hypothesis": " Segundo informa\u00e7\u00f5es, ele estava na casa dos 20 anos. Em uma declara\u00e7\u00e3o, Bieber disse que, embora eu n\u00e3o tivesse presente nem diretamente envolvido neste tr\u00e1gico incidente, meus pensamentos e ora\u00e7\u00f5es est\u00e3o com a fam\u00edlia da v\u00edtima.",
+      "ref_norm": "segundo informa\u00e7\u00f5es ele estava na casa dos 20 anos em uma declara\u00e7\u00e3o bieber disse que embora eu n\u00e3o estivesse presente nem diretamente envolvido neste tr\u00e1gico incidente meus pensamentos e ora\u00e7\u00f5es est\u00e3o com a fam\u00edlia da v\u00edtima",
+      "hyp_norm": "segundo informa\u00e7\u00f5es ele estava na casa dos 20 anos em uma declara\u00e7\u00e3o bieber disse que embora eu n\u00e3o tivesse presente nem diretamente envolvido neste tr\u00e1gico incidente meus pensamentos e ora\u00e7\u00f5es est\u00e3o com a fam\u00edlia da v\u00edtima",
+      "wer": 0.027777777777777776,
+      "cer": 0.008888888888888889,
+      "latency_sec": 0.4750936031341553,
+      "audio_duration_sec": 17.76
+    },
+    {
+      "id": 1,
+      "reference": "constru\u00edda pelos eg\u00edpcios no s\u00e9culo 3 a.c. a grande pir\u00e2mide \u00e9 uma das muitas grandes estruturas de pir\u00e2mide constru\u00eddas para honrar fara\u00f3s mortos",
+      "hypothesis": " Constru\u00edda pelos eg\u00edpcios no s\u00e9culo 3 a.C., a Grande Pir\u00e2mide \u00e9 uma das muitas grandes estruturas da pir\u00e2mide constru\u00eddas para honrar fara\u00f3s mortos.",
+      "ref_norm": "constru\u00edda pelos eg\u00edpcios no s\u00e9culo 3 ac a grande pir\u00e2mide \u00e9 uma das muitas grandes estruturas de pir\u00e2mide constru\u00eddas para honrar fara\u00f3s mortos",
+      "hyp_norm": "constru\u00edda pelos eg\u00edpcios no s\u00e9culo 3 ac a grande pir\u00e2mide \u00e9 uma das muitas grandes estruturas da pir\u00e2mide constru\u00eddas para honrar fara\u00f3s mortos",
+      "wer": 0.043478260869565216,
+      "cer": 0.006944444444444444,
+      "latency_sec": 0.4542255401611328,
+      "audio_duration_sec": 13.62
+    },
+    {
+      "id": 2,
+      "reference": "giancarlo fisichella perdeu o controle do carro e acabou a corrida logo ap\u00f3s a largada",
+      "hypothesis": " Jean Carlos fez aquela, perdeu o controle do carro e acabou a corrida logo ap\u00f3s a largada.",
+      "ref_norm": "giancarlo fisichella perdeu o controle do carro e acabou a corrida logo ap\u00f3s a largada",
+      "hyp_norm": "jean carlos fez aquela perdeu o controle do carro e acabou a corrida logo ap\u00f3s a largada",
+      "wer": 0.26666666666666666,
+      "cer": 0.12790697674418605,
+      "latency_sec": 0.3486332893371582,
+      "audio_duration_sec": 8.4
+    },
+    {
+      "id": 3,
+      "reference": "o romantismo tinha um grande elemento de determinismo cultural extra\u00eddo de escritores como goethe fichte e schlegel",
+      "hypothesis": " O romantismo tinha um grande elemento de determinismo cultural, extra\u00eddo de escritores como Goethe, Fichte e Skellige.",
+      "ref_norm": "o romantismo tinha um grande elemento de determinismo cultural extra\u00eddo de escritores como goethe fichte e schlegel",
+      "hyp_norm": "o romantismo tinha um grande elemento de determinismo cultural extra\u00eddo de escritores como goethe fichte e skellige",
+      "wer": 0.058823529411764705,
+      "cer": 0.043478260869565216,
+      "latency_sec": 0.35741305351257324,
+      "audio_duration_sec": 10.68
+    },
+    {
+      "id": 4,
+      "reference": "o scaffolding n\u00e3o \u00e9 um m\u00e9todo de aprendizado mas sim uma ajuda para alunos que est\u00e3o passando por uma nova experi\u00eancia de aprendizado como usar um novo computador ou come\u00e7ar um novo projeto",
+      "hypothesis": " O scaffolding n\u00e3o \u00e9 um m\u00e9todo de aprendizado, mas sim uma ajuda para alunos que est\u00e3o passando por uma nova experi\u00eancia de aprendizado, como usar um computador ou come\u00e7ar um novo projeto.",
+      "ref_norm": "o scaffolding n\u00e3o \u00e9 um m\u00e9todo de aprendizado mas sim uma ajuda para alunos que est\u00e3o passando por uma nova experi\u00eancia de aprendizado como usar um novo computador ou come\u00e7ar um novo projeto",
+      "hyp_norm": "o scaffolding n\u00e3o \u00e9 um m\u00e9todo de aprendizado mas sim uma ajuda para alunos que est\u00e3o passando por uma nova experi\u00eancia de aprendizado como usar um computador ou come\u00e7ar um novo projeto",
+      "wer": 0.030303030303030304,
+      "cer": 0.026455026455026454,
+      "latency_sec": 0.3412151336669922,
+      "audio_duration_sec": 12.72
+    },
+    {
+      "id": 5,
+      "reference": "a parte central da medita\u00e7\u00e3o tibetana \u00e9 o deity yoga atrav\u00e9s da visualiza\u00e7\u00e3o de v\u00e1rias divindades os canais de energia s\u00e3o limpos os chacras s\u00e3o ativados e a consci\u00eancia da ilumina\u00e7\u00e3o \u00e9 criada",
+      "hypothesis": " A parte central da medita\u00e7\u00e3o tibetana \u00e9 o Deityoga. Atrav\u00e9s da visualiza\u00e7\u00e3o de v\u00e1rias divindades, os canais de energia s\u00e3o limpos, os chakras s\u00e3o ativados e a consci\u00eancia da ilumina\u00e7\u00e3o \u00e9 criada.",
+      "ref_norm": "a parte central da medita\u00e7\u00e3o tibetana \u00e9 o deity yoga atrav\u00e9s da visualiza\u00e7\u00e3o de v\u00e1rias divindades os canais de energia s\u00e3o limpos os chacras s\u00e3o ativados e a consci\u00eancia da ilumina\u00e7\u00e3o \u00e9 criada",
+      "hyp_norm": "a parte central da medita\u00e7\u00e3o tibetana \u00e9 o deityoga atrav\u00e9s da visualiza\u00e7\u00e3o de v\u00e1rias divindades os canais de energia s\u00e3o limpos os chakras s\u00e3o ativados e a consci\u00eancia da ilumina\u00e7\u00e3o \u00e9 criada",
+      "wer": 0.09090909090909091,
+      "cer": 0.015625,
+      "latency_sec": 0.3425774574279785,
+      "audio_duration_sec": 19.32
+    },
+    {
+      "id": 6,
+      "reference": "suas longas mand\u00edbulas eram cravejadas com mais de 70 dentes afiados junto com um conjunto extra no c\u00e9u da boca o que mostra que nada que cruzasse seu caminho poderia escapar",
+      "hypothesis": " Suas longas mand\u00edbulas eram cravejadas com mais de 70 dentes afiados, junto com um conjunto extra no c\u00e9u da boca, o que mostra que nada que cruzasse seu caminho poderia escapar.",
+      "ref_norm": "suas longas mand\u00edbulas eram cravejadas com mais de 70 dentes afiados junto com um conjunto extra no c\u00e9u da boca o que mostra que nada que cruzasse seu caminho poderia escapar",
+      "hyp_norm": "suas longas mand\u00edbulas eram cravejadas com mais de 70 dentes afiados junto com um conjunto extra no c\u00e9u da boca o que mostra que nada que cruzasse seu caminho poderia escapar",
+      "wer": 0.0,
+      "cer": 0.0,
+      "latency_sec": 0.35248708724975586,
+      "audio_duration_sec": 14.4
+    },
+    {
+      "id": 7,
+      "reference": "o acidente ocorreu em grande altitude no terreno montanhoso e acredita-se que tenha sido causado por fogo inimigo",
+      "hypothesis": " O acidente ocorreu em grande altitude no terreno montanhoso e acredita-se que tenha sido causado por fogo inimigo.",
+      "ref_norm": "o acidente ocorreu em grande altitude no terreno montanhoso e acreditase que tenha sido causado por fogo inimigo",
+      "hyp_norm": "o acidente ocorreu em grande altitude no terreno montanhoso e acreditase que tenha sido causado por fogo inimigo",
+      "wer": 0.0,
+      "cer": 0.0,
+      "latency_sec": 0.5974507331848145,
+      "audio_duration_sec": 8.82
+    },
+    {
+      "id": 8,
+      "reference": "ele tamb\u00e9m estava envolvido na grava\u00e7\u00e3o de c\u00e9dulas para muitos pa\u00edses e exemplos recentes de seu trabalho inclu\u00edram os retratos do primeiro-ministro nas novas notas de 5 e 100 d\u00f3lares canadenses",
+      "hypothesis": " Ele tamb\u00e9m estava envolvido na grava\u00e7\u00e3o de c\u00e9dulas para muitos pa\u00edses. E exemplos recentes do seu trabalho inclu\u00edram os retratos do primeiro-ministro nas novas notas de 5 e 100 d\u00f3lares canadenses.",
+      "ref_norm": "ele tamb\u00e9m estava envolvido na grava\u00e7\u00e3o de c\u00e9dulas para muitos pa\u00edses e exemplos recentes de seu trabalho inclu\u00edram os retratos do primeiroministro nas novas notas de 5 e 100 d\u00f3lares canadenses",
+      "hyp_norm": "ele tamb\u00e9m estava envolvido na grava\u00e7\u00e3o de c\u00e9dulas para muitos pa\u00edses e exemplos recentes do seu trabalho inclu\u00edram os retratos do primeiroministro nas novas notas de 5 e 100 d\u00f3lares canadenses",
+      "wer": 0.03225806451612903,
+      "cer": 0.0051813471502590676,
+      "latency_sec": 0.38936519622802734,
+      "audio_duration_sec": 17.4
+    },
+    {
+      "id": 9,
+      "reference": "consequentemente duas esp\u00e9cies de peixe entraram em extin\u00e7\u00e3o e duas outras passaram a correr risco como a esp\u00e9cie gila cypha",
+      "hypothesis": " Consequentemente, duas esp\u00e9cies de peixe entraram em extin\u00e7\u00e3o e duas outras passaram a correr risco, como a esp\u00e9cie gilacifa.",
+      "ref_norm": "consequentemente duas esp\u00e9cies de peixe entraram em extin\u00e7\u00e3o e duas outras passaram a correr risco como a esp\u00e9cie gila cypha",
+      "hyp_norm": "consequentemente duas esp\u00e9cies de peixe entraram em extin\u00e7\u00e3o e duas outras passaram a correr risco como a esp\u00e9cie gilacifa",
+      "wer": 0.1,
+      "cer": 0.03225806451612903,
+      "latency_sec": 0.4158751964569092,
+      "audio_duration_sec": 14.4
+    }
+  ]
+}

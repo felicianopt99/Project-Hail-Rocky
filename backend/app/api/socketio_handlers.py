@@ -30,16 +30,45 @@ def _session(sid: str) -> dict:
 _SENTENCE_END = re.compile(r'(?<=[.!?…])\s+')
 
 
-def _pop_sentence(buf: str) -> tuple[str, str]:
-    """Return (completed_sentence, remainder) or ('', buf) if no boundary yet."""
+def _pop_sentence(buf: str, is_first: bool = False) -> tuple[str, str]:
+    """Return (completed_sentence, remainder). If is_first, we allow smaller chunks."""
     parts = _SENTENCE_END.split(buf, maxsplit=1)
     if len(parts) == 2:
         return parts[0].strip(), parts[1]
+    
+    # If it's the first chunk and it's long enough (e.g. 2 words), yield it anyway
+    if is_first and len(buf.split()) >= 2:
+         return buf.strip(), ""
+         
     return "", buf
 
 
+# ── HA Context Helper ──────────────────────────────────────────────────
+async def _get_ha_context_str() -> str:
+    """Fetch lights and areas and return a formatted string for the LLM prompt."""
+    try:
+        from ..bridges import ha_bridge
+        lights, areas = await asyncio.gather(
+            ha_bridge.get_lights(),
+            ha_bridge.get_areas(),
+            return_exceptions=True
+        )
+        if isinstance(lights, Exception) or not lights:
+            return "No lights found in Home Assistant."
+        
+        lines = ["### Lights"]
+        for eid, info in lights.items():
+            area = areas.get(info.get("areaId", ""), "Unknown Area") if isinstance(areas, dict) else "Unknown Area"
+            lines.append(f"- {info['name']} (ID: {eid}) | State: {info['status']} | Area: {area}")
+        
+        return "\n".join(lines)
+    except Exception as e:
+        log.warning("ha_context_fetch_failed", error=str(e))
+        return "Could not fetch Home Assistant state."
+
+
 # ── Core chat logic (shared by text and voice paths) ─────────────────────
-async def _chat(sid: str, content: str, sio: socketio.AsyncServer) -> None:
+async def _chat(sid: str, content: str, sio: socketio.AsyncServer, language: str = "en") -> None:
     session = _session(sid)
     redis = await get_redis()
 
@@ -61,15 +90,14 @@ async def _chat(sid: str, content: str, sio: socketio.AsyncServer) -> None:
         "intimacy_label": intimacy.label(score),
     }, to=sid)
 
-    # ── Tools always run first regardless of memory backend ─────────────
-    # This ensures lights/weather/timer work even when Letta is active.
+    # ── Tool calling + Letta/LiteLLM ───────────────────────
+    # We try tools first. If no tool is needed, _try_tools returns False and we proceed.
     tool_response = await _try_tools(sid, content, new_state, score, session, sio, user_id=user_id)
     if tool_response:
-        return  # tool handled the response
+        return # Tool was handled
 
-    # ── Letta (memory-backed) or direct LiteLLM ───────────────────────
     if settings.has_letta() and await letta_bridge.is_available():
-        await _chat_letta(sid, content, new_state, score, session, sio, user_id=user_id)
+        await _chat_letta(sid, content, new_state, score, session, sio, user_id=user_id, language=language)
     else:
         await _chat_litellm(sid, content, new_state, score, session, sio, user_id=user_id)
 
@@ -86,8 +114,10 @@ async def _try_tools(
     but if no tools are needed the first response is used directly (zero extra cost).
     """
     import json as _json
+    ha_context = await _get_ha_context_str()
     system = personality.build_system_prompt(
         emotional_state=state, intimacy_score=score, message=content,
+        ha_context=ha_context
     )
     if user_id and user_id != sid:
         system += f"\n\n## Speaker\nYou are speaking with {user_id}. Use their name naturally."
@@ -100,47 +130,88 @@ async def _try_tools(
             t for t in TOOLS
             if skills_api._overrides.get(t["function"]["name"], {}).get("enabled", True)
         ]
-        first = await litellm.acompletion(
+        
+        # Stream the first call to detect tools early
+        response = await litellm.acompletion(
             model=model, messages=messages,
             tools=active_tools, tool_choice="auto",
-            stream=False, temperature=0.85, max_tokens=1024,
+            stream=True, temperature=0.85, max_tokens=1024,
         )
-        choice = first.choices[0]
-
-        if choice.finish_reason != "tool_calls" or not choice.message.tool_calls:
-            return False  # No tool — let Letta/LiteLLM handle it
-
-        # ── Tool(s) called ────────────────────────────────────────────────
-        messages.append(choice.message.model_dump(exclude_none=True))
-        for tc in choice.message.tool_calls:
-            tool_name = tc.function.name
-            tool_args = _json.loads(tc.function.arguments or "{}")
-            log.info("tool_called", tool=tool_name, args=tool_args)
-            result = await run_tool(tool_name, tool_args, sio=sio)
-            messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
-
-        # Stream final answer (only call when tools were actually used)
-        response = await litellm.acompletion(
-            model=model, messages=messages, stream=True, temperature=0.8, max_tokens=512,
-        )
+        
         full, buf = "", ""
+        tool_calls = []
+        
         async for chunk in response:
-            token = chunk.choices[0].delta.content or ""
+            delta = chunk.choices[0].delta
+            
+            # Check for tool calls
+            if hasattr(delta, "tool_calls") and delta.tool_calls:
+                # Accumulate tool calls (usually they come in the first chunks)
+                for tc in delta.tool_calls:
+                    if len(tool_calls) <= tc.index:
+                        tool_calls.append(tc)
+                    else:
+                        # Append parts (for streaming tool call arguments)
+                        curr = tool_calls[tc.index]
+                        if tc.function and tc.function.arguments:
+                            curr.function.arguments += tc.function.arguments
+                continue
+
+            # If we reached here and have tool_calls, we finish the loop to process them
+            if tool_calls:
+                # We need to exhaust the stream to be sure no more tool calls come
+                # (usually they come all at once or in sequence at the start)
+                continue
+
+            # No tool call detected yet, stream tokens directly
+            token = delta.content or ""
             if not token:
                 continue
             full += token
             buf += token
             await sio.emit("chat_token", token, to=sid)
             if settings.has_tts():
-                sentence, buf = _pop_sentence(buf)
+                sentence, buf = _pop_sentence(buf, is_first=(full == token))
                 if sentence:
                     await _emit_tts(sid, sentence, sio, state)
-        if buf.strip() and settings.has_tts():
-            await _emit_tts(sid, buf.strip(), sio, state)
-        session["history"].append({"role": "assistant", "content": full})
-        await sio.emit("chat_response", {"text": full}, to=sid)
-        await sio.emit("status_update", "idle", to=sid)
-        return True
+
+        # ── Handle Tool Calls if any were found ───────────────────────────
+        if tool_calls:
+            messages.append({"role": "assistant", "tool_calls": [tc.model_dump() for tc in tool_calls]})
+            for tc in tool_calls:
+                tool_name = tc.function.name
+                tool_args = _json.loads(tc.function.arguments or "{}")
+                log.info("tool_called", tool=tool_name, args=tool_args)
+                result = await run_tool(tool_name, tool_args, sio=sio)
+                messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
+
+            # Stream final answer after tool execution
+            final_response = await litellm.acompletion(
+                model=model, messages=messages, stream=True, temperature=0.8, max_tokens=512,
+            )
+            full_final, buf_final = "", ""
+            async for chunk in final_response:
+                token = chunk.choices[0].delta.content or ""
+                if not token:
+                    continue
+                full_final += token
+                buf_final += token
+                await sio.emit("chat_token", token, to=sid)
+                if settings.has_tts():
+                    sentence, buf_final = _pop_sentence(buf_final, is_first=(full_final == token))
+                    if sentence:
+                        await _emit_tts(sid, sentence, sio, state)
+            
+            if buf_final.strip() and settings.has_tts():
+                await _emit_tts(sid, buf_final.strip(), sio, state)
+            
+            session["history"].append({"role": "assistant", "content": full_final})
+            await sio.emit("chat_response", {"text": full_final}, to=sid)
+            await sio.emit("status_update", "idle", to=sid)
+            return True
+
+        # ── No tools were called ──
+        return False
 
     except Exception as exc:
         log.error("tool_error", error=str(exc))
@@ -151,39 +222,52 @@ async def _chat_letta(
     sid: str, content: str, state: str, score: float,
     session: dict, sio: socketio.AsyncServer,
     user_id: str | None = None,
+    language: str = "en"
 ) -> None:
     """Chat via Letta agent — full persistent memory."""
     try:
-        # Send with speaker context so Letta can address the right person
-        msg = content
+        # 1. Force language and speaker context
+        lang_map = {"pt": "Portuguese", "en": "English", "es": "Spanish", "fr": "French"}
+        lang_name = lang_map.get(language, "English")
+        
+        msg = f"[Language: {lang_name}] "
         if user_id and user_id != sid:
-            msg = f"[Speaking with: {user_id}] {content}"
-        reply = await letta_bridge.send_message(msg)
-        if not reply:
+            msg += f"[Speaking with: {user_id}] "
+        msg += content
+
+        # 2. Consume streaming response from Letta
+        full_reply = ""
+        sentence_buf = ""
+        
+        async for token in letta_bridge.send_message_stream(msg):
+            if not token:
+                continue
+            
+            full_reply += token
+            sentence_buf += token
+            
+            # Emit token to frontend for real-time text display
+            await sio.emit("chat_token", token, to=sid)
+            
+            # Sentence-level TTS streaming
+            if settings.has_tts():
+                sentence, sentence_buf = _pop_sentence(sentence_buf, is_first=(full_reply == token))
+                if sentence:
+                    await _emit_tts(sid, sentence, sio, state)
+
+        if not full_reply:
             log.warning("letta_empty_reply", sid=sid)
             await _chat_litellm(sid, content, state, score, session, sio, user_id=user_id)
             return
 
-        session["history"].append({"role": "assistant", "content": reply})
-
-        # Emit tokens word-by-word for a streaming feel
-        words = reply.split(" ")
-        sentence_buf = ""
-        for i, word in enumerate(words):
-            token = word + (" " if i < len(words) - 1 else "")
-            await sio.emit("chat_token", token, to=sid)
-            sentence_buf += token
-            if settings.has_tts():
-                sentence, sentence_buf = _pop_sentence(sentence_buf)
-                if sentence:
-                    await _emit_tts(sid, sentence, sio, state)
-
+        # Final cleanup for TTS and history
         if sentence_buf.strip() and settings.has_tts():
             await _emit_tts(sid, sentence_buf.strip(), sio, state)
 
-        await sio.emit("chat_response", {"text": reply}, to=sid)
+        session["history"].append({"role": "assistant", "content": full_reply})
+        await sio.emit("chat_response", {"text": full_reply}, to=sid)
         await sio.emit("status_update", "idle", to=sid)
-        log.info("chat_letta_ok", sid=sid, state=state, words=len(words))
+        log.info("chat_letta_ok", sid=sid, state=state, chars=len(full_reply))
 
     except Exception as exc:
         log.error("letta_chat_error", error=str(exc), sid=sid)
@@ -200,8 +284,10 @@ async def _chat_litellm(
     Pure conversational LLM response — no tools (those are handled by _try_tools).
     Single streaming call, no wasted API cost.
     """
+    ha_context = await _get_ha_context_str()
     system = personality.build_system_prompt(
         emotional_state=state, intimacy_score=score, message=content,
+        ha_context=ha_context
     )
     if user_id and user_id != sid:
         system += f"\n\n## Speaker\nYou are speaking with {user_id}. Use their name naturally."
@@ -227,7 +313,7 @@ async def _chat_litellm(
             sentence_buf += token
             await sio.emit("chat_token", token, to=sid)
             if settings.has_tts():
-                sentence, sentence_buf = _pop_sentence(sentence_buf)
+                sentence, sentence_buf = _pop_sentence(sentence_buf, is_first=(full_response == token))
                 if sentence:
                     await _emit_tts(sid, sentence, sio, state)
 
@@ -348,14 +434,26 @@ def register(sio: socketio.AsyncServer) -> None:
         from ..voice.stt import transcribe
 
         await sio.emit("status_update", "processing_stt", to=sid)
+        
+        # Handle new format: {"audio": binary, "lang": "en"}
+        audio_data = data
+        lang_override = None
+        if isinstance(data, dict):
+            audio_data = data.get("audio", data)
+            lang_override = data.get("lang")
+
         try:
-            transcript = await transcribe(bytes(data) if not isinstance(data, bytes) else data)
+            transcript = await transcribe(
+                bytes(audio_data) if not isinstance(audio_data, bytes) else audio_data,
+                language=lang_override
+            )
+            
             if not transcript:
                 await sio.emit("status_update", "idle", to=sid)
                 return
             await sio.emit("transcript_result", transcript, to=sid)
             if settings.has_llm():
-                await _chat(sid, transcript, sio)
+                await _chat(sid, transcript, sio, language=lang_override or "en")
             else:
                 await sio.emit("status_update", "idle", to=sid)
         except Exception as exc:
@@ -385,7 +483,8 @@ def register(sio: socketio.AsyncServer) -> None:
                 await bridge.start()
             
             await bridge.send_audio(bytes(data) if not isinstance(data, bytes) else data)
-            return {"success": True, "streamed": True}
+            if bridge._running:
+                return {"success": True, "streamed": True}
 
         # 3. Legacy accumulation fallback
         buf = session.setdefault("audio_buf", bytearray())

@@ -1,0 +1,112 @@
+/home/feli/Documents/Coding_projects/Project-Hail-Rocky/scripts/deepeval_rocky_advanced.py:5: DeprecationWarning: 'LLMTestCaseParams' is deprecated and will be removed in a future release. Use 'SingleTurnParams' instead.
+  from deepeval.test_case import LLMTestCase, LLMTestCaseParams
+
+DEBUG: NIM_BASE_URL = https://integrate.api.nvidia.com/v1
+DEBUG: NIM_API_KEY (first 10) = nvapi-ZNe3
+
+🚀 Iniciando Avaliação Profissional (DeepEval + NVIDIA NIM)
+📊 Dataset: 9 cenários carregados.
+
+[1/9] 🧪 Testando ID: GREET-001
+Traceback (most recent call last):
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/scripts/deepeval_rocky_advanced.py", line 106, in <module>
+    run_advanced_evaluation()
+    ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/scripts/deepeval_rocky_advanced.py", line 89, in run_advanced_evaluation
+    personality_metric.measure(test_case)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/deepeval/tracing/tracing.py", line 1378, in wrapper
+    return func(*args, **func_kwargs)
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/deepeval/metrics/g_eval/g_eval.py", line 116, in measure
+    loop.run_until_complete(
+    ~~~~~~~~~~~~~~~~~~~~~~~^
+        asyncio.wait_for(
+        ^^^^^^^^^^^^^^^^^
+    ...<6 lines>...
+        )
+        ^
+    )
+    ^
+  File "/usr/lib/python3.14/asyncio/base_events.py", line 719, in run_until_complete
+    return future.result()
+           ~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.14/asyncio/tasks.py", line 488, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/deepeval/tracing/tracing.py", line 1346, in async_wrapper
+    return await func(*args, **func_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/deepeval/metrics/g_eval/g_eval.py", line 188, in a_measure
+    g_score, reason = await self._a_evaluate(
+                      ^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+    )
+    ^
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/deepeval/tracing/tracing.py", line 1346, in async_wrapper
+    return await func(*args, **func_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/deepeval/metrics/g_eval/g_eval.py", line 317, in _a_evaluate
+    return await a_generate_with_schema_and_extract(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<5 lines>...
+    )
+    ^
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/deepeval/metrics/utils.py", line 482, in a_generate_with_schema_and_extract
+    result, cost = await metric.model.a_generate_with_schema(
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        prompt, schema=schema_cls
+        ^^^^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/deepeval/models/base_model.py", line 136, in a_generate_with_schema
+    return await self.a_generate(*args, schema=schema, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/deepeval/tracing/tracing.py", line 1346, in async_wrapper
+    return await func(*args, **func_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/tenacity/asyncio/__init__.py", line 193, in async_wrapped
+    return await copy(fn, *args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/tenacity/asyncio/__init__.py", line 112, in __call__
+    do = await self.iter(retry_state=retry_state)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/tenacity/asyncio/__init__.py", line 157, in iter
+    result = await action(retry_state)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/tenacity/_utils.py", line 111, in inner
+    return call(*args, **kwargs)
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/tenacity/__init__.py", line 393, in <lambda>
+    self._add_action_func(lambda rs: rs.outcome.result())
+                                     ~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.14/concurrent/futures/_base.py", line 443, in result
+    return self.__get_result()
+           ~~~~~~~~~~~~~~~~~^^
+  File "/usr/lib/python3.14/concurrent/futures/_base.py", line 395, in __get_result
+    raise self._exception
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/tenacity/asyncio/__init__.py", line 116, in __call__
+    result = await fn(*args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/deepeval/models/retry_policy.py", line 658, in attempt
+    return await asyncio.wait_for(coro, per_attempt_timeout)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.14/asyncio/tasks.py", line 488, in wait_for
+    return await fut
+           ^^^^^^^^^
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/deepeval/models/llms/openai_model.py", line 264, in a_generate
+    completion = await client.chat.completions.create(
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<4 lines>...
+    )
+    ^
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/openai/resources/chat/completions/completions.py", line 2714, in create
+    return await self._post(
+           ^^^^^^^^^^^^^^^^^
+    ...<49 lines>...
+    )
+    ^
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/openai/_base_client.py", line 1884, in post
+    return await self.request(cast_to, opts, stream=stream, stream_cls=stream_cls)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/feli/Documents/Coding_projects/Project-Hail-Rocky/venv_test/lib/python3.14/site-packages/openai/_base_client.py", line 1669, in request
+    raise self._make_status_error_from_response(err.response) from None
+openai.PermissionDeniedError: Error code: 403 - {'status': 403, 'title': 'Forbidden', 'detail': 'Authorization failed'}

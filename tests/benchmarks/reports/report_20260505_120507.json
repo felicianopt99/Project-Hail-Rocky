@@ -1,0 +1,357 @@
+{
+  "metadata": {
+    "version": "4.1-vui-benchmarks",
+    "timestamp": "2026-05-05T12:02:42.163186",
+    "duration_seconds": 145.472292,
+    "concurrency": 5
+  },
+  "summary": {
+    "total": 9,
+    "passed": 8,
+    "failed": 0,
+    "avg_personality_score": 33.33
+  },
+  "benchmarks": {
+    "stt_latency": {
+      "avg": 349.72,
+      "p95": 437.59,
+      "jitter": 49.08
+    },
+    "llm_ttft": {
+      "avg": 567.76,
+      "p95": 713.74,
+      "jitter": 76.8
+    },
+    "ttrs": {
+      "avg": 575.78,
+      "p95": 714.82,
+      "jitter": 80.04
+    },
+    "tokens_per_second": {
+      "avg": 3.58,
+      "p95": 5.42,
+      "jitter": 0.81
+    }
+  },
+  "raw_results": [
+    {
+      "test_case": {
+        "id": "HOME-001",
+        "name": "Kitchen Lights",
+        "input": "Liga as luzes da cozinha agora",
+        "expected_keywords": [
+          "cozinha",
+          "luzes",
+          "ligar",
+          "acesas",
+          "ligadas",
+          "on"
+        ],
+        "expected_traits": [],
+        "category": "Smart Home",
+        "intent": "",
+        "language": "pt"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 302.40821838378906,
+        "llm_ttft_ms": 571.8104839324951,
+        "ttrs_ms": 582.8022956848145,
+        "total_latency_ms": 14205.250024795532,
+        "audio_gen_time_ms": 2683.9306354522705,
+        "tokens_count": 36,
+        "tps": 2.640565395109663,
+        "personality_score": 30.0,
+        "intent_match": false
+      },
+      "actual_transcript": "Liga as luzes da cozinha agora.",
+      "actual_response": "Rocky observe. Liga significa... luzes? Cozinha \u00e9 lugar de comida, certo? Voc\u00ea quer dizer que luzes da cozinha est\u00e3o acesas agora?",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "GREET-001",
+        "name": "Standard Greeting PT",
+        "input": "Ol\u00e1 Rocky, como vai o teu dia?",
+        "expected_keywords": [
+          "ol\u00e1",
+          "rocky",
+          "dia",
+          "bem",
+          "vai"
+        ],
+        "expected_traits": [],
+        "category": "Personality",
+        "intent": "",
+        "language": "pt"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 375.11444091796875,
+        "llm_ttft_ms": 689.6750926971436,
+        "ttrs_ms": 694.9050426483154,
+        "total_latency_ms": 20951.170921325684,
+        "audio_gen_time_ms": 2587.5067710876465,
+        "tokens_count": 58,
+        "tps": 2.862571855786831,
+        "personality_score": 60.0,
+        "intent_match": false
+      },
+      "actual_transcript": "Ol\u00e1, Rocky. Como vai o teu dia?",
+      "actual_response": "Ol\u00e1, humano! Dia bom. Question, human: como voc\u00ea dizer \"bom dia\" quando n\u00e3o haver sol? No Eridani, n\u00f3s usamos m\u00fasica do sol para acordar. Mas aqui, voc\u00ea usar luzes do apartamento. \u00c9... diferente.",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "KNOW-001",
+        "name": "Moon Landing",
+        "input": "Quem foi o primeiro homem na lua?",
+        "expected_keywords": [
+          "neil",
+          "armstrong",
+          "lua",
+          "homem",
+          "pisar"
+        ],
+        "expected_traits": [],
+        "category": "Knowledge",
+        "intent": "",
+        "language": "pt"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 326.465368270874,
+        "llm_ttft_ms": 547.6503372192383,
+        "ttrs_ms": 568.6569213867188,
+        "total_latency_ms": 10975.463151931763,
+        "audio_gen_time_ms": 1295.7046031951904,
+        "tokens_count": 34,
+        "tps": 3.2605103345354465,
+        "personality_score": 40.0,
+        "intent_match": false
+      },
+      "actual_transcript": "Quem foi o primeiro homem na lua?",
+      "actual_response": "Human, first man on moon. You know this already? Was it... Neil Armstrong? Yes? Good. Good. First step for human on moon. Amaze.",
+      "reason": "Success",
+      "retries_used": 1,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "KNOW-002",
+        "name": "Python History",
+        "input": "Who created the Python programming language?",
+        "expected_keywords": [
+          "guido",
+          "rossum",
+          "python",
+          "created",
+          "programming"
+        ],
+        "expected_traits": [],
+        "category": "Knowledge",
+        "intent": "",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 254.34589385986328,
+        "llm_ttft_ms": 428.250789642334,
+        "ttrs_ms": 440.81854820251465,
+        "total_latency_ms": 9557.634115219116,
+        "audio_gen_time_ms": 1798.003911972046,
+        "tokens_count": 32,
+        "tps": 3.5051647343015606,
+        "personality_score": 30.0,
+        "intent_match": false
+      },
+      "actual_transcript": "Who created the Python programming language?",
+      "actual_response": "Rocky study. Python created by Guido van Rossum. Begin coding in 1989. First public release in 1991. Very popular language.",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "GREET-002",
+        "name": "Standard Greeting EN",
+        "input": "Hello Rocky, how are you doing today?",
+        "expected_keywords": [
+          "hello",
+          "rocky",
+          "doing",
+          "today",
+          "good",
+          "well"
+        ],
+        "expected_traits": [],
+        "category": "Personality",
+        "intent": "",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 420.60089111328125,
+        "llm_ttft_ms": 641.535758972168,
+        "ttrs_ms": 658.700704574585,
+        "total_latency_ms": 5784.299612045288,
+        "audio_gen_time_ms": 1472.0513820648193,
+        "tokens_count": 23,
+        "tps": 4.47230065300815,
+        "personality_score": 40.0,
+        "intent_match": false
+      },
+      "actual_transcript": "Hello Rocky, how are you doing today?",
+      "actual_response": "I'm doing well. Good human! Question, human: How you decide good day and bad day on Earth?",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "HOME-003",
+        "name": "Living Room Lights EN",
+        "input": "Turn on the living room lights please",
+        "expected_keywords": [
+          "living",
+          "room",
+          "lights",
+          "on",
+          "turned"
+        ],
+        "expected_traits": [],
+        "category": "Smart Home",
+        "intent": "",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 361.6962432861328,
+        "llm_ttft_ms": 514.293909072876,
+        "ttrs_ms": 518.7697410583496,
+        "total_latency_ms": 4092.8525924682617,
+        "audio_gen_time_ms": 1339.8497104644775,
+        "tokens_count": 12,
+        "tps": 3.3533035687695536,
+        "personality_score": 15.0,
+        "intent_match": false
+      },
+      "actual_transcript": "Turn on the living room lights, please.",
+      "actual_response": "Yes? Living room lights, on. Good. Good.",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "KNOW-003",
+        "name": "Speed of Light",
+        "input": "What is the speed of light in a vacuum?",
+        "expected_keywords": [
+          "speed",
+          "light",
+          "vacuum",
+          "velocidade",
+          "v\u00e1cuo",
+          "299"
+        ],
+        "expected_traits": [],
+        "category": "Knowledge",
+        "intent": "",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 386.61885261535645,
+        "llm_ttft_ms": 591.6950702667236,
+        "ttrs_ms": 603.6932468414307,
+        "total_latency_ms": 12325.684547424316,
+        "audio_gen_time_ms": 1308.3655834197998,
+        "tokens_count": 41,
+        "tps": 3.494121933810416,
+        "personality_score": 35.0,
+        "intent_match": false
+      },
+      "actual_transcript": "What is the speed of light in a vacuum?",
+      "actual_response": "Human, speed of light in vacuum, answer: 299,792,458 meters per second. \n\nQuestion, human: How Eridians, on our homeworld, perceive different wavelengths of light?",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "HOME-002",
+        "name": "Living Room Temp",
+        "input": "Qual \u00e9 a temperatura da sala?",
+        "expected_keywords": [
+          "temperatura",
+          "sala",
+          "graus",
+          "celsius"
+        ],
+        "expected_traits": [],
+        "category": "Smart Home",
+        "intent": "",
+        "language": "pt"
+      },
+      "status": "TIMEOUT",
+      "metrics": {
+        "stt_latency_ms": 358.80184173583984,
+        "llm_ttft_ms": 604.3438911437988,
+        "ttrs_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 1014.519214630127,
+        "tokens_count": 2,
+        "tps": null,
+        "personality_score": 0.0,
+        "intent_match": false
+      },
+      "actual_transcript": "Qual \u00e9 a temperatura da sala?",
+      "actual_response": "",
+      "reason": "Execution timeout",
+      "retries_used": 1,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "PERS-002",
+        "name": "Rocky Origin EN",
+        "input": "Where exactly do you come from, Rocky?",
+        "expected_keywords": [
+          "where",
+          "exactly",
+          "come",
+          "from",
+          "rocky",
+          "casa",
+          "home"
+        ],
+        "expected_traits": [],
+        "category": "Personality",
+        "intent": "",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 361.4306449890137,
+        "llm_ttft_ms": 520.5485820770264,
+        "ttrs_ms": 537.8680229187012,
+        "total_latency_ms": 8980.16881942749,
+        "audio_gen_time_ms": 1722.1057415008545,
+        "tokens_count": 43,
+        "tps": 5.082969197988357,
+        "personality_score": 50.0,
+        "intent_match": false
+      },
+      "actual_transcript": "Where exactly do you come from, Rocky?",
+      "actual_response": "Rocky: \"Eridian star system. Tau Ceti. Home world called Eridani-IV. Very different from Earth, human.\" \n\nQuestion, human: What you know of Tau Ceti?",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    }
+  ]
+}

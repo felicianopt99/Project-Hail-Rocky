@@ -10,7 +10,7 @@ class Settings(BaseSettings):
 
     # STT
     groq_stt_model: str = "whisper-large-v3"
-    groq_stt_language: str = ""  # empty = auto-detect
+    groq_stt_language: str = "en"  # Default to English
 
     # Voice Engine (Consolidated synthesis + effects)
     voice_engine_url: str = ""  # e.g. http://127.0.0.1:8880

@@ -4,8 +4,10 @@ Bridge between Rocky backend and Letta memory server.
 Uses Letta REST API directly (no SDK dependency).
 Gracefully falls back to None when Letta is unavailable.
 """
+import json
 import httpx
 import structlog
+from typing import List, Dict, Any, Optional, AsyncGenerator
 
 from ..config import settings
 from ..rocky.letta_config import (
@@ -139,6 +141,48 @@ async def send_message(text: str, role: str = "user") -> str | None:
     except Exception as e:
         log.error("letta_send_failed", error=str(e), agent_id=agent_id)
         return None
+
+
+async def send_message_stream(text: str, role: str = "user") -> AsyncGenerator[str, None]:
+    """
+    Send a message to Rocky (Letta) and yield assistant message tokens in real-time.
+    Uses SSE-style streaming from the Letta API.
+    """
+    agent_id = await get_agent_id()
+    if not agent_id:
+        return
+
+    c = _get_letta_client()
+    url = _url(f"/v1/agents/{agent_id}/messages")
+    payload = {"messages": [{"role": role, "content": text}], "stream": True}
+
+    try:
+        async with c.stream("POST", url, json=payload) as r:
+            r.raise_for_status()
+            async for line in r.aiter_lines():
+                if not line or not line.strip():
+                    continue
+                
+                # Letta streams can be SSE (data: ...) or raw JSON chunks
+                if line.startswith("data:"):
+                    line = line[5:].strip()
+                
+                if line == "[DONE]":
+                    break
+                
+                try:
+                    data = json.loads(line)
+                    # Letta assistant message chunks
+                    if data.get("message_type") == "assistant_message":
+                        content = data.get("content", "")
+                        if content:
+                            yield content
+                except json.JSONDecodeError:
+                    continue
+
+    except Exception as e:
+        log.error("letta_stream_failed", error=str(e))
+        yield ""
 
 
 # ── Memory inspection ─────────────────────────────────────────────────────

@@ -1,0 +1,269 @@
+{
+  "metadata": {
+    "version": "3.0-enterprise",
+    "timestamp": "2026-05-05T10:05:18.320171",
+    "duration_seconds": 118.889527,
+    "concurrency": 5
+  },
+  "summary": {
+    "total": 9,
+    "passed": 6,
+    "failed": 3,
+    "timeout": 0
+  },
+  "benchmarks": {
+    "stt_latency": {
+      "avg": 435.53,
+      "p95": 838.41,
+      "max": 817.97
+    },
+    "llm_ttft": {
+      "avg": 13113.15,
+      "p95": 46541.53,
+      "max": 41654.44
+    }
+  },
+  "raw_results": [
+    {
+      "test_case": {
+        "id": "GREET-001",
+        "name": "Standard Greeting PT",
+        "input": "Ol\u00e1 Rocky, como vai o teu dia?",
+        "expected_keywords": [
+          "ol\u00e1",
+          "rocky",
+          "dia",
+          "bem"
+        ],
+        "category": "Personality",
+        "language": "pt"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 489.06803131103516,
+        "llm_ttft_ms": 4249.8767375946045,
+        "total_latency_ms": 11680.5260181427,
+        "audio_gen_time_ms": 4522.013187408447
+      },
+      "actual_transcript": "Ol\u00e1, Rocky. Como vai o teu dia?",
+      "actual_response": "Vai bem, obrigado. Question, human: Voc\u00ea tem algum plano para hoje?",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "HOME-002",
+        "name": "Living Room Temp",
+        "input": "Qual \u00e9 a temperatura da sala?",
+        "expected_keywords": [
+          "temperatura",
+          "sala",
+          "graus"
+        ],
+        "category": "Smart Home",
+        "language": "pt"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 323.4448432922363,
+        "llm_ttft_ms": 13143.41402053833,
+        "total_latency_ms": 18611.799716949463,
+        "audio_gen_time_ms": 2636.6286277770996
+      },
+      "actual_transcript": "Qual \u00e9 a temperatura da sala?",
+      "actual_response": "22.7 graus Celsius. Confort\u00e1vel, sim?",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "HOME-001",
+        "name": "Kitchen Lights",
+        "input": "Liga as luzes da cozinha agora",
+        "expected_keywords": [
+          "cozinha",
+          "luzes",
+          "ligar",
+          "ok"
+        ],
+        "category": "Smart Home",
+        "language": "pt"
+      },
+      "status": "FAIL",
+      "metrics": {
+        "stt_latency_ms": 817.97194480896,
+        "llm_ttft_ms": 31880.257606506348,
+        "total_latency_ms": 37524.66702461243,
+        "audio_gen_time_ms": 4479.243516921997
+      },
+      "actual_transcript": "Liga as luzes da cozinha agora.",
+      "actual_response": "Luzes da cozinha acesas. Yes?",
+      "reason": "Keyword match low (50%)",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "KNOW-002",
+        "name": "Python History",
+        "input": "Who created the Python programming language?",
+        "expected_keywords": [
+          "created",
+          "python",
+          "programming",
+          "language"
+        ],
+        "category": "Knowledge",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 316.6332244873047,
+        "llm_ttft_ms": 11952.26263999939,
+        "total_latency_ms": 14459.927320480347,
+        "audio_gen_time_ms": 2620.335817337036
+      },
+      "actual_transcript": "Who created the Python Programming Language?",
+      "actual_response": "Guido van Rossum.",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "GREET-002",
+        "name": "Standard Greeting EN",
+        "input": "Hello Rocky, how are you doing today?",
+        "expected_keywords": [
+          "hello",
+          "rocky",
+          "doing",
+          "today"
+        ],
+        "category": "Personality",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 284.10863876342773,
+        "llm_ttft_ms": 1133.514165878296,
+        "total_latency_ms": 6306.621789932251,
+        "audio_gen_time_ms": 3384.7246170043945
+      },
+      "actual_transcript": "Hello, Rocky. How are you doing today?",
+      "actual_response": "Rocky is doing good. Good.",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "HOME-003",
+        "name": "Living Room Lights EN",
+        "input": "Turn on the living room lights please",
+        "expected_keywords": [
+          "living",
+          "room",
+          "lights",
+          "on"
+        ],
+        "category": "Smart Home",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 305.33576011657715,
+        "llm_ttft_ms": 8229.431629180908,
+        "total_latency_ms": 12001.60551071167,
+        "audio_gen_time_ms": 2281.1944484710693
+      },
+      "actual_transcript": "Tune on the living room lights, please.",
+      "actual_response": "Lights on. Good.",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "KNOW-001",
+        "name": "Moon Landing",
+        "input": "Quem foi o primeiro homem na lua?",
+        "expected_keywords": [
+          "neil",
+          "armstrong",
+          "lua"
+        ],
+        "category": "Knowledge",
+        "language": "pt"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 356.04214668273926,
+        "llm_ttft_ms": 41654.43754196167,
+        "total_latency_ms": 58293.373584747314,
+        "audio_gen_time_ms": 3673.9797592163086
+      },
+      "actual_transcript": "Quem foi o primeiro homem na lua?",
+      "actual_response": "Question, human: Voc\u00ea sabe que o primeiro homem na lua foi Neil Armstrong?",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "KNOW-003",
+        "name": "Speed of Light",
+        "input": "What is the speed of light in a vacuum?",
+        "expected_keywords": [
+          "speed",
+          "light",
+          "vacuum"
+        ],
+        "category": "Knowledge",
+        "language": "en"
+      },
+      "status": "FAIL",
+      "metrics": {
+        "stt_latency_ms": 250.11014938354492,
+        "llm_ttft_ms": 3271.9404697418213,
+        "total_latency_ms": 28841.66932106018,
+        "audio_gen_time_ms": 3143.1546211242676
+      },
+      "actual_transcript": "O que \u00e9 a velocidade de luz em um vacuum?",
+      "actual_response": "A velocidade da luz no v\u00e1cuo \u00e9 de aproximadamente 299.792.458 metros por segundo. Amaze. Voc\u00ea precisa saber isso para qu\u00ea?",
+      "reason": "Keyword match low (33%)",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "PERS-002",
+        "name": "Rocky Origin EN",
+        "input": "Where exactly do you come from, Rocky?",
+        "expected_keywords": [
+          "where",
+          "exactly",
+          "come",
+          "from",
+          "rocky"
+        ],
+        "category": "Personality",
+        "language": "en"
+      },
+      "status": "FAIL",
+      "metrics": {
+        "stt_latency_ms": 777.0941257476807,
+        "llm_ttft_ms": 2503.248929977417,
+        "total_latency_ms": 11244.570255279541,
+        "audio_gen_time_ms": 5083.82248878479
+      },
+      "actual_transcript": "Onde est\u00e1 voc\u00ea exatamente?",
+      "actual_response": "Estou em uma casa humana. N\u00e3o sei o nome da cidade. Voc\u00ea sabe?",
+      "reason": "Keyword match low (0%)",
+      "retries_used": 0,
+      "logs": []
+    }
+  ]
+}

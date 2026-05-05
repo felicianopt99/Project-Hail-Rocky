@@ -1,0 +1,33 @@
+{
+  "timestamp": "2026-05-05T10:56:31.524785",
+  "levels": {
+    "Health Checks": {
+      "passed": true,
+      "backend": true,
+      "voice": true
+    },
+    "API Functional": {
+      "passed": true,
+      "duration_sec": 7.11,
+      "stdout": "============================= test session starts ==============================\nplatform linux -- Python 3.11.15, pytest-9.0.3, pluggy-1.6.0\nrootdir: /app\nplugins: asyncio-1.3.0, mock-3.15.1, anyio-4.13.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 4 items\n\ntests/test_api.py ....                                                   [100%]\n\n=============================== warnings summary ===============================\napp/config.py:4\n  /app/app/config.py:4: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class Settings(BaseSettings):\n\n../usr/local/lib/python3.11/site-packages/passlib/utils/__init__.py:854\n  /usr/local/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13\n    from crypt import crypt as _crypt\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n======================== 4 passed, 2 warnings in 0.07s =========================\n",
+      "stderr": ""
+    },
+    "Socket.IO Integration": {
+      "passed": true,
+      "duration_sec": 7.28,
+      "stdout": "============================= test session starts ==============================\nplatform linux -- Python 3.11.15, pytest-9.0.3, pluggy-1.6.0\nrootdir: /app\nplugins: asyncio-1.3.0, mock-3.15.1, anyio-4.13.0\nasyncio: mode=Mode.STRICT, debug=False, asyncio_default_fixture_loop_scope=None, asyncio_default_test_loop_scope=function\ncollected 3 items\n\ntests/test_voice_loop.py ...                                             [100%]\n\n=============================== warnings summary ===============================\napp/config.py:4\n  /app/app/config.py:4: PydanticDeprecatedSince20: Support for class-based `config` is deprecated, use ConfigDict instead. Deprecated in Pydantic V2.0 to be removed in V3.0. See Pydantic V2 Migration Guide at https://errors.pydantic.dev/2.12/migration/\n    class Settings(BaseSettings):\n\n../usr/local/lib/python3.11/site-packages/passlib/utils/__init__.py:854\n  /usr/local/lib/python3.11/site-packages/passlib/utils/__init__.py:854: DeprecationWarning: 'crypt' is deprecated and slated for removal in Python 3.13\n    from crypt import crypt as _crypt\n\n-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html\n======================== 3 passed, 2 warnings in 2.05s =========================\n",
+      "stderr": ""
+    },
+    "Enterprise Personality Check": {
+      "passed": true,
+      "duration_sec": 90.68,
+      "stdout": "\n============================================================\n\u2705 TEST COMPLETE: 2/4 Passed\n\ud83c\udfad Personality Accuracy: 36.25%\n\u26a1 Avg TTFT: 916.54ms (Jitter: 746.88ms)\n\ud83d\ude80 Avg TPS: 2.54 tokens/sec\n\ud83d\udcc1 Report: /home/feli/Documents/Coding_projects/Project-Hail-Rocky/scripts/reports/report_20260505_105816.json\n============================================================\n\n",
+      "stderr": "2026-05-05 10:56:46 [INFO] TestBattery: Running Pre-flight Health Check...\n2026-05-05 10:56:46 [INFO] httpx: HTTP Request: GET http://127.0.0.1:8000/api/health \"HTTP/1.1 200 OK\"\n2026-05-05 10:56:46 [INFO] httpx: HTTP Request: GET http://127.0.0.1:8881/synthesize \"HTTP/1.1 405 Method Not Allowed\"\n2026-05-05 10:56:46 [INFO] TestBattery: Loaded 4 scenarios. Concurrency: 1\n2026-05-05 10:56:46 [INFO] TestBattery: Starting [greet_001] Standard Greeting\n2026-05-05 10:56:46 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 10:57:03 [INFO] TestBattery: Finished [greet_001] -> PASS (Score: 25.0)\n2026-05-05 10:57:03 [INFO] TestBattery: Starting [home_001] Light Control\n2026-05-05 10:57:03 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 10:57:14 [INFO] TestBattery: Finished [home_001] -> PASS (Score: 15.0)\n2026-05-05 10:57:14 [INFO] TestBattery: Starting [pers_001] Identity Query\n2026-05-05 10:57:14 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 10:58:09 [INFO] TestBattery: Finished [pers_001] -> FAIL (Score: 90.0)\n2026-05-05 10:58:09 [INFO] TestBattery: Starting [time_001] Time Query\n2026-05-05 10:58:09 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-05 10:58:16 [INFO] TestBattery: Finished [time_001] -> FAIL (Score: 15.0)\n"
+    }
+  },
+  "summary": {
+    "passed": 4,
+    "failed": 0,
+    "total": 4
+  }
+}

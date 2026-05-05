@@ -11,7 +11,8 @@ WORKDIR /app
 
 # Install ONNX runtime and pedalboard (CPU optimized)
 RUN pip install --no-cache-dir \
-    pipecat-ai[daily,deepgram,openai]>=0.0.45 \
+    pipecat-ai[daily,deepgram,openai,kokoro]>=0.0.45 \
+    pipecat-ai-flows \
     kokoro-onnx>=0.3.0 \
     onnxruntime>=1.16.0 \
     pedalboard>=0.7.0 \
@@ -20,7 +21,12 @@ RUN pip install --no-cache-dir \
     uvicorn[standard]>=0.27.0 \
     httpx>=0.26.0 \
     pydantic>=2.0.0 \
-    structlog>=24.0.0
+    structlog>=24.0.0 \
+    pytest>=8.0.0 \
+    pytest-asyncio>=0.23.0 \
+    coverage>=7.4.0 \
+    pytest-cov>=5.0.0 \
+    requests
 
 COPY app/ ./app/
 

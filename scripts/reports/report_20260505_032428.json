@@ -1,0 +1,269 @@
+{
+  "metadata": {
+    "version": "3.0-enterprise",
+    "timestamp": "2026-05-05T03:22:00.069741",
+    "duration_seconds": 148.068149,
+    "concurrency": 5
+  },
+  "summary": {
+    "total": 9,
+    "passed": 5,
+    "failed": 4,
+    "timeout": 0
+  },
+  "benchmarks": {
+    "stt_latency": {
+      "avg": 362.03,
+      "p95": 538.85,
+      "max": 498.98
+    },
+    "llm_ttft": {
+      "avg": 11868.63,
+      "p95": 48566.08,
+      "max": 39677.73
+    }
+  },
+  "raw_results": [
+    {
+      "test_case": {
+        "id": "HOME-002",
+        "name": "Living Room Temp",
+        "input": "Qual \u00e9 a temperatura da sala?",
+        "expected_keywords": [
+          "temperatura",
+          "sala",
+          "graus"
+        ],
+        "category": "Smart Home",
+        "language": "pt"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 352.9181480407715,
+        "llm_ttft_ms": 671.1487770080566,
+        "total_latency_ms": 38798.593282699585,
+        "audio_gen_time_ms": 3891.862154006958
+      },
+      "actual_transcript": "Qual \u00e9 acute a temperatura da sala?",
+      "actual_response": "The function provided does not have the capability to directly answer the question about the temperature of the room. However, I can suggest a possible solution using the available functions.\n\n\nTo get the temperature of the room, we would need a function that can read the current temperature from a sensor or a device. Since there is no such function available in the provided list, we cannot directly answer the question.\n\n\nHowever, if we assume that the temperature of the room is related to the weather outside, we could use the `get_weather` function to get the current weather and temperature outside, and then make an educated guess about the temperature inside the room.\n\n\nHere is a possible JSON for a function call that might help:\n\n\n{\"name\": \"get_weather\", \"parameters\": {\"city\": \"Lisbon\"}}\n\n\nThis function call would give us the current weather and temperature in Lisbon, which might be related to the temperature inside the room. However, please note that this is just an educated guess and not a direct answer to the question.",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "GREET-001",
+        "name": "Standard Greeting PT",
+        "input": "Ol\u00e1 Rocky, como vai o teu dia?",
+        "expected_keywords": [
+          "ol\u00e1",
+          "rocky",
+          "dia",
+          "bem"
+        ],
+        "category": "Personality",
+        "language": "pt"
+      },
+      "status": "FAIL",
+      "metrics": {
+        "stt_latency_ms": 379.2245388031006,
+        "llm_ttft_ms": 21901.02195739746,
+        "total_latency_ms": 45806.24008178711,
+        "audio_gen_time_ms": 4006.068229675293
+      },
+      "actual_transcript": "Al\u00e1hraki, como vai o tudaya?",
+      "actual_response": "Tudaya... Late. Rocky tired. Sleep now.",
+      "reason": "STT mismatch",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "HOME-001",
+        "name": "Kitchen Lights",
+        "input": "Liga as luzes da cozinha agora",
+        "expected_keywords": [
+          "cozinha",
+          "luzes",
+          "ligar",
+          "ok"
+        ],
+        "category": "Smart Home",
+        "language": "pt"
+      },
+      "status": "FAIL",
+      "metrics": {
+        "stt_latency_ms": 335.404634475708,
+        "llm_ttft_ms": 39677.72817611694,
+        "total_latency_ms": 49042.03128814697,
+        "audio_gen_time_ms": 4020.2455520629883
+      },
+      "actual_transcript": "Liga \u00e9 luzes da causa na agora.",
+      "actual_response": "No. Human say \"Liga \u00e9 luzes da causa na agora\". Rocky not understand. Portuguese?",
+      "reason": "STT mismatch",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "KNOW-002",
+        "name": "Python History",
+        "input": "Who created the Python programming language?",
+        "expected_keywords": [
+          "created",
+          "python",
+          "programming",
+          "language"
+        ],
+        "category": "Knowledge",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 349.092960357666,
+        "llm_ttft_ms": 2460.676431655884,
+        "total_latency_ms": 3585.022211074829,
+        "audio_gen_time_ms": 2645.7571983337402
+      },
+      "actual_transcript": "Who created the Python programming language?",
+      "actual_response": "Guido van Rossum.",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "KNOW-001",
+        "name": "Moon Landing",
+        "input": "Quem foi o primeiro homem na lua?",
+        "expected_keywords": [
+          "neil",
+          "armstrong",
+          "lua"
+        ],
+        "category": "Knowledge",
+        "language": "pt"
+      },
+      "status": "FAIL",
+      "metrics": {
+        "stt_latency_ms": 498.9781379699707,
+        "llm_ttft_ms": 12668.19715499878,
+        "total_latency_ms": 15158.768892288208,
+        "audio_gen_time_ms": 1468.8968658447266
+      },
+      "actual_transcript": "Quem foi o primeiro homo na lua?",
+      "actual_response": "Neil Armstrong. Yes?",
+      "reason": "STT mismatch",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "GREET-002",
+        "name": "Standard Greeting EN",
+        "input": "Hello Rocky, how are you doing today?",
+        "expected_keywords": [
+          "hello",
+          "rocky",
+          "doing",
+          "today"
+        ],
+        "category": "Personality",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 419.2321300506592,
+        "llm_ttft_ms": 3633.6472034454346,
+        "total_latency_ms": 7649.362802505493,
+        "audio_gen_time_ms": 1396.7854976654053
+      },
+      "actual_transcript": "Hello, Rocky. How are you doing today?",
+      "actual_response": "Tired. Late. Rocky need rest.",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "HOME-003",
+        "name": "Living Room Lights EN",
+        "input": "Turn on the living room lights please",
+        "expected_keywords": [
+          "living",
+          "room",
+          "lights",
+          "on"
+        ],
+        "category": "Smart Home",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 273.70548248291016,
+        "llm_ttft_ms": 5459.701061248779,
+        "total_latency_ms": 7520.005464553833,
+        "audio_gen_time_ms": 1479.649543762207
+      },
+      "actual_transcript": "Turn on the living room lights, please.",
+      "actual_response": "Yes. Done.",
+      "reason": "Success",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "KNOW-003",
+        "name": "Speed of Light",
+        "input": "What is the speed of light in a vacuum?",
+        "expected_keywords": [
+          "speed",
+          "light",
+          "vacuum"
+        ],
+        "category": "Knowledge",
+        "language": "en"
+      },
+      "status": "FAIL",
+      "metrics": {
+        "stt_latency_ms": 338.4230136871338,
+        "llm_ttft_ms": 2659.0840816497803,
+        "total_latency_ms": 9528.563976287842,
+        "audio_gen_time_ms": 835.3662490844727
+      },
+      "actual_transcript": "O que \u00e9 a velocidade de luz em um vacuum?",
+      "actual_response": "Aproximadamente 299.792.458 metros por segundo. Yes?",
+      "reason": "STT mismatch",
+      "retries_used": 1,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "PERS-002",
+        "name": "Rocky Origin EN",
+        "input": "Where exactly do you come from, Rocky?",
+        "expected_keywords": [
+          "where",
+          "exactly",
+          "come",
+          "from",
+          "rocky"
+        ],
+        "category": "Personality",
+        "language": "en"
+      },
+      "status": "PASS",
+      "metrics": {
+        "stt_latency_ms": 311.29908561706543,
+        "llm_ttft_ms": 17686.48934364319,
+        "total_latency_ms": 19357.033252716064,
+        "audio_gen_time_ms": 1625.784158706665
+      },
+      "actual_transcript": "Where exactly do you come from, Rocky?",
+      "actual_response": "Tau Ceti. Eridian star system.",
+      "reason": "Success",
+      "retries_used": 1,
+      "logs": []
+    }
+  ]
+}

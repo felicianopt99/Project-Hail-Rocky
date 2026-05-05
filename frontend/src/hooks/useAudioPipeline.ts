@@ -128,14 +128,15 @@ export function useAudioPipeline({
     const onTtsStart = (options?: { sampleRate: number }) => {
       if (audioCtx.state === 'suspended') audioCtx.resume();
       isSpeakingRef.current = true;
-      const newSampleRate = options?.sampleRate || 16000;
+      const newSampleRate = options?.sampleRate || 24000;
       
       if (newSampleRate !== currentSampleRateRef.current || audioQueueRef.current.length === 0) {
         console.log(`[Rocky] New TTS Segment. Sample Rate: ${newSampleRate}`);
         currentSampleRateRef.current = newSampleRate;
         if (audioQueueRef.current.length === 0) {
-          // Increase initial jitter buffer to 400ms for high stability on low-end HW
-          nextChunkTimeRef.current = audioCtx.currentTime + 0.4;
+          // Ensure we schedule from the current time plus a small safety buffer (200ms)
+          // without overlapping any future scheduled segments.
+          nextChunkTimeRef.current = Math.max(nextChunkTimeRef.current, audioCtx.currentTime + 0.2);
         }
       }
       setStatus("synthesizing_tts");
@@ -177,9 +178,12 @@ export function useAudioPipeline({
         const float32Array = new Float32Array(int16Array.length);
         for (let i = 0; i < int16Array.length; i++) float32Array[i] = int16Array[i] / 32768.0;
 
-        if (audioQueueRef.current.length > 15) {
-          audioQueueRef.current = audioQueueRef.current.slice(-8);
-          nextChunkTimeRef.current = audioCtx.currentTime;
+        // Buffer limit: Only flush if we are severely behind to prevent memory issues.
+        // The previous limit of 15 was way too low and caused overlapping speech.
+        if (audioQueueRef.current.length > 100) {
+          console.warn("[Rocky] Audio queue overflow, clearing buffer.");
+          audioQueueRef.current = [];
+          nextChunkTimeRef.current = audioCtx.currentTime + 0.1;
         }
         audioQueueRef.current.push(float32Array);
         processAudioQueue();
@@ -237,6 +241,11 @@ export function useAudioPipeline({
       }
     };
 
+    socket.on("status_update", (status: string) => {
+      if (status === "thinking_llm") {
+        handleStopSpeaking();
+      }
+    });
     socket.on("tts_start", onTtsStart);
     socket.on("tts_chunk", onTtsChunk);
     socket.on("tts_error", onTtsError);

@@ -1,0 +1,41 @@
+services:
+  backend-test:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: rocky-backend-test
+    network_mode: host
+    environment:
+      - REDIS_URL=redis://localhost:6381/1
+      - NODE_ENV=test
+      - LOG_LEVEL=DEBUG
+      - PYTHONPATH=/app
+    env_file:
+      - .env
+    volumes:
+      - ./backend/app:/app/app
+      - ./tests:/app/tests
+      - ./scripts:/app/scripts
+    command: ["pytest", "-vv", "tests/unit", "tests/functional", "--cov=app", "--cov-report=html:/app/tests/coverage_html"]
+
+  voice-engine-test:
+    build:
+      context: ./services/voice_engine
+      dockerfile: Dockerfile
+    container_name: rocky-voice-test
+    network_mode: host
+    environment:
+      - NODE_ENV=test
+      - PYTHONPATH=/app
+    env_file:
+      - .env
+    volumes:
+      - ./models:/models
+      - ./services/voice_engine/app:/app/app
+    command: ["pytest", "app/tests", "--cov=app"]
+
+  redis-test:
+    image: redis:7-alpine
+    container_name: rocky-redis-test
+    network_mode: host
+    command: redis-server --port 6381

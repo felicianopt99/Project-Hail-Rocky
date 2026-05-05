@@ -1,0 +1,76 @@
+{
+  "scenarios": [
+    {
+      "id": "GREET-001",
+      "category": "Personality",
+      "name": "Standard Greeting PT",
+      "input": "Olá Rocky, como vai o teu dia?",
+      "expected_keywords": ["olá", "rocky", "dia", "bem", "vai"],
+      "language": "pt"
+    },
+    {
+      "id": "HOME-001",
+      "category": "Smart Home",
+      "name": "Kitchen Lights",
+      "input": "Liga as luzes da cozinha agora",
+      "expected_keywords": ["cozinha", "luzes", "ligar", "acesas", "ligadas", "on"],
+      "language": "pt"
+    },
+    {
+      "id": "HOME-002",
+      "category": "Smart Home",
+      "name": "Living Room Temp",
+      "input": "Qual é a temperatura da sala?",
+      "expected_keywords": ["temperatura", "sala", "graus", "celsius"],
+      "language": "pt"
+    },
+    {
+      "id": "KNOW-001",
+      "category": "Knowledge",
+      "name": "Moon Landing",
+      "input": "Quem foi o primeiro homem na lua?",
+      "expected_keywords": ["neil", "armstrong", "lua", "homem", "pisar"],
+      "language": "pt"
+    },
+    {
+      "id": "KNOW-002",
+      "category": "Knowledge",
+      "name": "Python History",
+      "input": "Who created the Python programming language?",
+      "expected_keywords": ["guido", "rossum", "python", "created", "programming"],
+      "language": "en"
+    },
+    {
+      "id": "GREET-002",
+      "category": "Personality",
+      "name": "Standard Greeting EN",
+      "input": "Hello Rocky, how are you doing today?",
+      "expected_keywords": ["hello", "rocky", "doing", "today", "good", "well"],
+      "language": "en"
+    },
+    {
+      "id": "HOME-003",
+      "category": "Smart Home",
+      "name": "Living Room Lights EN",
+      "input": "Turn on the living room lights please",
+      "expected_keywords": ["living", "room", "lights", "on", "turned"],
+      "language": "en"
+    },
+    {
+      "id": "KNOW-003",
+      "category": "Knowledge",
+      "name": "Speed of Light",
+      "input": "What is the speed of light in a vacuum?",
+      "expected_keywords": ["speed", "light", "vacuum", "velocidade", "vácuo", "299"],
+      "language": "en"
+    },
+    {
+      "id": "PERS-002",
+      "category": "Personality",
+      "name": "Rocky Origin EN",
+      "input": "Where exactly do you come from, Rocky?",
+      "expected_keywords": ["where", "exactly", "come", "from", "rocky", "casa", "home"],
+      "language": "en"
+    }
+  ]
+}
