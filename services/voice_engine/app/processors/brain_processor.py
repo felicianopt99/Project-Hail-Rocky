@@ -1,7 +1,8 @@
 import httpx
 import asyncio
+import time
 import structlog
-from pipecat.frames.frames import Frame, TextFrame, TranscriptionFrame, LLMContextFrame
+from pipecat.frames.frames import Frame, TextFrame, TranscriptionFrame, LLMContextFrame, CancelFrame
 from pipecat.processors.frame_processor import FrameProcessor
 
 log = structlog.get_logger()
@@ -20,11 +21,17 @@ class RockyBrainProcessor(FrameProcessor):
         self._client = httpx.AsyncClient(timeout=60.0)
         self._flow_manager = None
         self._is_processing = False
+        self._cancel_event = asyncio.Event()
 
     def set_flow_manager(self, flow_manager):
         self._flow_manager = flow_manager
 
     async def process_frame(self, frame: Frame, direction):
+        if isinstance(frame, CancelFrame):
+            self._cancel_event.set()
+            await self.push_frame(frame, direction)
+            return
+
         if isinstance(frame, LLMContextFrame):
             # Get the last user message
             user_msg = frame.context.messages[-1]
@@ -33,6 +40,7 @@ class RockyBrainProcessor(FrameProcessor):
                 return
 
             self._is_processing = True
+            self._cancel_event.clear()
             try:
                 text = user_msg["content"]
                 log.info("brain_received_context", text=text, context_len=len(frame.context.messages))
@@ -66,7 +74,8 @@ class RockyBrainProcessor(FrameProcessor):
                     await self._ws.send_text(json.dumps({
                         "type": "voice_debug", 
                         "stage": "llm_request_sent",
-                        "text": text
+                        "text": text,
+                        "timestamp": time.time()
                     }))
 
                 max_retries = 2
@@ -82,6 +91,10 @@ class RockyBrainProcessor(FrameProcessor):
                             full_response = ""
                             text_buffer = ""
                             async for chunk in resp.aiter_text():
+                                if self._cancel_event.is_set():
+                                    log.info("brain_stream_interrupted_by_cancel_frame")
+                                    break
+                                
                                 if chunk:
                                     full_response += chunk
                                     text_buffer += chunk

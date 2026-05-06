@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import socket from "../lib/socket";
 import { eventBus, RockyEvents } from "../lib/eventBus";
 import { useRockyStore, Message, RockyStatus, AppMode, LightState, Stats, Weather, LogEntry, Protocol, ProtocolSettings } from "../store/useRockyStore";
@@ -25,8 +25,9 @@ function playWakeBeep() {
   }
 }
 
-export function useRockySockets(addToast: (msg: string, type: any) => void) {
+export function useRockySockets(addToast: (msg: string, type: any) => void, isAudioActive: () => boolean) {
   const store = useRockyStore();
+  const isInterruptedRef = useRef(false);
 
   useEffect(() => {
     const onModeUpdated = (newMode: string) => {
@@ -42,6 +43,13 @@ export function useRockySockets(addToast: (msg: string, type: any) => void) {
       if (newStatus === "error" && store.status !== "error") {
         addToast("System error detected", "error");
       }
+      
+      // Prevent reverting to idle if audio is still physically playing
+      if (newStatus === "idle" && isAudioActive()) {
+        console.debug("[Rocky] Ignoring 'idle' status from server because audio is still playing.");
+        return;
+      }
+      
       store.setStatus(newStatus);
     };
 
@@ -50,6 +58,9 @@ export function useRockySockets(addToast: (msg: string, type: any) => void) {
     const onTranscriptResult = (text: string) => store.setInputValue(text);
 
     const onChatToken = (token: string) => {
+      // If we interrupted the assistant, ignore tokens until a new TTS segment starts
+      if (isInterruptedRef.current) return;
+
       store.setMessages(prev => {
         const lastMsg = prev[prev.length - 1];
         if (lastMsg && lastMsg.role === "model") {
@@ -168,6 +179,15 @@ export function useRockySockets(addToast: (msg: string, type: any) => void) {
     const onDevice = (data: { device: string; state: LightState }) => store.updateLight(data.device, data.state);
     const onRoutinesList = (routines: any[]) => store.setRoutines(routines);
 
+    // Local interruption management
+    const handleLocalInterrupt = () => {
+      isInterruptedRef.current = true;
+    };
+    
+    const onTtsStart = () => {
+      // New speech segment started, we can stop ignoring tokens
+      isInterruptedRef.current = false;
+    };
 
     socket.on("mode_updated", onModeUpdated);
     socket.on("status_update", onStatusUpdate);
@@ -186,6 +206,7 @@ export function useRockySockets(addToast: (msg: string, type: any) => void) {
     socket.on("pong_latency", onPongLatency);
     socket.on("service_status", onServiceStatus);
     socket.on("ui_hint", onUiHint);
+    socket.on("tts_start", onTtsStart);
 
     socket.on("weather_updated",    onWeather);
     socket.on("stats_updated",      onStats);
@@ -198,6 +219,7 @@ export function useRockySockets(addToast: (msg: string, type: any) => void) {
     socket.on("protocol_deleted",   onProtocolDeleted);
     socket.on("routines_list",      onRoutinesList);
 
+    eventBus.on(RockyEvents.INTERRUPT, handleLocalInterrupt);
 
     return () => {
       socket.off("mode_updated", onModeUpdated);
@@ -217,6 +239,7 @@ export function useRockySockets(addToast: (msg: string, type: any) => void) {
       socket.off("pong_latency", onPongLatency);
       socket.off("service_status", onServiceStatus);
       socket.off("ui_hint", onUiHint);
+      socket.off("tts_start", onTtsStart);
 
       socket.off("weather_updated",     onWeather);
       socket.off("stats_updated",       onStats);
@@ -228,7 +251,8 @@ export function useRockySockets(addToast: (msg: string, type: any) => void) {
       socket.off("protocol_created",    onProtocolCreated);
       socket.off("protocol_deleted",    onProtocolDeleted);
       socket.off("routines_list",       onRoutinesList);
-
+      
+      eventBus.off(RockyEvents.INTERRUPT, handleLocalInterrupt);
     };
-  }, [addToast]);
+  }, [addToast, isAudioActive]);
 }

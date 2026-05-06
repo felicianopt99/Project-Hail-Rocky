@@ -1,4 +1,5 @@
 import asyncio
+import time
 import re
 import structlog
 import litellm
@@ -239,6 +240,10 @@ async def _chat_letta(
         full_reply = ""
         sentence_buf = ""
         
+        # Check if Pipecat is active to prevent redundant emissions
+        bridge = session.get("pipecat_bridge")
+        is_pipecat_active = bridge and bridge._running
+
         async for token in letta_bridge.send_message_stream(msg):
             if not token:
                 continue
@@ -246,13 +251,14 @@ async def _chat_letta(
             full_reply += token
             sentence_buf += token
             
-            # Emit token to frontend for real-time text display
-            await sio.emit("chat_token", token, to=sid)
+            if not is_pipecat_active:
+                # Emit token to frontend for real-time text display
+                await sio.emit("chat_token", token, to=sid)
             
             # Sentence-level TTS streaming
             if settings.has_tts():
                 sentence, sentence_buf = _pop_sentence(sentence_buf, is_first=(full_reply == token))
-                if sentence:
+                if sentence and not is_pipecat_active:
                     await _emit_tts(sid, sentence, sio, state)
 
         if not full_reply:
@@ -261,13 +267,14 @@ async def _chat_letta(
             return
 
         # Final cleanup for TTS and history
-        if sentence_buf.strip() and settings.has_tts():
+        if sentence_buf.strip() and settings.has_tts() and not is_pipecat_active:
             await _emit_tts(sid, sentence_buf.strip(), sio, state)
 
         session["history"].append({"role": "assistant", "content": full_reply})
-        await sio.emit("chat_response", {"text": full_reply}, to=sid)
-        await sio.emit("status_update", "idle", to=sid)
-        log.info("chat_letta_ok", sid=sid, state=state, chars=len(full_reply))
+        if not is_pipecat_active:
+            await sio.emit("chat_response", {"text": full_reply}, to=sid)
+            await sio.emit("status_update", "idle", to=sid)
+        log.info("chat_letta_ok", sid=sid, state=state, chars=len(full_reply), pipecat_active=is_pipecat_active)
 
     except Exception as exc:
         log.error("letta_chat_error", error=str(exc), sid=sid)
@@ -305,25 +312,34 @@ async def _chat_litellm(
             temperature=0.85,
             max_tokens=1024,
         )
+        # Check if Pipecat is active to prevent redundant emissions
+        bridge = session.get("pipecat_bridge")
+        is_pipecat_active = bridge and bridge._running
+
         async for chunk in response:
             token = chunk.choices[0].delta.content or ""
             if not token:
                 continue
             full_response += token
             sentence_buf += token
-            await sio.emit("chat_token", token, to=sid)
+            
+            if not is_pipecat_active:
+                await sio.emit("chat_token", token, to=sid)
+            
             if settings.has_tts():
                 sentence, sentence_buf = _pop_sentence(sentence_buf, is_first=(full_response == token))
-                if sentence:
+                if sentence and not is_pipecat_active:
                     await _emit_tts(sid, sentence, sio, state)
 
-        if sentence_buf.strip() and settings.has_tts():
+        if sentence_buf.strip() and settings.has_tts() and not is_pipecat_active:
             await _emit_tts(sid, sentence_buf.strip(), sio, state)
 
         session["history"].append({"role": "assistant", "content": full_response})
-        log.info("emitting_chat_response", sid=sid, length=len(full_response))
-        await sio.emit("chat_response", {"text": full_response}, to=sid)
-        await sio.emit("status_update", "idle", to=sid)
+        log.info("emitting_chat_response", sid=sid, length=len(full_response), pipecat_active=is_pipecat_active)
+        
+        if not is_pipecat_active:
+            await sio.emit("chat_response", {"text": full_response}, to=sid)
+            await sio.emit("status_update", "idle", to=sid)
         log.info("chat_litellm_ok", sid=sid, state=state)
 
     except Exception as exc:
@@ -485,7 +501,7 @@ def register(sio: socketio.AsyncServer) -> None:
             await bridge.send_audio(bytes(data) if not isinstance(data, bytes) else data)
             
             if settings.voice_debug_events:
-                await sio.emit("voice_debug", {"stage": "audio_chunk_relayed", "size": len(data)}, to=sid)
+                await sio.emit("voice_debug", {"stage": "audio_chunk_relayed", "size": len(data), "timestamp": time.time()}, to=sid)
                 
             # If Pipecat is enabled, we stay in this path. 
             # We only fallback to legacy if specifically requested or if Pipecat is fundamentally broken.
@@ -505,7 +521,7 @@ def register(sio: socketio.AsyncServer) -> None:
         """User stopped speaking — cancel any TTS, then STT + speaker ID → chat."""
         log.info("manual_stop_received", sid=sid)
         if settings.voice_debug_events:
-            await sio.emit("voice_debug", {"stage": "manual_stop_received"}, to=sid)
+            await sio.emit("voice_debug", {"stage": "manual_stop_received", "timestamp": time.time()}, to=sid)
         import asyncio as _asyncio
         from ..voice.stt import transcribe
 
@@ -515,17 +531,14 @@ def register(sio: socketio.AsyncServer) -> None:
         session = _session(sid)
         
         # Se o Pipecat estiver ativo (ou a ligar), deixamos que seja o Pipecat a ditar o fluxo.
-        # Injetamos um pouco de silêncio para forçar o VAD a detetar o fim da fala mais rápido.
         if settings.has_pipecat():
             bridge = session.get("pipecat_bridge")
             if bridge and (bridge._running or bridge._starting):
-                # 1 second of silence (16kHz, 16-bit mono = 32000 bytes)
-                # This forces the Pipecat VAD to detect the end of speech for Push-to-talk.
-                silence = b"\x00" * 32000
-                await bridge.send_audio(silence)
-                log.info("manual_stop_forced_via_silence", sid=sid, bytes=len(silence))
+                # Envia sinal de End-of-Turn nativo para o Pipecat
+                await bridge.send_eot()
+                log.info("manual_stop_signal_sent", sid=sid)
                 if settings.voice_debug_events:
-                    await sio.emit("voice_debug", {"stage": "end_of_turn_sent", "method": "silence"}, to=sid)
+                    await sio.emit("voice_debug", {"stage": "end_of_turn_sent", "method": "control_signal", "timestamp": time.time()}, to=sid)
                 return
 
         buf: bytearray = session.pop("audio_buf", bytearray())
@@ -570,10 +583,24 @@ def register(sio: socketio.AsyncServer) -> None:
             await sio.emit("status_update", "error", to=sid)
 
     @sio.event
+    async def voice_interrupt(sid: str, data=None):
+        """Interrupts any active voice processing (Bridge + Legacy TTS)."""
+        log.info("voice_interrupt_received", sid=sid)
+        session = _session(sid)
+        
+        # 1. Interrupt Pipecat Bridge
+        bridge = session.get("pipecat_bridge")
+        if bridge:
+            await bridge.send_cancel_frame()
+        
+        # 2. Interrupt Legacy TTS
+        await _cancel_tts(sid, sio)
+
+    @sio.event
     async def manual_activation(sid: str, data=None):
         log.info("manual_activation_received", sid=sid)
         if settings.voice_debug_events:
-            await sio.emit("voice_debug", {"stage": "manual_activation_observed"}, to=sid)
+            await sio.emit("voice_debug", {"stage": "manual_activation_observed", "timestamp": time.time()}, to=sid)
         await sio.emit("status_update", "listening", to=sid)
 
     @sio.event

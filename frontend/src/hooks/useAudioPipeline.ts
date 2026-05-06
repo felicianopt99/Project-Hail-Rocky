@@ -52,18 +52,32 @@ export function useAudioPipeline({
   const handleStopSpeaking = React.useCallback(() => {
     console.log("[Rocky] Interrupting speech...");
     activeSources.current.forEach(source => {
-      try { source.stop(); } catch(e) {}
+      try { 
+        source.onended = null; // Prevent recursion
+        source.stop(); 
+      } catch(e) {}
     });
     activeSources.current.clear();
     audioQueueRef.current = [];
     isPlayingRef.current = false;
-    nextChunkTimeRef.current = audioCtxRef.current?.currentTime || 0;
+    
+    // Reset scheduling time to current context time to avoid gaps on next playback
+    if (audioCtxRef.current) {
+      nextChunkTimeRef.current = audioCtxRef.current.currentTime;
+    }
+    
     isSpeakingRef.current = false;
+    
+    // Notify backend and local listeners of interruption (Barge-in)
+    if (socket) {
+      socket.emit("voice_interrupt");
+    }
+    eventBus.emit(RockyEvents.INTERRUPT);
     
     // Only go to idle if we weren't already triggered into a listening/thinking state
     // This prevents the "wake word -> interrupt -> idle" race condition
     setStatus((prev: string) => (prev === "synthesizing_tts" ? "idle" : prev));
-  }, [setStatus]);
+  }, [setStatus, socket]);
 
   useEffect(() => {
     if (!audioCtxRef.current) {
@@ -82,7 +96,9 @@ export function useAudioPipeline({
     const scheduleNextChunk = () => {
       if (!audioQueueRef.current.length) {
         isPlayingRef.current = false;
-        if (!isSpeakingRef.current) {
+        // Only set idle if we aren't currently receiving more chunks from TTS
+        // AND all active audio sources have finished playing.
+        if (!isSpeakingRef.current && activeSources.current.size === 0) {
           setStatus("idle");
         }
         return;
@@ -270,6 +286,7 @@ export function useAudioPipeline({
     analyzerRef,
     isSpeakingRef,
     handleStopSpeaking,
-    isAudioReady
+    isAudioReady,
+    isAudioActive: () => isSpeakingRef.current || activeSources.current.size > 0 || audioQueueRef.current.length > 0
   };
 }

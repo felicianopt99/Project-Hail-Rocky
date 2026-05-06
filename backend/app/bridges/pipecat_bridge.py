@@ -1,4 +1,5 @@
 import asyncio
+import time
 import websockets
 import structlog
 import json
@@ -44,7 +45,7 @@ class PipecatBridge:
                 log.info("pipecat_bridge_started", sid=self._sid)
                 
                 if settings.voice_debug_events:
-                    await self._sio.emit("voice_debug", {"stage": "bridge_started"}, to=self._sid)
+                    await self._sio.emit("voice_debug", {"stage": "bridge_started", "timestamp": time.time()}, to=self._sid)
                 
                 # Flush buffered audio
                 while not self._queue.empty():
@@ -114,7 +115,6 @@ class PipecatBridge:
                             await self._sio.emit("status_update", "synthesizing_tts", to=self._sid)
                         elif msg_type == "tts_end":
                             await self._sio.emit("tts_end", to=self._sid)
-                            await self._sio.emit("status_update", "idle", to=self._sid)
                         elif msg_type == "transcript":
                             await self._sio.emit("transcript_result", data.get("text"), to=self._sid)
                             await self._sio.emit("status_update", "processing_stt", to=self._sid)
@@ -135,8 +135,34 @@ class PipecatBridge:
             self._running = False
             log.info("pipecat_bridge_listen_loop_stopped")
 
+    async def send_cancel_frame(self):
+        """Sends an interruption message (CancelFrame) to the Voice Engine."""
+        if self._ws and self._running:
+            try:
+                log.info("pipecat_bridge_sending_cancel", sid=self._sid)
+                await self._ws.send(json.dumps({"type": "cancel"}))
+            except Exception as e:
+                log.error("pipecat_bridge_cancel_error", error=str(e))
+
+    async def send_eot(self):
+        """Sends an End-of-Turn signal to the Voice Engine."""
+        if self._ws and self._running:
+            try:
+                log.info("pipecat_bridge_sending_eot", sid=self._sid)
+                await self._ws.send(json.dumps({"type": "end_of_turn"}))
+            except Exception as e:
+                log.error("pipecat_bridge_eot_error", error=str(e))
+
     async def stop(self):
         self._running = False
+        
+        # Clear any pending audio buffers
+        while not self._queue.empty():
+            try:
+                self._queue.get_nowait()
+            except asyncio.QueueEmpty:
+                break
+        
         if self._ws:
             await self._ws.close()
             self._ws = None

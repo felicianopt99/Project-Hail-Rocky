@@ -1,6 +1,7 @@
 import asyncio
 import os
 import json
+import time
 import numpy as np
 from typing import AsyncGenerator
 
@@ -15,7 +16,8 @@ from pipecat.frames.frames import (
     TextFrame, 
     TranscriptionFrame, 
     TTSStartedFrame, 
-    TTSStoppedFrame
+    TTSStoppedFrame,
+    UserStoppedSpeakingFrame
 )
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.task import PipelineTask
@@ -77,7 +79,7 @@ class JsonMessageRelay(FrameProcessor):
             # Relay tokens to the frontend so the user sees the response forming
             await self._ws.send_text(json.dumps({"type": "chat_token", "token": frame.text}))
         elif isinstance(frame, TTSStartedFrame):
-            await self._ws.send_text(json.dumps({"type": "tts_start"}))
+            await self._ws.send_text(json.dumps({"type": "tts_start", "sample_rate": SAMPLE_RATE}))
         elif isinstance(frame, TTSStoppedFrame):
             await self._ws.send_text(json.dumps({"type": "tts_end"}))
         elif isinstance(frame, Frame) and hasattr(frame, "type") and frame.type == "voice_debug":
@@ -119,7 +121,8 @@ class VoiceDebugProcessor(FrameProcessor):
                         await self._ws.send_text(json.dumps({
                             "type": "voice_debug", 
                             "stage": "voice_engine_audio_received", 
-                            "bytes": self._total_bytes
+                            "bytes": self._total_bytes,
+                            "timestamp": time.time()
                         }))
                     
                     # Check for silence/EOT (if backend sent a chunk of zeros)
@@ -127,7 +130,8 @@ class VoiceDebugProcessor(FrameProcessor):
                          log.info("voice_debug_sending_eot_received")
                          await self._ws.send_text(json.dumps({
                             "type": "voice_debug", 
-                            "stage": "end_of_turn_received"
+                            "stage": "end_of_turn_received",
+                            "timestamp": time.time()
                         }))
 
                     # STT Trigger
@@ -135,14 +139,16 @@ class VoiceDebugProcessor(FrameProcessor):
                         self._stt_started = True
                         await self._ws.send_text(json.dumps({
                             "type": "voice_debug", 
-                            "stage": "stt_started"
+                            "stage": "stt_started",
+                            "timestamp": time.time()
                         }))
 
                 elif isinstance(frame, TranscriptionFrame):
                     await self._ws.send_text(json.dumps({
                         "type": "voice_debug", 
                         "stage": "transcript_emitted",
-                        "text": frame.text
+                        "text": frame.text,
+                        "timestamp": time.time()
                     }))
 
             await self.push_frame(frame, direction)
@@ -281,6 +287,22 @@ async def run_voice_pipeline(websocket, sid: str = "default", emotional_state: s
     ])
 
     task = PipelineTask(pipeline)
+
+    # 6. WebSocket Message Handler
+    # Listen for custom JSON messages from the backend bridge (e.g. cancel, end_of_turn)
+    @transport.event_handler("on_client_message")
+    async def on_client_message(transport, data):
+        try:
+            msg = json.loads(data)
+            msg_type = msg.get("type")
+            if msg_type == "cancel":
+                log.info("pipeline_cancel_received_from_client")
+                await task.queue_frame(CancelFrame())
+            elif msg_type == "end_of_turn":
+                log.info("pipeline_eot_received_from_client")
+                await task.queue_frame(UserStoppedSpeakingFrame())
+        except Exception as e:
+            log.error("pipeline_message_handler_error", error=str(e))
 
     # 4. Flow Management
     # Initialize the FlowManager with our nodes

@@ -65,9 +65,9 @@ export default function App() {
     addToast,
   });
 
-  useAudioPipeline({ socket, addToast, setStatus, speakBrowserFallback, lastAssistantTextRef });
+  const { isAudioActive } = useAudioPipeline({ socket, addToast, setStatus, speakBrowserFallback, lastAssistantTextRef });
 
-  useRockySockets(addToast);
+  useRockySockets(addToast, isAudioActive);
 
   const handleSendMessage = useCallback((text?: string) => {
     const msg = text || inputValue;
