@@ -52,13 +52,16 @@ class RockyBrainProcessor(FrameProcessor):
                     "like and subscribe", "please subscribe", "thanks for watching",
                     "subscribe to the channel", "transcription by", "subtitle by",
                     "you for watching", "watching for watching", "you.", "bye.",
-                    "i'll see you in the next one", "hope you enjoyed", "be sure to like"
+                    "i'll see you in the next one", "hope you enjoyed", "be sure to like",
+                    "legendado por", "transcrito por", "obrigado por assistir"
                 ]
                 
                 # Filter if it contains leakage phrases OR is just a single common word/artifact OR is too short
+                # Added more Portuguese common patterns to ignore
                 if (any(phrase in text_lc for phrase in leakage_phrases) or 
-                    text_lc in ["you", "bye", "obrigado", "e ai", "e aí", "pessoal", "galera", "boa tarde", "bom dia", "boa noite"]):
-                    log.info("brain_leakage_filtered", text=text)
+                    text_lc in ["you", "bye", "obrigado", "e ai", "e aí", "pessoal", "galera", "boa tarde", "bom dia", "boa noite", 
+                                "oi", "olá", "ola", "tudo bem", "com licença", "por favor", "sim", "não", "nao"]):
+                    log.info("brain_input_filtered", text=text, reason="non_english_or_artifact")
                     return
                 
                 # Prepare context for backend

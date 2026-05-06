@@ -5,7 +5,10 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: rocky-backend
-    network_mode: host
+    ports:
+      - "8000:8000"
+    networks:
+      - rocky_net
     env_file:
       - .env
     volumes:
@@ -22,7 +25,10 @@ services:
       dockerfile: Dockerfile
       target: dev
     container_name: rocky-frontend
-    network_mode: host
+    ports:
+      - "5173:5173"
+    networks:
+      - rocky_net
     environment:
       - NODE_ENV=development
       - VITE_BACKEND_URL=http://127.0.0.1:8000
@@ -53,7 +59,10 @@ services:
   redis:
     image: redis:7-alpine
     container_name: rocky-redis
-    network_mode: host
+    ports:
+      - "6381:6381"
+    networks:
+      - rocky_net
     command: redis-server --port 6381 --maxmemory 512mb --maxmemory-policy allkeys-lru
     restart: unless-stopped
 
@@ -61,7 +70,10 @@ services:
   postgres:
     image: pgvector/pgvector:pg16
     container_name: rocky-postgres
-    network_mode: host
+    ports:
+      - "5433:5433"
+    networks:
+      - rocky_net
     command: postgres -p 5433
     environment:
       - POSTGRES_DB=rocky
@@ -93,7 +105,11 @@ services:
   qdrant:
     image: qdrant/qdrant:latest
     container_name: rocky-qdrant
-    network_mode: host
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    networks:
+      - rocky_net
     volumes:
       - qdrant-data:/qdrant/storage
     restart: unless-stopped
@@ -105,7 +121,10 @@ services:
   letta:
     image: letta/letta:latest
     container_name: rocky-letta
-    network_mode: host
+    ports:
+      - "8283:8283"
+    networks:
+      - rocky_net
     env_file:
       - .env
     volumes:
@@ -124,7 +143,10 @@ services:
       context: ./services/voice_engine
       dockerfile: Dockerfile
     container_name: rocky-voice-engine
-    network_mode: host
+    ports:
+      - "8881:8881"
+    networks:
+      - rocky_net
     env_file:
       - .env
     volumes:
@@ -140,13 +162,20 @@ services:
   ollama:
     image: ollama/ollama:latest
     container_name: rocky-ollama
-    network_mode: host
+    ports:
+      - "11434:11434"
+    networks:
+      - rocky_net
     volumes:
       - ollama-data:/root/.ollama
     restart: unless-stopped
     profiles:
       - offline
       - full
+
+networks:
+  rocky_net:
+    driver: bridge
 
 volumes:
   postgres-data:

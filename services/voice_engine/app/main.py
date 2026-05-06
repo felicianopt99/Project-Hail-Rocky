@@ -6,6 +6,8 @@ Architecture (2026):
   Pipeline: Text → DisfluencyInjector → Kokoro-ONNX → VoiceEffectsProcessor → Audio output
 """
 import os
+import asyncio
+import httpx
 import numpy as np
 import structlog
 from contextlib import asynccontextmanager
@@ -31,26 +33,34 @@ VOICES_PATH = os.path.join(MODELS_DIR, "voices-v1.0.bin")
 _kokoro: Kokoro | None = None
 _disfluency = DisfluencyInjector(probability=0.2, min_length=60)
 
-def download_models_if_missing():
+async def download_models_if_missing():
     """Download Kokoro-ONNX models if not present in volume."""
     files = {
         "kokoro-v1.0.onnx": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/kokoro-v1.0.onnx",
         "voices-v1.0.bin": "https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.0/voices-v1.0.bin"
     }
     os.makedirs(MODELS_DIR, exist_ok=True)
-    for name, url in files.items():
-        path = os.path.join(MODELS_DIR, name)
-        if not os.path.exists(path):
-            log.info("downloading_model", name=name, url=url)
-            import urllib.request
-            urllib.request.urlretrieve(url, path)
-            log.info("download_complete", name=name)
+    
+    async with httpx.AsyncClient(follow_redirects=True, timeout=300.0) as client:
+        for name, url in files.items():
+            path = os.path.join(MODELS_DIR, name)
+            if not os.path.exists(path):
+                log.info("downloading_model", name=name, url=url)
+                async with client.stream("GET", url) as response:
+                    response.raise_for_status()
+                    # Use a thread for file writing to avoid blocking the event loop
+                    def save_to_file():
+                        with open(path, "wb") as f:
+                            for chunk in response.iter_bytes():
+                                f.write(chunk)
+                    await asyncio.to_thread(save_to_file)
+                log.info("download_complete", name=name)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global _kokoro
     try:
-        download_models_if_missing()
+        await download_models_if_missing()
         _kokoro = Kokoro(MODEL_PATH, VOICES_PATH)
         log.info("voice_engine_ready", model=MODEL_PATH)
     except Exception as e:
@@ -67,17 +77,20 @@ class SynthRequest(BaseModel):
     lang: str = "en" # Default to en for Rocky's primary locale
 
 LANG_MAP = {
-    "en": "en-us",
-    "pt": "pt",
-    "pt-pt": "pt",
-    "pt-br": "pt-br",
-    "en-us": "en-us",
-    "en-gb": "en-gb"
+    "en": "a",      # Default to American English
+    "en-us": "a",
+    "en-gb": "b",
+    "pt": "p",      # Portuguese (Brazilian/European depending on model, usually 'p' for Kokoro)
+    "pt-br": "p"
 }
 
 @app.websocket("/voice")
 async def voice_websocket(websocket: WebSocket):
     await websocket.accept()
+    if _kokoro is None:
+        log.error("voice_websocket_failed_engine_not_ready")
+        await websocket.close(code=1011) # Internal error
+        return
     log.info("voice_websocket_accepted", params=dict(websocket.query_params))
     # Extract initial settings from query params
     emotional_state = websocket.query_params.get("state", "neutral")
@@ -120,7 +133,7 @@ async def synthesize(req: SynthRequest):
             stream = _kokoro.create_stream(text, voice=req.voice, speed=req.speed, lang=mapped_lang)
             buffer = []
             chunk_threshold = 8192
-            async for samples, rate in stream:
+            for samples, rate in stream:
                 if samples is not None and len(samples) > 0:
                     processed = fx.apply_to_float(samples)
                     buffer.append(processed)

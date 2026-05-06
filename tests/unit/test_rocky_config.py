@@ -32,6 +32,7 @@ def test_default_settings():
     assert settings.groq_stt_model == "whisper-large-v3"
     assert settings.timezone == "UTC"
     assert "redis://" in settings.redis_url
+    assert "6381" in settings.redis_url
 
 def test_has_llm():
     # Only Groq

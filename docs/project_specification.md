@@ -827,7 +827,7 @@ litellm_settings:
   cache_params:
     type: redis
     host: redis
-    port: 6379
+    port: 6381
     ttl: 3600  # 1 hora
   
   success_callback: ["langfuse"]  # analytics opcional
@@ -2714,7 +2714,7 @@ LETTA_PG_URI=postgresql://letta:${POSTGRES_PASSWORD}@postgres/letta
 
 # ═══════════════ REDIS ═══════════════
 REDIS_HOST=redis
-REDIS_PORT=6379
+REDIS_PORT=6381
 REDIS_PASSWORD=  # gerar forte
 
 # ═══════════════ AUTH ═══════════════
@@ -2757,7 +2757,7 @@ Letta	8283	—	HTTP
 OVOS messagebus	8181	—	WebSocket
 Home Assistant	8123	—	HTTP (proxied)
 Mosquitto	1883, 8883	—	MQTT
-Redis	6379	—	Redis protocol
+Redis	6381	—	Redis protocol
 Qdrant	6333, 6334	—	HTTP/gRPC
 Postgres	5432	—	Postgres
 Ollama	11434	—	HTTP

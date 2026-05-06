@@ -238,7 +238,7 @@ async def run_voice_pipeline(websocket, sid: str = "default", emotional_state: s
         api_key=groq_key,
         model=os.getenv("GROQ_STT_MODEL", "whisper-large-v3-turbo"),
         language="en", 
-        initial_prompt="Rocky, a digital assistant for technical mission control. Clear English transcription."
+        initial_prompt="Rocky, a digital assistant for technical mission control. Clear English transcription. Ignore any Portuguese input."
     )
     
     # Brain (Backend Bridge)

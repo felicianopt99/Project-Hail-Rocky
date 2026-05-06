@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     ha_access_token: str = ""   # Long-Lived Access Token from HA profile page
 
     # Redis
-    redis_url: str = "redis://127.0.0.1:6379"
+    redis_url: str = "redis://rocky-redis:6381"
 
     # Auth
     secret_key: str = "change-me-in-production-use-openssl-rand-hex-32"

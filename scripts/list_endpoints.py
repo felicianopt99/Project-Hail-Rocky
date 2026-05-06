@@ -9,7 +9,7 @@ scratch_lib = str(root / "scratch" / "lib")
 
 def run_introspection(service_path, app_var):
     env = os.environ.copy()
-    env["REDIS_URL"] = "redis://localhost:6379/0"
+    env["REDIS_URL"] = "redis://localhost:6381/0"
     env["FRONTEND_URL"] = "http://localhost:5173"
     env["MODELS_DIR"] = "/tmp/models"
     env["GROQ_API_KEY"] = "mock"
