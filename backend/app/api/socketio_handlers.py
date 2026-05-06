@@ -16,7 +16,7 @@ from ..bridges import letta_bridge, azure_speaker, pipecat_bridge
 from ..voice.tts import synthesize_chunks, SAMPLE_RATE
 from ..tools.definitions import TOOLS
 from ..tools.executor import run as run_tool
-from . import ha_handlers, skills as skills_api
+from . import skills as skills_api
 
 log = structlog.get_logger()
 
@@ -44,28 +44,7 @@ def _pop_sentence(buf: str, is_first: bool = False) -> tuple[str, str]:
     return "", buf
 
 
-# ── HA Context Helper ──────────────────────────────────────────────────
-async def _get_ha_context_str() -> str:
-    """Fetch lights and areas and return a formatted string for the LLM prompt."""
-    try:
-        from ..bridges import ha_bridge
-        lights, areas = await asyncio.gather(
-            ha_bridge.get_lights(),
-            ha_bridge.get_areas(),
-            return_exceptions=True
-        )
-        if isinstance(lights, Exception) or not lights:
-            return "No lights found in Home Assistant."
-        
-        lines = ["### Lights"]
-        for eid, info in lights.items():
-            area = areas.get(info.get("areaId", ""), "Unknown Area") if isinstance(areas, dict) else "Unknown Area"
-            lines.append(f"- {info['name']} (ID: {eid}) | State: {info['status']} | Area: {area}")
-        
-        return "\n".join(lines)
-    except Exception as e:
-        log.warning("ha_context_fetch_failed", error=str(e))
-        return "Could not fetch Home Assistant state."
+
 
 
 # ── Core chat logic (shared by text and voice paths) ─────────────────────
@@ -115,10 +94,8 @@ async def _try_tools(
     but if no tools are needed the first response is used directly (zero extra cost).
     """
     import json as _json
-    ha_context = await _get_ha_context_str()
     system = personality.build_system_prompt(
-        emotional_state=state, intimacy_score=score, message=content,
-        ha_context=ha_context
+        emotional_state=state, intimacy_score=score, message=content
     )
     if user_id and user_id != sid:
         system += f"\n\n## Speaker\nYou are speaking with {user_id}. Use their name naturally."
@@ -291,10 +268,8 @@ async def _chat_litellm(
     Pure conversational LLM response — no tools (those are handled by _try_tools).
     Single streaming call, no wasted API cost.
     """
-    ha_context = await _get_ha_context_str()
     system = personality.build_system_prompt(
-        emotional_state=state, intimacy_score=score, message=content,
-        ha_context=ha_context
+        emotional_state=state, intimacy_score=score, message=content
     )
     if user_id and user_id != sid:
         system += f"\n\n## Speaker\nYou are speaking with {user_id}. Use their name naturally."
@@ -410,9 +385,7 @@ def register(sio: socketio.AsyncServer) -> None:
         await sio.emit("service_status", {"service": "tts", "ok": settings.has_tts()}, to=sid)
         await sio.emit("service_status", {"service": "llm", "ok": settings.has_llm()}, to=sid)
 
-        # Push HA state (lights, areas, protocols) — runs in background so connect is not delayed
-        import asyncio
-        asyncio.create_task(ha_handlers.push_initial_state(sid, sio))
+
 
         if not settings.has_llm():
             await sio.emit("chat_response", {
@@ -448,90 +421,6 @@ def register(sio: socketio.AsyncServer) -> None:
         finally:
             session["is_processing"] = False
 
-    @sio.event
-    async def audio_blob(sid: str, data):
-        """Complete audio recording from MediaRecorder → STT → chat → TTS."""
-        # Interrupt any currently-playing TTS before starting new speech processing
-        await _cancel_tts(sid, sio)
-
-        if not settings.has_stt():
-            await sio.emit("chat_error", {"message": "STT unavailable — set GROQ_API_KEY"}, to=sid)
-            return
-
-        from ..voice.stt import transcribe
-
-        await sio.emit("status_update", "processing_stt", to=sid)
-        
-        # Handle new format: {"audio": binary, "lang": "en"}
-        audio_data = data
-        lang_override = None
-        if isinstance(data, dict):
-            audio_data = data.get("audio", data)
-            lang_override = data.get("lang")
-
-        try:
-            session = _session(sid)
-            session["is_processing"] = True
-            
-            transcript = await transcribe(
-                bytes(audio_data) if not isinstance(audio_data, bytes) else audio_data,
-                language=lang_override
-            )
-            
-            if not transcript:
-                await sio.emit("status_update", "idle", to=sid)
-                session["is_processing"] = False
-                return
-            log.info("emitting_transcript_result", sid=sid, length=len(transcript))
-            await sio.emit("transcript_result", transcript, to=sid)
-            if settings.has_llm():
-                await _chat(sid, transcript, sio, language=lang_override or "en")
-            else:
-                await sio.emit("status_update", "idle", to=sid)
-        except Exception as exc:
-            log.error("stt_error", error=str(exc), sid=sid)
-            await sio.emit("chat_error", {"message": f"STT error: {exc}"}, to=sid)
-            await sio.emit("status_update", "error", to=sid)
-        finally:
-            session = _session(sid)
-            session["is_processing"] = False
-
-    @sio.event
-    async def audio_chunk(sid: str, data):
-        """Streaming PCM chunks — 2026 Pipecat Pipeline."""
-        log.info("audio_chunk_received", size=len(data) if hasattr(data, "__len__") else "N/A", sid=sid)
-        session = _session(sid)
-        
-        # 1. Barge-in detection
-        if "tts_task" in session and not session["tts_task"].done():
-            await _cancel_tts(sid, sio)
-
-        # 2. Pipecat Bridge (Streaming)
-        if settings.has_pipecat():
-            bridge = session.get("pipecat_bridge")
-            if not bridge:
-                log.info("pipecat_bridge_initializing", sid=sid)
-                bridge = pipecat_bridge.PipecatBridge(sid, sio)
-                session["pipecat_bridge"] = bridge
-                await bridge.start()
-            
-            await bridge.send_audio(bytes(data) if not isinstance(data, bytes) else data)
-            
-            if settings.voice_debug_events:
-                await sio.emit("voice_debug", {"stage": "audio_chunk_relayed", "size": len(data), "timestamp": time.time()}, to=sid)
-                
-            # If Pipecat is enabled, we stay in this path. 
-            # We only fallback to legacy if specifically requested or if Pipecat is fundamentally broken.
-            return {"success": True, "streamed": True}
-
-        # 3. Legacy accumulation fallback
-        buf = session.setdefault("audio_buf", bytearray())
-        buf.extend(bytes(data) if not isinstance(data, bytes) else data)
-
-        if len(buf) > 960_000:
-            buf.clear()
-            
-        return {"success": True, "accumulated": True}
 
     @sio.event
     async def manual_stop(sid: str, data=None):

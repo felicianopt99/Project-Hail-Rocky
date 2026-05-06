@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     # Home Assistant
     ha_base_url: str = ""       # e.g. http://192.168.1.100:8123
     ha_access_token: str = ""   # Long-Lived Access Token from HA profile page
+    ha_mcp_url: str = "http://ha-mcp:3000" # MCP server for Home Assistant
 
     # Redis
     redis_url: str = "redis://rocky-redis:6381"

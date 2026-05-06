@@ -19,6 +19,7 @@ import { useAudioPipeline } from "./hooks/useAudioPipeline";
 import { useRockySockets } from "./hooks/useRockySockets";
 import { useMobile } from "./hooks/useMobile";
 import { useRockyStore } from "./store/useRockyStore";
+import { useWakeWord } from "./hooks/useWakeWord";
 import socket from "./lib/socket";
 import { eventBus, RockyEvents } from "./lib/eventBus";
 
@@ -68,6 +69,7 @@ export default function App() {
   const { isAudioActive } = useAudioPipeline({ socket, addToast, setStatus, speakBrowserFallback, lastAssistantTextRef });
 
   useRockySockets(addToast, isAudioActive);
+  useWakeWord();
 
   const handleSendMessage = useCallback((text?: string) => {
     const msg = text || inputValue;

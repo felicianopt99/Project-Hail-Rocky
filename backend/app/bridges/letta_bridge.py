@@ -13,6 +13,7 @@ from ..config import settings
 from ..rocky.letta_config import (
     ROCKY_AGENT_NAME, INITIAL_HUMAN_BLOCK, ROCKY_PERSONA,
     LETTA_LLM_MODEL, LETTA_EMBEDDING_MODEL, AGENT_DESCRIPTION,
+    HA_MCP_SERVER_NAME
 )
 
 log = structlog.get_logger()
@@ -50,6 +51,62 @@ async def is_available() -> bool:
         return False
 
 
+# ── MCP Integration ───────────────────────────────────────────────────────
+
+async def _get_or_create_mcp_server() -> str | None:
+    """Ensure the HA MCP server is registered in Letta."""
+    if not settings.letta_url or not settings.ha_mcp_url:
+        return None
+    
+    c = _get_letta_client()
+    try:
+        # 1. Check if exists
+        r = await c.get(_url("/v1/mcp-servers"))
+        r.raise_for_status()
+        for srv in r.json():
+            if srv.get("name") == HA_MCP_SERVER_NAME:
+                return srv["id"]
+        
+        # 2. Create if not exists
+        payload = {
+            "name": HA_MCP_SERVER_NAME,
+            "config": {
+                "mcp_server_type": "streamable_http",
+                "server_url": settings.ha_mcp_url,
+            }
+        }
+        r = await c.post(_url("/v1/mcp-servers"), json=payload)
+        r.raise_for_status()
+        srv_id = r.json()["id"]
+        log.info("letta_mcp_server_registered", srv_id=srv_id)
+        return srv_id
+    except Exception as e:
+        log.warning("letta_mcp_registration_failed", error=str(e))
+        return None
+
+
+async def _get_mcp_tool_names() -> list[str]:
+    """Fetch all tool names from the registered MCP server."""
+    srv_id = await _get_or_create_mcp_server()
+    if not srv_id:
+        return []
+    
+    c = _get_letta_client()
+    try:
+        # Refresh first to ensure we have latest tools
+        await c.patch(_url(f"/v1/mcp-servers/{srv_id}/refresh"))
+        
+        # Get tools
+        r = await c.get(_url(f"/v1/mcp-servers/{srv_id}/tools"))
+        r.raise_for_status()
+        tools = r.json()
+        # tools is usually a list of tool objects with a 'name' field
+        return [t["name"] for t in tools if "name" in t]
+    except Exception as e:
+        log.warning("letta_mcp_tool_fetch_failed", error=str(e))
+        return []
+
+
 # ── Agent lifecycle ───────────────────────────────────────────────────────
 
 async def _find_agent() -> str | None:
@@ -71,10 +128,26 @@ async def _create_agent() -> str | None:
     if not settings.letta_url:
         return None
     try:
+        # Fetch dynamic tools from MCP
+        mcp_tools = await _get_mcp_tool_names()
+        
+        # Default Letta core tools (memory management)
+        core_tools = [
+            "send_message",
+            "core_memory_append",
+            "core_memory_replace",
+            "archival_memory_search",
+            "archival_memory_insert"
+        ]
+        
+        all_tools = list(set(core_tools + mcp_tools))
+        log.info("letta_agent_creating", tools_count=len(all_tools), mcp_tools=mcp_tools)
+
         payload = {
             "name": ROCKY_AGENT_NAME,
             "description": AGENT_DESCRIPTION,
             "system": ROCKY_PERSONA,
+            "tools": all_tools,
             "memory": {
                 "memory": {
                     "persona": {"value": ROCKY_PERSONA, "limit": 2000},
@@ -106,9 +179,25 @@ async def _create_agent() -> str | None:
 
 async def get_agent_id() -> str | None:
     global _agent_id
+    if not _agent_id:
+        _agent_id = await _find_agent() or await _create_agent()
+    
+    # Optional: Sync tools every time the bridge initializes if agent already exists
     if _agent_id:
-        return _agent_id
-    _agent_id = await _find_agent() or await _create_agent()
+        try:
+            mcp_tools = await _get_mcp_tool_names()
+            if mcp_tools:
+                core_tools = [
+                    "send_message", "core_memory_append", "core_memory_replace",
+                    "archival_memory_search", "archival_memory_insert"
+                ]
+                all_tools = list(set(core_tools + mcp_tools))
+                c = _get_letta_client()
+                await c.patch(_url(f"/v1/agents/{_agent_id}"), json={"tools": all_tools})
+                log.info("letta_agent_tools_synced", tools_count=len(all_tools))
+        except Exception as e:
+            log.warning("letta_tool_sync_failed", error=str(e))
+            
     return _agent_id
 
 

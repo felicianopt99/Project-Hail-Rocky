@@ -179,8 +179,8 @@ export default function Dashboard() {
           </div>
           <div className="w-px h-4 bg-white/10" />
           <div className="flex items-center gap-2">
-            <div className={`w-2 h-2 rounded-full ${serviceStatus.wakeword ? "bg-cyan-400" : "bg-white/20"}`} />
-            <span className="text-white/40">Wake word</span>
+            <div className={`w-2 h-2 rounded-full ${serviceStatus.voice_engine ? "bg-cyan-400" : "bg-white/20"}`} />
+            <span className="text-white/40">Voice engine</span>
           </div>
           <button
             onClick={syncDevices}

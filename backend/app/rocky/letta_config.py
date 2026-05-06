@@ -25,3 +25,6 @@ AGENT_DESCRIPTION = (
     "Rocky — Eridian engineer and home companion. "
     "Has hierarchical memory and remembers important moments."
 )
+
+# MCP Configuration
+HA_MCP_SERVER_NAME = "ha-mcp"

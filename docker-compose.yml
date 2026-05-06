@@ -100,6 +100,26 @@ services:
     profiles:
       - ha
 
+  # ── Home Assistant MCP Server ─────────────────────────────────────────────
+  ha-mcp:
+    image: ghcr.io/homeassistant-ai/ha-mcp:latest
+    container_name: rocky-ha-mcp
+    environment:
+      - HOMEASSISTANT_URL=${HA_BASE_URL}
+      - HOMEASSISTANT_TOKEN=${HA_ACCESS_TOKEN}
+      - FASTMCP_TRANSPORT=sse
+      - FASTMCP_PORT=3000
+      - FASTMCP_HOST=0.0.0.0
+    ports:
+      - "3000:3000"
+    networks:
+      - rocky_net
+    restart: unless-stopped
+    profiles:
+      - ha
+      - full
+
+
   # ── Qdrant Vector DB (Phase 5 — Letta memory) ─────────────────────────
   qdrant:
     image: qdrant/qdrant:latest

@@ -1,4 +1,0 @@
-openwakeword
-numpy<2
-tflite-runtime
-onnxruntime

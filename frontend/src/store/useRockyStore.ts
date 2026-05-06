@@ -89,7 +89,7 @@ interface RockyState {
   isConnected: boolean;
   latencyMs: number | null;
   isTyping: boolean;
-  serviceStatus: { wakeword: boolean };
+  serviceStatus: { voice_engine: boolean };
   inputValue: string;
   isListening: boolean;
 
@@ -135,7 +135,7 @@ export const useRockyStore = create<RockyState>((set) => ({
   isConnected: true,
   latencyMs: null,
   isTyping: false,
-  serviceStatus: { wakeword: false },
+  serviceStatus: { voice_engine: false },
   inputValue: "",
   isListening: false,
   environmentalState: { noiseFloor: 0.005, isNoisy: false, detectedTypes: [] },

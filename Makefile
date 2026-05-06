@@ -1,4 +1,4 @@
-.PHONY: help up down logs build dev ha ovos letta full backend-shell frontend-shell hash-password wakeword download-models lint typecheck test
+.PHONY: help up down logs build dev ha voice ovos letta full backend-shell frontend-shell hash-password download-models lint typecheck test
 
 help:
 	@echo "Project Hail Rocky"
@@ -26,7 +26,6 @@ help:
 	@echo "make backend-shell   - Shell in backend container"
 	@echo "make frontend-shell  - Shell in frontend container"
 	@echo "make download-models - Download Vosk + Silero VAD models"
-	@echo "make wakeword        - Start wake word detector (runs on host, needs mic)"
 
 up:
 	docker compose up -d
@@ -90,12 +89,3 @@ frontend-shell:
 
 download-models:
 	python3 scripts/download_models.py
-
-wakeword:
-	@echo "Installing wake word dependencies..."
-	pip install -r services/wakeword/requirements.txt
-	@echo "Starting Rocky wake word detector (listening for 'rocky' / 'hey rocky')..."
-	@echo "Backend URL: $${ROCKY_BACKEND_URL:-http://127.0.0.1:8000}"
-	ROCKY_BACKEND_URL=$${ROCKY_BACKEND_URL:-http://127.0.0.1:8000} \
-	VOSK_MODEL_PATH=models/vosk/vosk-model-small-en-us-0.15 \
-	python3 services/wakeword/detector.py

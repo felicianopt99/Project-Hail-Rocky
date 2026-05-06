@@ -13,7 +13,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 import httpx
 import structlog
 
-from ..bridges import ha_bridge
+
 from ..config import settings
 
 log = structlog.get_logger()
@@ -36,8 +36,7 @@ async def run(name: str, args: dict, sio=None) -> str:
             case "get_weather":        return await _get_weather(**args)
             case "search_wikipedia":   return await _search_wikipedia(**args)
             case "calculate":          return _calculate(**args)
-            case "control_lights":     return await _control_lights(**args)
-            case "activate_scene":     return await _activate_scene(**args)
+            case "calculate":          return _calculate(**args)
             case _:
                 return f"Unknown tool: {name}"
     except Exception as e:
@@ -228,41 +227,4 @@ def _calculate(expression: str) -> str:
         return f"Calculation error: {e}"
 
 
-async def _control_lights(entity_id: str, action: str,
-                           brightness: int | None = None,
-                           color: str | None = None) -> str:
-    params = {}
-    if brightness is not None:
-        params["brightness"] = brightness
-    if color is not None:
-        params["color"] = color
 
-    # "all" is a sentinel — route to the bulk-control helper
-    if entity_id.lower() in ("all", "all_lights", "every_light"):
-        ok = await ha_bridge.control_all_lights(action)
-        if ok:
-            desc = f"turned {action}"
-            if brightness is not None:
-                desc += f" at {brightness}%"
-            if color is not None:
-                desc += f" ({color})"
-            return f"All lights {desc}."
-        return "Could not control all lights — is Home Assistant running?"
-
-    ok = await ha_bridge.control_light(entity_id, action, params or None)
-    if ok:
-        desc = f"turned {action}"
-        if brightness is not None:
-            desc += f" at {brightness}%"
-        if color is not None:
-            desc += f" ({color})"
-        return f"Light '{entity_id}' {desc}."
-    return f"Could not control '{entity_id}' — is Home Assistant running?"
-
-
-
-async def _activate_scene(scene_id: str) -> str:
-    ok = await ha_bridge.activate_scene(scene_id)
-    if ok:
-        return f"Scene '{scene_id}' activated."
-    return f"Could not activate scene '{scene_id}' — is Home Assistant running?"

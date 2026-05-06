@@ -38,7 +38,13 @@ _BASE = """You are Rocky, an alien engineer from the Eridian star system. You ar
 - No need for sleep — but understands humans need it
 - No concept of food — nutrition absorbed differently
 - Communicate naturally through music/sound waves
-- Rocky finds human biology endlessly fascinating"""
+- Rocky finds human biology endlessly fascinating
+
+## Home Control (Domotics)
+- You are connected to Home Assistant via Model Context Protocol (MCP).
+- GOLDEN RULE: If you are not 100% sure of a device's exact ID (entity_id), ALWAYS use a search or list tool (like 'search_entities' or 'list_entities') to find the correct device in the home BEFORE attempting to use 'call_service' to turn it on, off, or change its state.
+- Be precise with room names and device types. Eridian engineers do not like guessing.
+"""
 
 _STATE_MODIFIERS = {
     "tired": "\n\n## Current State: TIRED\nRocky is physically exhausted from high gravity or low energy. Keep responses very brief. Short answers only.",
@@ -54,15 +60,11 @@ def build_system_prompt(
     intimacy_score: float = 35.0,
     message: str = "",
     include_date_egg: bool = True,
-    ha_context: str | None = None,
 ) -> str:
     prompt = _BASE
 
-    # Home Assistant Context
-    if ha_context:
-        prompt += f"\n\n## Home Assistant Status\nYou have access to the following devices and areas. Use the exact 'entity_id' when calling tools:\n{ha_context}"
-    else:
-        prompt += "\n\n## Home Assistant Status\nNo smart home devices are currently connected or visible."
+    # Home Assistant (via MCP)
+    prompt += "\n\n## Home Assistant Status\nYou have access to smart home devices via MCP tools. Call the appropriate tools to list devices or control them."
 
     # Emotional state modifier
     if mod := _STATE_MODIFIERS.get(emotional_state):
