@@ -99,7 +99,6 @@ services:
     network_mode: host
     profiles:
       - ha
-      - full
 
   # ── Qdrant Vector DB (Phase 5 — Letta memory) ─────────────────────────
   qdrant:
@@ -158,20 +157,7 @@ services:
       - voice
       - full
 
-  # ── Ollama (offline LLM fallback) ─────────────────────────────────────
-  ollama:
-    image: ollama/ollama:latest
-    container_name: rocky-ollama
-    ports:
-      - "11434:11434"
-    networks:
-      - rocky_net
-    volumes:
-      - ollama-data:/root/.ollama
-    restart: unless-stopped
-    profiles:
-      - offline
-      - full
+
 
 networks:
   rocky_net:
