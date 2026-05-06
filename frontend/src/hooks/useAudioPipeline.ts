@@ -63,7 +63,7 @@ export function useAudioPipeline({
     
     // Reset scheduling time to current context time to avoid gaps on next playback
     if (audioCtxRef.current) {
-      nextChunkTimeRef.current = audioCtxRef.current.currentTime;
+      nextChunkTimeRef.current = audioCtxRef.current.currentTime + 0.05;
     }
     
     isSpeakingRef.current = false;

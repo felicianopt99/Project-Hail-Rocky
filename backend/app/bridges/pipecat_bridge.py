@@ -164,6 +164,8 @@ class PipecatBridge:
                 break
         
         if self._ws:
+            # Wait a short period to allow cancellation frames to be sent before closing
+            await asyncio.sleep(0.05)
             await self._ws.close()
             self._ws = None
         if self._task:

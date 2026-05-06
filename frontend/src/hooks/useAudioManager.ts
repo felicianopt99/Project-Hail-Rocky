@@ -52,7 +52,7 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
   const lastAudioChunkTimeRef = useRef(Date.now());
   
   // VAD Settings (could be synced from store/settings)
-  const SILENCE_THRESHOLD = 25; // Higher = less sensitive (requires louder speech)
+  const SILENCE_THRESHOLD = 35; // Higher = less sensitive (requires louder speech)
   const SILENCE_DURATION = 2500; // ms of silence before auto-stop (longer = more natural pauses)
 
   // Socket state

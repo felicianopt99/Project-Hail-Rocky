@@ -24,7 +24,7 @@ _sessions: dict = {}
 
 
 def _session(sid: str) -> dict:
-    return _sessions.setdefault(sid, {"history": [], "state": "neutral"})
+    return _sessions.setdefault(sid, {"history": [], "state": "neutral", "is_processing": False})
 
 
 # ── Sentence boundary splitter for sentence-level TTS streaming ───────────
@@ -436,7 +436,17 @@ def register(sio: socketio.AsyncServer) -> None:
             if not settings.has_llm():
                 await sio.emit("chat_error", {"message": "No LLM API key."}, to=sid)
             return
-        await _chat(sid, content, sio)
+        
+        session = _session(sid)
+        if session.get("is_processing"):
+            log.info("chat_request_interrupting_active", sid=sid)
+            await voice_interrupt(sid)
+        
+        session["is_processing"] = True
+        try:
+            await _chat(sid, content, sio)
+        finally:
+            session["is_processing"] = False
 
     @sio.event
     async def audio_blob(sid: str, data):
@@ -460,6 +470,9 @@ def register(sio: socketio.AsyncServer) -> None:
             lang_override = data.get("lang")
 
         try:
+            session = _session(sid)
+            session["is_processing"] = True
+            
             transcript = await transcribe(
                 bytes(audio_data) if not isinstance(audio_data, bytes) else audio_data,
                 language=lang_override
@@ -467,6 +480,7 @@ def register(sio: socketio.AsyncServer) -> None:
             
             if not transcript:
                 await sio.emit("status_update", "idle", to=sid)
+                session["is_processing"] = False
                 return
             log.info("emitting_transcript_result", sid=sid, length=len(transcript))
             await sio.emit("transcript_result", transcript, to=sid)
@@ -478,6 +492,9 @@ def register(sio: socketio.AsyncServer) -> None:
             log.error("stt_error", error=str(exc), sid=sid)
             await sio.emit("chat_error", {"message": f"STT error: {exc}"}, to=sid)
             await sio.emit("status_update", "error", to=sid)
+        finally:
+            session = _session(sid)
+            session["is_processing"] = False
 
     @sio.event
     async def audio_chunk(sid: str, data):
@@ -546,6 +563,9 @@ def register(sio: socketio.AsyncServer) -> None:
         pcm = bytes(buf)
         await sio.emit("status_update", "processing_stt", to=sid)
         try:
+            session = _session(sid)
+            session["is_processing"] = True
+            
             async def _no_speaker():
                 return None
 
@@ -556,6 +576,7 @@ def register(sio: socketio.AsyncServer) -> None:
             )
             if not transcript:
                 await sio.emit("status_update", "idle", to=sid)
+                session["is_processing"] = False
                 return
 
             # Handle speaker identification result
@@ -581,12 +602,16 @@ def register(sio: socketio.AsyncServer) -> None:
         except Exception as exc:
             log.error("stt_error", error=str(exc), sid=sid)
             await sio.emit("status_update", "error", to=sid)
+        finally:
+            session = _session(sid)
+            session["is_processing"] = False
 
     @sio.event
     async def voice_interrupt(sid: str, data=None):
         """Interrupts any active voice processing (Bridge + Legacy TTS)."""
         log.info("voice_interrupt_received", sid=sid)
         session = _session(sid)
+        session["is_processing"] = False
         
         # 1. Interrupt Pipecat Bridge
         bridge = session.get("pipecat_bridge")
