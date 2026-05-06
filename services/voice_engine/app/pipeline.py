@@ -4,7 +4,19 @@ import json
 import numpy as np
 from typing import AsyncGenerator
 
-from pipecat.frames.frames import AudioRawFrame, TextFrame, TranscriptionFrame, Frame, TTSStartedFrame, TTSStoppedFrame, StartFrame, ErrorFrame
+from pipecat.frames.frames import (
+    AudioRawFrame, 
+    CancelFrame, 
+    ControlFrame, 
+    EndFrame, 
+    ErrorFrame, 
+    Frame, 
+    StartFrame, 
+    TextFrame, 
+    TranscriptionFrame, 
+    TTSStartedFrame, 
+    TTSStoppedFrame
+)
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.task import PipelineTask
 from pipecat.pipeline.runner import PipelineRunner
@@ -145,6 +157,11 @@ class ErrorRelay(FrameProcessor):
         self._ws = websocket
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
+        # 1. Pass-through control frames immediately to prevent pipeline stalls
+        if isinstance(frame, (StartFrame, EndFrame, CancelFrame, ControlFrame)):
+            yield frame
+            return
+
         try:
             if isinstance(frame, ErrorFrame):
                 error_msg = str(frame.error)
@@ -169,11 +186,15 @@ class ErrorRelay(FrameProcessor):
                     }))
                 except:
                     pass
+                
+                # 2. Consume handled error frames (don't yield them to the next processor)
+                return
             
-            await self.push_frame(frame, direction)
+            # 3. Passthrough for other frames (Audio, Text, etc.)
+            yield frame
         except Exception as e:
             log.error("error_relay_exception", error=str(e))
-            await self.push_frame(frame, direction)
+            yield frame
 
 async def run_voice_pipeline(websocket, sid: str = "default", emotional_state: str = "neutral"):
     log.info("voice_pipeline_starting", sid=sid, state=emotional_state)
