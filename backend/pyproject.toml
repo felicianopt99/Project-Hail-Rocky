@@ -33,7 +33,16 @@ select = ["E", "F", "I"]
 
 [tool.mypy]
 python_version = "3.11"
-strict = false
+strict = true
+ignore_missing_imports = true
+disallow_untyped_defs = true
+disallow_any_generics = true
+check_untyped_defs = true
+no_implicit_reexport = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_return_any = true
+show_error_codes = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

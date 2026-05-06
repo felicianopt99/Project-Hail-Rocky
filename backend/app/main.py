@@ -8,6 +8,7 @@ from .core.logging import setup_logging
 from .api import dashboard, socketio_handlers, auth, skills, settings_api, speaker, memory, brain, webrtc, system
 from .config import settings
 from .workers.scheduler import setup as setup_scheduler
+from .core.http_client import AsyncHTTPClient
 
 setup_logging()
 
@@ -36,6 +37,7 @@ async def lifespan(app: FastAPI):
     
     # Graceful shutdown
     await worker.stop()
+    await AsyncHTTPClient.close_client()
     try:
         await asyncio.wait_for(worker_task, timeout=5.0)
     except asyncio.TimeoutError:

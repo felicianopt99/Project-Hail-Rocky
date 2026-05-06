@@ -16,11 +16,25 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from kokoro_onnx import Kokoro
 
+def setup_logging():
+    structlog.configure(
+        processors=[
+            structlog.contextvars.inject_contextvars,
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.stdlib.add_log_level,
+            structlog.processors.JSONRenderer() if os.getenv("LOG_FORMAT") == "JSON" else structlog.dev.ConsoleRenderer(),
+        ],
+        context_class=dict,
+        logger_factory=structlog.PrintLoggerFactory(),
+        cache_logger_on_first_use=True,
+    )
+
+setup_logging()
+log = structlog.get_logger()
+
 from .processors.voice_effects import VoiceEffectsProcessor, SAMPLE_RATE
 from .processors.disfluency import DisfluencyInjector
 from .pipeline import run_voice_pipeline
-
-log = structlog.get_logger()
 
 # Config
 MODELS_DIR = os.getenv("MODELS_DIR", "/models")
@@ -95,6 +109,9 @@ async def voice_websocket(websocket: WebSocket):
     # Extract initial settings from query params
     emotional_state = websocket.query_params.get("state", "neutral")
     sid = websocket.query_params.get("sid", "default")
+    trace_id = websocket.query_params.get("trace_id", "unknown")
+    
+    structlog.contextvars.bind_contextvars(trace_id=trace_id, sid=sid)
     
     try:
         # Run Pipecat pipeline

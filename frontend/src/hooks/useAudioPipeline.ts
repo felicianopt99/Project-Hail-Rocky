@@ -293,6 +293,10 @@ export function useAudioPipeline({
     socket.on("set_volume", onSetVolume);
     socket.on("stop_speaking", onStopSpeaking);
     socket.on("sound_trigger", (data: { type: string }) => playEarcon(data.type));
+    socket.on("VOICE_RECOVERING", () => {
+      addToast("Recovering voice session...", "warning");
+      setStatus("processing"); // Visual indicator that something is happening
+    });
 
     return () => {
       socket.off("tts_start", onTtsStart);
@@ -302,6 +306,7 @@ export function useAudioPipeline({
       socket.off("set_volume", onSetVolume);
       socket.off("stop_speaking", onStopSpeaking);
       socket.off("sound_trigger");
+      socket.off("VOICE_RECOVERING");
     };
   }, [socket]);
 

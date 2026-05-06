@@ -120,9 +120,9 @@ async def process_audio_track(track: MediaStreamTrack, sid: str):
     if not bridge:
         if sio_instance:
             log.info("webrtc_init_bridge", sid=sid)
-            bridge = PipecatBridge(sid, sio_instance)
+            bridge = PipecatBridge(sio_instance)
             session["pipecat_bridge"] = bridge
-            await bridge.start()
+            await bridge.start(sid)
         else:
             log.error("webrtc_bridge_fail_no_sio", sid=sid)
             return
@@ -135,8 +135,10 @@ async def process_audio_track(track: MediaStreamTrack, sid: str):
             # to_ndarray() returns (channels, samples)
             data = frame.to_ndarray().tobytes()
             
-            if bridge and bridge._running:
-                await bridge.send_audio(data)
+            if bridge:
+                # Note: bridge is now a singleton manager, but we stored it in session for convenience
+                # We could also just call PipecatBridge().send_audio(sid, data)
+                await bridge.send_audio(sid, data)
                 
     except Exception as e:
         # Expected when track ends or connection closes

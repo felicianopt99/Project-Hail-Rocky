@@ -2,6 +2,20 @@ import { useEffect, useRef } from "react";
 import socket from "../lib/socket";
 import { eventBus, RockyEvents } from "../lib/eventBus";
 import { useRockyStore, Message, RockyStatus, AppMode, LightState, Stats, Weather, LogEntry, Protocol, ProtocolSettings } from "../store/useRockyStore";
+import { 
+  ChatResponse, 
+  ChatError, 
+  SpeakerIdentified, 
+  SpeakerChanged, 
+  TimerFired, 
+  ServiceStatus, 
+  UiHint, 
+  SystemStateUpdate, 
+  DeviceUpdated, 
+  ProtocolUpdated, 
+  ProtocolDeleted,
+  TtsStart
+} from "../types/socketEvents";
 
 const NAV_MODES: AppMode[] = ["dashboard", "visualizer", "neural_center"];
 
@@ -78,7 +92,7 @@ export function useRockySockets(addToast: (msg: string, type: any) => void, isAu
       });
     };
 
-    const onChatResponse = (data: { text: string }) => {
+    const onChatResponse = (data: ChatResponse) => {
       store.setMessages(prev => {
         const newHistory = [...prev];
         const lastMsg = newHistory[newHistory.length - 1];
@@ -92,14 +106,14 @@ export function useRockySockets(addToast: (msg: string, type: any) => void, isAu
       store.setStatus("idle");
     };
 
-    const onChatError = (error: any) => {
+    const onChatError = (error: ChatError) => {
       addToast("Failed to send message - try again", "error");
       store.setIsTyping(false);
       store.setStatus("idle");
       console.error("[Chat Error]", error);
     };
 
-    const onServiceStatus = (data: { service: string; ok: boolean }) => {
+    const onServiceStatus = (data: ServiceStatus) => {
       store.setServiceStatus(data.service, data.ok);
     };
 
@@ -114,26 +128,23 @@ export function useRockySockets(addToast: (msg: string, type: any) => void, isAu
       }
     };
 
-    const onSpeakerIdentified = (data: { name: string }) => {
+    const onSpeakerIdentified = (data: SpeakerIdentified) => {
       addToast(`${data.name}`, "info");
     };
 
-    const onSpeakerChanged = (data: { from: string; to: string }) => {
+    const onSpeakerChanged = (data: SpeakerChanged) => {
       addToast(`${data.to}`, "info");
       // Clear chat display — new speaker, fresh context
       store.setMessages([]);
     };
 
-    const onTimerFired = (data: { label: string }) => {
+    const onTimerFired = (data: TimerFired) => {
       addToast(`⏱ Timer: ${data.label}`, "info");
     };
 
-    const onUiHint = (hint: { type: string; value: any }) => {
+    const onUiHint = (hint: UiHint) => {
       if (hint.type === "environmental_update") {
         store.setEnvironmentalState(hint.value);
-        if (hint.value.isNoisy) {
-          // console.debug("Environment is noisy", hint.value.detectedTypes);
-        }
       }
     };
 
@@ -158,7 +169,7 @@ export function useRockySockets(addToast: (msg: string, type: any) => void, isAu
     // Dashboard listeners
     const onWeather = (data: Weather) => store.setWeather(data);
     const onStats = (data: Stats) => store.setStats(data);
-    const onSystemState = (data: any) => {
+    const onSystemState = (data: SystemStateUpdate) => {
       if (data.logs)      store.setLogs(data.logs);
       if (data.lights)    store.setLights(data.lights);
       if (data.areas)     store.setAreas(data.areas);
@@ -166,17 +177,17 @@ export function useRockySockets(addToast: (msg: string, type: any) => void, isAu
       if (data.protocols) store.setProtocols(data.protocols);
     };
 
-    const onProtocolUpdated = (data: { id: string; settings: ProtocolSettings }) =>
+    const onProtocolUpdated = (data: ProtocolUpdated) =>
       store.setProtocols(prev => prev.map(p => p.id === data.id ? { ...p, settings: data.settings } : p));
 
     const onProtocolCreated = (p: Protocol) =>
       store.setProtocols(prev => [...prev, p]);
 
-    const onProtocolDeleted = (data: { id: string }) =>
+    const onProtocolDeleted = (data: ProtocolDeleted) =>
       store.setProtocols(prev => prev.filter(p => p.id !== data.id));
     const onAreas = (data: Record<string, string>) => store.setAreas(data);
     const onLog = (log: LogEntry) => store.setLogs(prev => [log, ...prev].slice(0, 50));
-    const onDevice = (data: { device: string; state: LightState }) => store.updateLight(data.device, data.state);
+    const onDevice = (data: DeviceUpdated) => store.updateLight(data.device, data.state);
     const onRoutinesList = (routines: any[]) => store.setRoutines(routines);
 
     // Local interruption management
@@ -184,9 +195,10 @@ export function useRockySockets(addToast: (msg: string, type: any) => void, isAu
       isInterruptedRef.current = true;
     };
     
-    const onTtsStart = () => {
+    const onTtsStart = (data: TtsStart) => {
       // New speech segment started, we can stop ignoring tokens
       isInterruptedRef.current = false;
+      console.debug("[TTS] Started with sample rate:", data.sampleRate);
     };
 
     socket.on("mode_updated", onModeUpdated);
