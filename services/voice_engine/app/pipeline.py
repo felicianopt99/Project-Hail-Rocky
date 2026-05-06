@@ -110,7 +110,7 @@ class VoiceDebugProcessor(FrameProcessor):
                 log.info("voice_debug_start_frame_received")
 
             # Only process audio/transcript in the forward direction (input)
-            if direction == FrameDirection.FORWARD:
+            if direction == FrameDirection.DOWNSTREAM:
                 if isinstance(frame, AudioRawFrame):
                     self._total_bytes += len(frame.audio)
                     # Periodic audio receipt check (every ~16KB)

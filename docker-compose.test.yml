@@ -16,7 +16,7 @@ services:
       - ./backend/app:/app/app
       - ./tests:/app/tests
       - ./scripts:/app/scripts
-    command: ["pytest", "-vv", "tests/unit", "tests/functional", "--cov=app", "--cov-report=html:/app/tests/coverage_html"]
+    command: [ "pytest", "-vv", "tests/unit", "tests/functional", "--cov=app", "--cov-report=html:/app/tests/coverage_html" ]
 
   voice-engine-test:
     build:
@@ -32,7 +32,8 @@ services:
     volumes:
       - ./models:/models
       - ./services/voice_engine/app:/app/app
-    command: ["pytest", "app/tests", "--cov=app"]
+      - ./tests:/app/tests
+    command: [ "pytest", "app/tests", "tests/integration/test_voice_stress.py", "--cov=app" ]
 
   redis-test:
     image: redis:7-alpine
