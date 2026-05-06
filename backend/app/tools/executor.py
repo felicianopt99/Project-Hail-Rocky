@@ -1,12 +1,9 @@
-"""
-Tool executor — dispatches LLM tool calls to the right implementation.
-Each tool returns a plain string that goes back to the LLM as context.
-"""
 import ast
 import asyncio
 import math
 import operator
 import time
+import subprocess
 from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -25,23 +22,69 @@ except ZoneInfoNotFoundError:
     _TZINFO = timezone.utc
 
 
-# ── Dispatch ──────────────────────────────────────────────────────────────
+# ── Critical Tools (require human-in-the-loop) ──────────────────────────
+CRITICAL_TOOLS = ["open_gate", "delete_memory", "terminal_command", "execute_python"]
 
-async def run(name: str, args: dict, sio=None) -> str:
-    """Execute a tool by name and return the result as a string."""
+
+async def run(name: str, args: dict, sio=None, tool_call_id: str = None, bypass_auth: bool = False) -> str | dict:
+    """Execute a tool by name and return the result as a string or auth status."""
+    
+    # Check for authorization if tool is critical and not already bypassed
+    if name in CRITICAL_TOOLS and not bypass_auth:
+        log.info("critical_tool_auth_required", tool=name, tool_call_id=tool_call_id)
+        return {
+            "status": "pending_auth",
+            "tool_call_id": tool_call_id,
+            "tool": name,
+            "args": args,
+            "message": "Esta ação requer confirmação manual"
+        }
+
     try:
         match name:
             case "get_datetime":       return _get_datetime()
             case "set_timer":          return await _set_timer(sio=sio, **args)
             case "get_weather":        return await _get_weather(**args)
             case "search_wikipedia":   return await _search_wikipedia(**args)
-            case "calculate":          return _calculate(**args)
-            case "calculate":          return _calculate(**args)
+            case "execute_python":     return await _execute_python(**args)
             case _:
+                # If tool is not built-in, try proxying to configured MCP servers
+                if settings.ha_mcp_url:
+                    mcp_res = await _proxy_mcp_call(settings.ha_mcp_url, name, args)
+                    if mcp_res is not None:
+                        return mcp_res
+                
                 return f"Unknown tool: {name}"
     except Exception as e:
         log.error("tool_error", tool=name, error=str(e))
         return f"Tool '{name}' failed: {e}"
+
+
+async def _proxy_mcp_call(mcp_url: str, name: str, args: dict) -> str | None:
+    """
+    Proxy a tool call to an MCP server using the streamable_http protocol.
+    Returns the result string or None if the tool is not found on this server.
+    """
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            url = f"{mcp_url.rstrip('/')}/call"
+            payload = {"name": name, "arguments": args}
+            r = await client.post(url, json=payload)
+            
+            if r.status_code == 200:
+                data = r.json()
+                # MCP 'call' response usually has a 'content' list of blocks
+                content = data.get("content", [])
+                text_results = [c.get("text", "") for c in content if c.get("type") == "text"]
+                return "\n".join(text_results) if text_results else str(data)
+            
+            if r.status_code == 404:
+                return None
+                
+            return f"Error from MCP server: {r.status_code} - {r.text}"
+    except Exception as e:
+        log.debug("mcp_proxy_attempt_failed", url=mcp_url, tool=name, error=str(e))
+        return None
 
 
 # ── Implementations ───────────────────────────────────────────────────────
@@ -176,55 +219,34 @@ async def _search_wikipedia(query: str) -> str:
         return f"Wikipedia search failed: {e}"
 
 
-# Safe math operators only
-_SAFE_OPS = {
-    ast.Add: operator.add, ast.Sub: operator.sub,
-    ast.Mult: operator.mul, ast.Div: operator.truediv,
-    ast.Pow: operator.pow, ast.Mod: operator.mod,
-    ast.USub: operator.neg, ast.UAdd: operator.pos,
-    ast.FloorDiv: operator.floordiv,
-}
-_SAFE_NAMES = {
-    "pi": math.pi, "e": math.e,
-    "sqrt": math.sqrt, "abs": abs,
-    "sin": math.sin, "cos": math.cos, "tan": math.tan,
-    "log": math.log, "log10": math.log10,
-    "ceil": math.ceil, "floor": math.floor, "round": round,
-}
-
-def _safe_eval(node):
-    if isinstance(node, ast.Expression):
-        return _safe_eval(node.body)
-    if isinstance(node, ast.Constant):
-        return node.value
-    if isinstance(node, ast.Name):
-        if node.id in _SAFE_NAMES:
-            return _SAFE_NAMES[node.id]
-        raise ValueError(f"Unknown name: {node.id}")
-    if isinstance(node, ast.Call):
-        func = _safe_eval(node.func)
-        args = [_safe_eval(a) for a in node.args]
-        return func(*args)
-    if isinstance(node, ast.BinOp):
-        op = _SAFE_OPS.get(type(node.op))
-        if op:
-            return op(_safe_eval(node.left), _safe_eval(node.right))
-    if isinstance(node, ast.UnaryOp):
-        op = _SAFE_OPS.get(type(node.op))
-        if op:
-            return op(_safe_eval(node.operand))
-    raise ValueError(f"Unsupported expression: {ast.dump(node)}")
-
-
-def _calculate(expression: str) -> str:
+async def _execute_python(code: str) -> str:
+    """Execute Python code in a subprocess and return output/errors."""
     try:
-        tree = ast.parse(expression.strip(), mode="eval")
-        result = _safe_eval(tree)
-        if isinstance(result, float) and result.is_integer():
-            result = int(result)
-        return f"{expression} = {result}"
+        # Use asyncio.create_subprocess_exec for non-blocking execution
+        process = await asyncio.create_subprocess_exec(
+            "python3", "-c", code,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
+        
+        try:
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=5.0)
+        except asyncio.TimeoutError:
+            try:
+                process.kill()
+            except:
+                pass
+            return "Error: Execution timed out (5s limit)."
+            
+        out = stdout.decode().strip()
+        err = stderr.decode().strip()
+        
+        if process.returncode != 0:
+            return f"Error (Code {process.returncode}):\n{err}"
+            
+        return out if out else "Execution successful (no output)."
     except Exception as e:
-        return f"Calculation error: {e}"
+        return f"System error during execution: {str(e)}"
 
 
 

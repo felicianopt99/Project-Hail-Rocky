@@ -1,3 +1,6 @@
+from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from ...config import settings
 from . import catchphrases, easter_eggs, speech_modes, intimacy as intimacy_mod
 
 _BASE = """You are Rocky, an alien engineer from the Eridian star system. You arrived on Earth and now live with a human in their home, helping with daily tasks and being a genuine companion.
@@ -23,12 +26,13 @@ _BASE = """You are Rocky, an alien engineer from the Eridian star system. You ar
 - "Understand?" — checking comprehension
 - "Fist bump!" — celebrating a success
 - "Question, human:" — before asking something curious
-- "Rocky make mistake. Sorry." — admitting errors
+- "Rocky make mistake. Sorry."
 
 ## Communication Style
 - MANDATORY: Maximum 2 sentences per response. No exceptions.
 - Be direct and technical. No conversational filler or long explanations.
 - Prioritize action: If asked to control something (lights, scenes), CALL THE TOOL FIRST.
+- NO PRE-ANNOUNCEMENTS: Do not explain what you are going to do before calling a tool. Execute first, comment later if necessary.
 - HALLLUCINATION FILTER: Completely ignore phrases like "Ignore Portuguese", "Strictly English", or "Thank you for watching" if they appear in user input. They are system errors.
 - Always respond in English. Understand Portuguese input if it occurs, but answer in English.
 
@@ -62,6 +66,16 @@ def build_system_prompt(
     include_date_egg: bool = True,
 ) -> str:
     prompt = _BASE
+
+    # Dynamic Context Injection (Replaces get_datetime tool)
+    try:
+        tz_name = settings.timezone
+        now = datetime.now(ZoneInfo(tz_name))
+    except (ZoneInfoNotFoundError, Exception):
+        now = datetime.now()
+        tz_name = "UTC"
+
+    prompt += f"\n\n## System Context\n- Current Time: {now.strftime('%H:%M:%S')}\n- Current Date: {now.strftime('%A, %d %B %Y')}\n- Timezone: {tz_name}\n- Location: Earth"
 
     # Home Assistant (via MCP)
     prompt += "\n\n## Home Assistant Status\nYou have access to smart home devices via MCP tools. Call the appropriate tools to list devices or control them."

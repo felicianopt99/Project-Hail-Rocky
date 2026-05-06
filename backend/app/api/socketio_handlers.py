@@ -14,7 +14,7 @@ from ..rocky.personality import (
 )
 from ..bridges import letta_bridge, azure_speaker, pipecat_bridge
 from ..voice.tts import synthesize_chunks, SAMPLE_RATE
-from ..tools.definitions import TOOLS
+from ..tools.definitions import get_tools
 from ..tools.executor import run as run_tool
 from . import skills as skills_api
 
@@ -82,6 +82,36 @@ async def _chat(sid: str, content: str, sio: socketio.AsyncServer, language: str
         await _chat_litellm(sid, content, new_state, score, session, sio, user_id=user_id)
 
 
+async def _finish_chat_after_tool(
+    sid: str, sio: socketio.AsyncServer, session: dict, 
+    messages: list, state: str
+) -> None:
+    """Helper to stream the final LLM response after a tool has executed."""
+    model = settings.get_llm_model()
+    final_response = await litellm.acompletion(
+        model=model, messages=messages, stream=True, temperature=0.8, max_tokens=512,
+    )
+    full_final, buf_final = "", ""
+    async for chunk in final_response:
+        token = chunk.choices[0].delta.content or ""
+        if not token:
+            continue
+        full_final += token
+        buf_final += token
+        await sio.emit("chat_token", token, to=sid)
+        if settings.has_tts():
+            sentence, buf_final = _pop_sentence(buf_final, is_first=(full_final == token))
+            if sentence:
+                await _emit_tts(sid, sentence, sio, state)
+    
+    if buf_final.strip() and settings.has_tts():
+        await _emit_tts(sid, buf_final.strip(), sio, state)
+    
+    session["history"].append({"role": "assistant", "content": full_final})
+    await sio.emit("chat_response", {"text": full_final}, to=sid)
+    await sio.emit("status_update", "idle", to=sid)
+
+
 async def _try_tools(
     sid: str, content: str, state: str, score: float,
     session: dict, sio: socketio.AsyncServer,
@@ -104,8 +134,9 @@ async def _try_tools(
 
     try:
         # Filter out disabled tools (respects Skills page toggle)
+        tools = await get_tools()
         active_tools = [
-            t for t in TOOLS
+            t for t in tools
             if skills_api._overrides.get(t["function"]["name"], {}).get("enabled", True)
         ]
         
@@ -160,32 +191,23 @@ async def _try_tools(
                 tool_name = tc.function.name
                 tool_args = _json.loads(tc.function.arguments or "{}")
                 log.info("tool_called", tool=tool_name, args=tool_args)
-                result = await run_tool(tool_name, tool_args, sio=sio)
+                result = await run_tool(tool_name, tool_args, sio=sio, tool_call_id=tc.id)
+                
+                # Check for Human-in-the-loop auth requirement
+                if isinstance(result, dict) and result.get("status") == "pending_auth":
+                    session["pending_tool_auth"] = {
+                        "id": tc.id,
+                        "name": tool_name,
+                        "args": tool_args,
+                        "messages": messages,
+                        "state": state
+                    }
+                    await sio.emit("request_skill_auth", result, to=sid)
+                    return True
+
                 messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
 
-            # Stream final answer after tool execution
-            final_response = await litellm.acompletion(
-                model=model, messages=messages, stream=True, temperature=0.8, max_tokens=512,
-            )
-            full_final, buf_final = "", ""
-            async for chunk in final_response:
-                token = chunk.choices[0].delta.content or ""
-                if not token:
-                    continue
-                full_final += token
-                buf_final += token
-                await sio.emit("chat_token", token, to=sid)
-                if settings.has_tts():
-                    sentence, buf_final = _pop_sentence(buf_final, is_first=(full_final == token))
-                    if sentence:
-                        await _emit_tts(sid, sentence, sio, state)
-            
-            if buf_final.strip() and settings.has_tts():
-                await _emit_tts(sid, buf_final.strip(), sio, state)
-            
-            session["history"].append({"role": "assistant", "content": full_final})
-            await sio.emit("chat_response", {"text": full_final}, to=sid)
-            await sio.emit("status_update", "idle", to=sid)
+            await _finish_chat_after_tool(sid, sio, session, messages, state)
             return True
 
         # ── No tools were called ──
@@ -516,6 +538,32 @@ def register(sio: socketio.AsyncServer) -> None:
         if settings.voice_debug_events:
             await sio.emit("voice_debug", {"stage": "manual_activation_observed", "timestamp": time.time()}, to=sid)
         await sio.emit("status_update", "listening", to=sid)
+
+    @sio.event
+    async def auth_granted(sid: str, data: dict):
+        """Resume tool execution after human approval."""
+        session = _session(sid)
+        pending = session.pop("pending_tool_auth", None)
+        if not pending:
+            log.warning("auth_granted_no_pending", sid=sid)
+            return
+        
+        log.info("auth_granted_resuming", tool=pending["name"], sid=sid)
+        
+        # Execute tool with bypass_auth=True
+        result = await run_tool(
+            pending["name"], 
+            pending["args"], 
+            sio=sio, 
+            tool_call_id=pending["id"],
+            bypass_auth=True
+        )
+        
+        messages = pending["messages"]
+        messages.append({"role": "tool", "tool_call_id": pending["id"], "content": result})
+        
+        # Finish the chat completion
+        await _finish_chat_after_tool(sid, sio, session, messages, pending["state"])
 
     @sio.event
     async def ping(sid: str, data=None):

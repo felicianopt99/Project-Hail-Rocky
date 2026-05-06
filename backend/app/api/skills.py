@@ -2,7 +2,7 @@
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
-from ..tools.definitions import TOOLS
+from ..tools.definitions import get_tools
 from .auth import get_current_user
 
 router = APIRouter()
@@ -23,9 +23,9 @@ _TOOL_META: dict[str, dict] = {
 }
 
 
-def _tool_skills() -> list[dict]:
+async def _tool_skills() -> list[dict]:
     skills = []
-    for tool in TOOLS:
+    for tool in await get_tools():
         fn = tool["function"]
         name = fn["name"]
         meta = _TOOL_META.get(name, {})
@@ -45,7 +45,7 @@ def _tool_skills() -> list[dict]:
 
 @router.get("")
 async def list_skills():
-    return _tool_skills()
+    return await _tool_skills()
 
 
 @router.post("/{skill_id}/toggle")
@@ -76,7 +76,8 @@ async def test_skill(skill_id: str, body: TestRequest):
     """Quick test: run the tool directly if it's a built-in tool."""
     from ..tools.executor import run as run_tool
     # Map skill_id back to tool name
-    tool_names = {t["function"]["name"] for t in TOOLS}
+    tools = await get_tools()
+    tool_names = {t["function"]["name"] for t in tools}
     if skill_id in tool_names:
         # Parse args from text for simple tools
         args = _parse_test_args(skill_id, body.text)

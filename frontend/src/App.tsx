@@ -107,12 +107,78 @@ export default function App() {
     return () => { eventBus.off(RockyEvents.WAKE_WORD_DETECTED, onWake); };
   }, [handleMicClick]);
 
+  const [pendingAuth, setPendingAuth] = React.useState<any>(null);
+
+  useEffect(() => {
+    const handleAuthRequest = (req: any) => {
+      console.log("[App] Auth request received:", req);
+      setPendingAuth(req);
+    };
+    socket.on("request_skill_auth", handleAuthRequest);
+    return () => { socket.off("request_skill_auth", handleAuthRequest); };
+  }, []);
+
+  const handleGrantAuth = () => {
+    socket.emit("auth_granted", { tool_call_id: pendingAuth.tool_call_id });
+    setPendingAuth(null);
+  };
+
   const bannerStyle = STATUS_BANNER[audioState];
   const showBanner = audioState !== "idle" && !!bannerStyle;
 
   return (
     <div className="h-screen w-screen bg-black text-white overflow-hidden flex flex-col font-sans selection:bg-cyan-500/30">
       <AmbientBackground />
+
+      <AnimatePresence>
+        {pendingAuth && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-6 bg-black/80 backdrop-blur-md">
+             <motion.div 
+               initial={{ opacity: 0, scale: 0.9, y: 20 }}
+               animate={{ opacity: 1, scale: 1, y: 0 }}
+               exit={{ opacity: 0, scale: 0.9, y: 20 }}
+               className="w-full max-w-md bg-zinc-950 border border-white/10 rounded-[32px] p-8 shadow-[0_0_50px_rgba(0,0,0,0.5)] relative overflow-hidden"
+             >
+                <div className="absolute top-0 left-0 w-full h-1 bg-linear-to-r from-cyan-500 via-blue-500 to-indigo-500" />
+                
+                <div className="flex items-center gap-3 mb-6">
+                  <div className="w-10 h-10 rounded-full bg-cyan-500/10 flex items-center justify-center border border-cyan-500/20">
+                    <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(34,211,238,0.8)]" />
+                  </div>
+                  <div>
+                    <h2 className="text-xs font-black tracking-[0.3em] uppercase text-cyan-400">Security Protocols</h2>
+                    <div className="text-[10px] text-white/30 uppercase tracking-widest font-mono">Authorization Required</div>
+                  </div>
+                </div>
+
+                <div className="space-y-4 mb-8">
+                  <p className="text-sm text-zinc-300 leading-relaxed">
+                    Rocky is requesting to execute <span className="text-white font-bold bg-white/10 px-2 py-0.5 rounded-md font-mono">{pendingAuth.tool}</span> with the following parameters:
+                  </p>
+                  
+                  <div className="bg-black/40 rounded-2xl p-5 border border-white/5 font-mono text-[11px] text-cyan-500/70 overflow-auto max-h-40 custom-scrollbar">
+                    <pre>{JSON.stringify(pendingAuth.args, null, 2)}</pre>
+                  </div>
+                </div>
+                
+                <div className="flex gap-3">
+                   <button 
+                     onClick={() => setPendingAuth(null)}
+                     className="flex-1 py-4 rounded-2xl bg-white/5 hover:bg-white/10 text-white/40 text-[10px] font-black uppercase tracking-[0.2em] transition-all border border-white/5 active:scale-95"
+                   >
+                     Negative
+                   </button>
+                   <button 
+                     onClick={handleGrantAuth}
+                     className="flex-1 py-4 rounded-2xl bg-cyan-500 hover:bg-cyan-400 text-black text-[10px] font-black uppercase tracking-[0.2em] transition-all shadow-[0_0_30px_rgba(6,182,212,0.3)] active:scale-95"
+                   >
+                     Authorize
+                   </button>
+                </div>
+             </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
 
       <header className="relative h-14 border-b border-white/6 flex items-center justify-between px-4 z-30 bg-black/30 backdrop-blur-xl shrink-0">
         <div className="flex items-center gap-3">

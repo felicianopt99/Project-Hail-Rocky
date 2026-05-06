@@ -1,17 +1,10 @@
-"""
-Tool definitions passed to LiteLLM.
-The LLM reads these descriptions and decides which to call.
-"""
+import httpx
+import structlog
+from ..config import settings
 
-TOOLS: list[dict] = [
-    {
-        "type": "function",
-        "function": {
-            "name": "get_datetime",
-            "description": "Get the current date, time, and day of the week.",
-            "parameters": {"type": "object", "properties": {}, "required": []},
-        },
-    },
+log = structlog.get_logger()
+
+BASE_TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
@@ -36,23 +29,6 @@ TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
-            "name": "get_weather",
-            "description": "Get current weather and today's forecast for a city.",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "city": {
-                        "type": "string",
-                        "description": "City name, e.g. 'Lisbon', 'Porto', 'London'.",
-                    }
-                },
-                "required": ["city"],
-            },
-        },
-    },
-    {
-        "type": "function",
-        "function": {
             "name": "search_wikipedia",
             "description": "Get a brief summary of a topic from Wikipedia.",
             "parameters": {
@@ -70,18 +46,50 @@ TOOLS: list[dict] = [
     {
         "type": "function",
         "function": {
-            "name": "calculate",
-            "description": "Evaluate a mathematical expression and return the result.",
+            "name": "execute_python",
+            "description": "Execute Python code for complex calculations, data analysis, or advanced logic. Returns the console output (STDOUT).",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "expression": {
+                    "code": {
                         "type": "string",
-                        "description": "Math expression, e.g. '2 ** 10', '(15 * 8) / 3'.",
+                        "description": "The complete Python code to execute.",
                     }
                 },
-                "required": ["expression"],
+                "required": ["code"],
             },
         },
     },
 ]
+
+async def get_tools() -> list[dict]:
+    """
+    Fetch all available tools, including local basics and dynamic MCP tools.
+    """
+    tools = list(BASE_TOOLS)
+    
+    if settings.ha_mcp_url:
+        try:
+            async with httpx.AsyncClient(timeout=5.0) as client:
+                url = f"{settings.ha_mcp_url.rstrip('/')}/tools"
+                r = await client.get(url)
+                if r.status_code == 200:
+                    mcp_data = r.json()
+                    # MCP spec: tool list is in "tools" key
+                    mcp_tools = mcp_data.get("tools", [])
+                    
+                    for t in mcp_tools:
+                        # Convert MCP format to LiteLLM/OpenAI format
+                        tools.append({
+                            "type": "function",
+                            "function": {
+                                "name": t["name"],
+                                "description": t.get("description", ""),
+                                "parameters": t.get("inputSchema", {"type": "object", "properties": {}}),
+                            }
+                        })
+                    log.info("mcp_tools_imported", count=len(mcp_tools), url=url)
+        except Exception as e:
+            log.warning("mcp_tools_fetch_failed", url=settings.ha_mcp_url, error=str(e))
+            
+    return tools
