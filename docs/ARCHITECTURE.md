@@ -11,16 +11,16 @@ Project Hail Rocky is a self-hosted smart home AI assistant built around the per
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  Frontend  React 19 + TypeScript + Tailwind + Framer Motion │
-│  Socket.io-client │ Web Audio API │ AudioWorklet PCM        │
+│  WebRTC (Media) │ Socket.io (Events) │ Lucide │ Framer      │
 └──────────────────────────┬──────────────────────────────────┘
-                           │ Socket.io (WSS) + REST (HTTPS)
+                           │ WebRTC + Socket.io + REST
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Backend  FastAPI + python-socketio                         │
+│  Backend  FastAPI + python-socketio + aiortc                │
 │  ┌─────────────┐  ┌──────────────┐  ┌────────────────────┐ │
-│  │ Chat/Voice  │  │ Rocky Brain  │  │ Tool Calling       │ │
-│  │ Handlers    │  │ Personality  │  │ Lights / Weather / │ │
-│  │ (socketio)  │  │ EmotState    │  │ Timer / Wikipedia  │ │
+│  │ WebRTC      │  │ Rocky Brain  │  │ Tool Calling       │ │
+│  │ & SocketIO  │  │ Personality  │  │ Lights / Weather / │ │
+│  │ Handlers    │  │ EmotState    │  │ Timer / Wikipedia  │ │
 │  │             │  │ Intimacy     │  │ Calculator / HA    │ │
 │  └──────┬──────┘  └──────┬───────┘  └────────────────────┘ │
 └─────────┼────────────────┼────────────────────────────────-─┘
@@ -31,7 +31,7 @@ Project Hail Rocky is a self-hosted smart home AI assistant built around the per
     │            │   │            │   │                    │
     │ VAD (VAD)  │   │ Core mem.  │   │  Lights / Scenes   │
     │ Groq STT   │   │ Recall     │   │  2000+ devices     │
-    │ Speaker ID │   │ Archival   │   │  Wyoming protocol  │
+    │ Speaker ID │   │ Archival   │   │  (REST / MCP)      │
     │ Kokoro TTS │   │ (Qdrant)   │   │                    │
     │ PitchShift │   │ Postgres   │   │                    │
     │ Reverb     │   │            │   │                    │
@@ -53,18 +53,18 @@ Project Hail Rocky is a self-hosted smart home AI assistant built around the per
 
 ## Voice Pipeline
 
-**Current state (Active Pipecat Pipeline):**
+**Current state (WebRTC + Pipecat Pipeline):**
 ```
-Browser mic → PCM chunks (Socket.io) → Backend → Pipecat
+Browser mic → WebRTC AudioTrack → Backend → Pipecat
   Pipecat: Silero VAD → Azure Speaker ID → Groq Whisper STT
          → RockyBrainProcessor (Hallucination filter) → Letta (Persistent memory)
          → LiteLLM (Streaming tokens) → DisfluencyInjector
          → Kokoro TTS (Sentence-level aggregation)
          → VoiceEffectsProcessor (Pitch/Reverb/Compression per emotional state)
-         → PCM chunks → Backend → Frontend (AudioWorklet)
+         → WebRTC AudioTrack → Frontend (Browser Speakers)
 ```
 
-The pipeline is fully operational with low latency (~600ms start-to-speak). Speaker ID and voice effects are fully integrated.
+The pipeline is fully operational via WebRTC, providing ultra-low latency (~400ms start-to-speak). Speaker ID and voice effects are fully integrated.
 
 ---
 

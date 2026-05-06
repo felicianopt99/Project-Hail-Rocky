@@ -229,7 +229,7 @@ SQLCipher	4.5+	Logs encriptados (AES-256)	Derivação de key via PBKDF2
 Tecnologia	Versão	Função
 Home Assistant	2024.5+	Hub central (2000+ integrações devices)
 Mosquitto	2.0+	MQTT broker
-Wyoming Protocol	1.5+	Descoberta automática de serviços de voz
+WebRTC / Pipecat	0.0.45+	Pipeline de voz de baixa latência
 6.6 Infraestrutura
 Tecnologia	Versão	Função
 Docker	24.0+	Containerização
@@ -430,7 +430,7 @@ Hub central de automação residencial:
 Areas/Zones: organização semântica de devices
 Scenes: estados pré-configurados (ex: "Cinema")
 Automations: triggers + conditions + actions
-Wyoming Protocol: voz como serviço de rede
+WebRTC / Pipecat: voz via canais MediaStreamTrack
 HACS: community store para integrações extras
 API REST + WebSocket bem documentadas
 Como Usamos
@@ -1144,13 +1144,6 @@ Scene HA scene.sunset_mode:
 Lâmpadas: gradiente laranja/magenta
 Trigger automático: HA detecta sunset (via location)
 Frontend muda paleta para tons quentes
-14.6 Wyoming Protocol
-Home Assistant suporta nativamente. Permite:
-
-Descoberta automática de serviços de voz (mDNS)
-Adicionar Raspberry Pi com microfone noutro quarto = HA descobre automaticamente
-Stream de áudio via protocolo standardizado
-Não usaremos na fase inicial, mas arquitetura preparada para futuro.
 
 15. PERSONALIDADE DO ROCKY
 15.1 Documento Canônico
