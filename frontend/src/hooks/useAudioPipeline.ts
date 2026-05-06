@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Socket } from "socket.io-client";
+import { eventBus, RockyEvents } from '../lib/eventBus';
 
 const earconCache = new Map<string, AudioBuffer>();
 
