@@ -43,8 +43,12 @@ DEFAULT_VOICE = os.getenv("VOICE_ENGINE_DEFAULT_VOICE", "am_michael")
 MODEL_PATH = os.path.join(MODELS_DIR, "kokoro-v1.0.onnx")
 VOICES_PATH = os.path.join(MODELS_DIR, "voices-v1.0.bin")
 
+from pipecat.audio.vad.silero import SileroVADAnalyzer
+from pipecat.audio.vad.vad_analyzer import VADParams
+
 # Global instances
 _kokoro: Kokoro | None = None
+_vad: SileroVADAnalyzer | None = None
 _disfluency = DisfluencyInjector(probability=0.2, min_length=60)
 
 async def download_models_if_missing():
@@ -72,11 +76,13 @@ async def download_models_if_missing():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _kokoro
+    global _kokoro, _vad
     try:
         await download_models_if_missing()
         _kokoro = Kokoro(MODEL_PATH, VOICES_PATH)
-        log.info("voice_engine_ready", model=MODEL_PATH)
+        # Pre-load Silero VAD (ONNX)
+        _vad = SileroVADAnalyzer(params=VADParams(confidence=0.6))
+        log.info("voice_engine_ready", model=MODEL_PATH, vad="Silero")
     except Exception as e:
         log.error("voice_engine_init_failed", error=str(e))
     yield
@@ -170,8 +176,10 @@ async def synthesize(req: SynthRequest):
 
 @app.get("/health")
 async def health():
+    if not _kokoro or not _vad:
+        raise HTTPException(status_code=503, detail="Voice engine initializing (ONNX models loading)")
     return {
-        "status": "ok" if _kokoro else "error",
+        "status": "ok",
         "stt_configured": bool(os.getenv("GROQ_API_KEY")),
         "engine": "Kokoro-ONNX",
         "sample_rate": SAMPLE_RATE,
