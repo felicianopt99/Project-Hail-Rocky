@@ -148,7 +148,7 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
   const startAudioCapture = useCallback(async () => {
     if (isCapturingRef.current) return;
     
-    log("info", "Starting WebRTC audio capture...");
+    log("info", "Starting WebRTC audio session...");
     setAudioState("listening");
 
     try {
@@ -168,14 +168,28 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
       });
       pcRef.current = pc;
 
-      // 3. Add audio track
+      // 3. Add microphone track
       stream.getAudioTracks().forEach(track => pc.addTrack(track, stream));
 
-      // 4. Create Offer
+      // 4. Handle incoming track (Rocky's voice)
+      pc.ontrack = (event) => {
+        log("info", "Assistant audio track received via WebRTC");
+        const remoteStream = event.streams[0];
+        
+        if (audioCtxRef.current && analyzerRef.current) {
+          const remoteSource = audioCtxRef.current.createMediaStreamSource(remoteStream);
+          // Connect to analyzer for visualization
+          remoteSource.connect(analyzerRef.current);
+          // Connect to output for hearing Rocky
+          remoteSource.connect(audioCtxRef.current.destination);
+        }
+      };
+
+      // 5. Create Offer
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
-      // 5. Signal to backend
+      // 6. Signal to backend
       const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
       const response = await fetch(`${backendUrl}/api/webrtc/offer`, {
         method: "POST",
@@ -195,7 +209,7 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
       isCapturingRef.current = true;
       socket.emit("manual_activation");
       
-      log("info", "WebRTC connection established");
+      log("info", "Two-way WebRTC connection established");
 
     } catch (err: any) {
       log("error", "Failed to start WebRTC capture", err.message);
@@ -226,9 +240,12 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
         const silenceMs = Date.now() - silenceStartRef.current;
         
         if (silenceMs > SILENCE_DURATION) {
-          log("info", `Silence detected (${silenceMs}ms), stopping...`);
-          stopAudioCapture("processing");
+          log("info", `Silence detected (${silenceMs}ms), stopping user capture...`);
+          // Note: We don't close the PC here anymore, just change state and notify backend
+          // stopAudioCapture("processing"); 
+          setAudioState("processing");
           socket.emit("manual_stop");
+          silenceStartRef.current = null;
         }
       } else {
         silenceStartRef.current = null;
@@ -236,29 +253,35 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
     }, 100);
 
     return () => clearInterval(interval);
-  }, [audioState, stopAudioCapture, socket]);
+  }, [audioState, socket]); // Removed stopAudioCapture from deps to avoid re-bind
 
   // ========== MANUAL TRIGGER ==========
   const handleManualTrigger = useCallback(() => {
     if (audioState === "listening" || audioState === "processing") {
-      stopAudioCapture("processing");
+      // Manual stop: we can close the connection or just stop capture
       socket.emit("manual_stop");
+      setAudioState("processing");
     } else {
       startAudioCapture();
     }
-  }, [audioState, startAudioCapture, stopAudioCapture, socket]);
+  }, [audioState, startAudioCapture, socket]);
 
   // ========== SOCKET LISTENERS ==========
   useEffect(() => {
     const onStatusUpdate = (status: string) => {
-      if (status === "listening") setAudioState("listening");
-      else if (["processing_stt", "thinking_llm"].includes(status)) {
+      if (status === "listening") {
+        setAudioState("listening");
+      } else if (["processing_stt", "thinking_llm"].includes(status)) {
         setAudioState("processing");
-        if (isCapturingRef.current) stopAudioCapture();
+        // Keep WebRTC open to receive response
       } else if (status === "synthesizing_tts") {
         setAudioState("speaking");
+        // Keep WebRTC open to hear Rocky
+      } else if (status === "idle") {
+        setAudioState("idle");
+        // Connection can be closed now
         if (isCapturingRef.current) stopAudioCapture();
-      } else if (status === "idle") setAudioState("idle");
+      }
     };
 
     socket.on("status_update", onStatusUpdate);
@@ -298,6 +321,7 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
     audioState,
     micAvailable,
     analyzer,
+    audioCtxRef,
     handleManualTrigger,
     startAudioCapture,
     stopAudioCapture,

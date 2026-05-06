@@ -12,7 +12,12 @@ router = APIRouter()
 async def get_settings():
     """Return non-sensitive runtime config and service availability."""
     redis = await get_redis()
-    redis_ok = redis is not None and await redis.ping()
+    redis_ok = False
+    if redis is not None:
+        try:
+            redis_ok = await redis.ping()
+        except Exception:
+            redis_ok = False
     letta_ok = settings.has_letta and await letta_bridge.is_available()
     
     mcp_ok = False

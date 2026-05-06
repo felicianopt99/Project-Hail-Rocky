@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
+import psutil
 import structlog
 
 
@@ -23,7 +24,7 @@ except ZoneInfoNotFoundError:
 
 
 # ── Critical Tools (require human-in-the-loop) ──────────────────────────
-CRITICAL_TOOLS = ["open_gate", "delete_memory", "terminal_command", "execute_python"]
+CRITICAL_TOOLS = ["execute_python", "delete_memory", "call_service"]
 
 
 async def run(name: str, args: dict, sio=None, tool_call_id: str = None, bypass_auth: bool = False) -> str | dict:
@@ -42,7 +43,7 @@ async def run(name: str, args: dict, sio=None, tool_call_id: str = None, bypass_
 
     try:
         match name:
-            case "get_datetime":       return _get_datetime()
+            case "check_server_health": return _check_server_health()
             case "set_timer":          return await _set_timer(sio=sio, **args)
             case "get_weather":        return await _get_weather(**args)
             case "search_wikipedia":   return await _search_wikipedia(**args)
@@ -89,12 +90,73 @@ async def _proxy_mcp_call(mcp_url: str, name: str, args: dict) -> str | None:
 
 # ── Implementations ───────────────────────────────────────────────────────
 
-def _get_datetime() -> str:
-    now = datetime.now(_TZINFO)
-    return (
-        f"Current date and time: {now.strftime('%A, %d %B %Y, %H:%M')} "
-        f"(timezone: {_TZ})"
-    )
+def _check_server_health() -> str:
+    """Read hardware status: CPU temp, RAM, Disk space, and memory devices."""
+    # 1. CPU Temp
+    temp_str = "N/A"
+    try:
+        if hasattr(psutil, "sensors_temperatures"):
+            temps = psutil.sensors_temperatures()
+            if "coretemp" in temps:
+                temp_str = f"{temps['coretemp'][0].current}°C"
+            elif "cpu_thermal" in temps:
+                temp_str = f"{temps['cpu_thermal'][0].current}°C"
+            elif temps:
+                # Try the first available sensor
+                first_key = list(temps.keys())[0]
+                temp_str = f"{temps[first_key][0].current}°C"
+    except:
+        pass
+    
+    # 2. RAM
+    ram = psutil.virtual_memory()
+    ram_usage = f"{ram.percent}% ({ram.used // 1024**2}MB / {ram.total // 1024**2}MB)"
+    
+    # 3. Disks & Warnings
+    disks = []
+    warnings = []
+    for part in psutil.disk_partitions():
+        # Skip virtual/temp filesystems
+        if any(x in part.mountpoint for x in ["/boot", "/snap", "/loop"]):
+            continue
+        try:
+            usage = psutil.disk_usage(part.mountpoint)
+            free_gb = usage.free // 1024**3
+            total_gb = usage.total // 1024**3
+            percent_free = (usage.free / usage.total) * 100
+            
+            disks.append(f"{part.mountpoint}: {free_gb}GB free of {total_gb}GB ({usage.percent}% used)")
+            
+            # Warning logic for 1TB disks (< 10% free)
+            if 900 <= total_gb <= 1100 and percent_free < 10:
+                warnings.append(f"Warning: Disk {part.mountpoint} (1TB) has only {percent_free:.1f}% space left.")
+        except:
+            continue
+            
+    # 4. Connected Memory Devices (simplified list)
+    devices = []
+    for part in psutil.disk_partitions():
+        if "removable" in part.opts or "usb" in part.device.lower():
+            devices.append(f"{part.device} on {part.mountpoint}")
+
+    # Build response
+    res = [
+        "Optiplex 3040 Server Health Status:",
+        f"- CPU Temperature: {temp_str}",
+        f"- RAM Usage: {ram_usage}",
+        "- Disk Space Overview:",
+    ]
+    res.extend([f"  * {d}" for d in disks])
+    
+    if devices:
+        res.append("- External Devices: " + ", ".join(devices))
+    
+    if warnings:
+        res.append("\nCRITICAL ALERTS:")
+        res.extend([f"! {w}" for w in warnings])
+        res.append("\nRocky Suggestion: Human, disk space is low. I suggest cleaning logs or temporary files soon.")
+        
+    return "\n".join(res)
 
 
 async def _set_timer(duration_seconds: int, label: str = "timer", sio=None) -> str:
@@ -247,6 +309,3 @@ async def _execute_python(code: str) -> str:
         return out if out else "Execution successful (no output)."
     except Exception as e:
         return f"System error during execution: {str(e)}"
-
-
-

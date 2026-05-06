@@ -1,7 +1,5 @@
-"""APScheduler setup — background jobs for Rocky."""
 import structlog
-from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.triggers.cron import CronTrigger
+from saq import CronJob, Queue, Worker
 
 from .diary_writer import run as run_diary
 from .pattern_analyzer import run as run_patterns
@@ -9,26 +7,34 @@ from ..config import settings
 
 log = structlog.get_logger()
 
-scheduler = AsyncIOScheduler(timezone=settings.timezone)
+# Create a queue instance
+queue = Queue.from_url(settings.redis_url)
 
-
-def setup() -> AsyncIOScheduler:
+def setup() -> Worker:
+    """Configures the saq Worker with cron jobs."""
+    
+    # Define cron jobs
     # Daily diary at 23:00
-    scheduler.add_job(
+    diary_cron = CronJob(
         run_diary,
-        trigger=CronTrigger(hour=23, minute=0),
-        id="diary_writer",
-        name="Rocky Daily Diary",
-        replace_existing=True,
+        cron="0 23 * * *",
+        unique=True,
+        timeout=600,
     )
 
     # Weekly pattern analysis — Sunday 04:00
-    scheduler.add_job(
+    pattern_cron = CronJob(
         run_patterns,
-        trigger=CronTrigger(day_of_week="sun", hour=4, minute=0),
-        id="pattern_analyzer",
-        name="Rocky Pattern Analyzer",
-        replace_existing=True,
+        cron="0 4 * * 0", # Sunday is 0 or 7 depending on implementation, saq uses crontab syntax
+        unique=True,
+        timeout=600,
     )
 
-    return scheduler
+    # Initialize worker
+    worker = Worker(
+        queue,
+        functions=[run_diary, run_patterns],
+        cron_jobs=[diary_cron, pattern_cron],
+    )
+
+    return worker

@@ -15,6 +15,7 @@ from ..rocky.letta_config import (
     LETTA_LLM_MODEL, LETTA_EMBEDDING_MODEL, AGENT_DESCRIPTION,
     HA_MCP_SERVER_NAME
 )
+from ..core.semantic_cache import semantic_cache
 
 log = structlog.get_logger()
 
@@ -29,6 +30,8 @@ def _get_letta_client() -> httpx.AsyncClient:
     global _client
     if _client is None or _client.is_closed:
         _client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
+    return _client
+
 async def close_client():
     """Close the shared Letta HTTP client."""
     global _client
@@ -183,25 +186,31 @@ async def _create_agent() -> str | None:
 
 
 async def get_agent_id() -> str | None:
+    """
+    Get the agent ID, creating it if necessary.
+    On every initialization (startup), it syncs tools from the MCP server
+    to ensure Rocky has the latest skills without code changes.
+    """
     global _agent_id
     if not _agent_id:
         _agent_id = await _find_agent() or await _create_agent()
     
-    # Optional: Sync tools every time the bridge initializes if agent already exists
     if _agent_id:
         try:
+            # Dynamic Discovery: Fetch latest tools from MCP and update agent
             mcp_tools = await _get_mcp_tool_names()
-            if mcp_tools:
-                core_tools = [
-                    "send_message", "core_memory_append", "core_memory_replace",
-                    "archival_memory_search", "archival_memory_insert"
-                ]
-                all_tools = list(set(core_tools + mcp_tools))
-                c = _get_letta_client()
-                await c.patch(_url(f"/v1/agents/{_agent_id}"), json={"tools": all_tools})
-                log.info("letta_agent_tools_synced", tools_count=len(all_tools))
+            core_tools = [
+                "send_message", "core_memory_append", "core_memory_replace",
+                "archival_memory_search", "archival_memory_insert"
+            ]
+            all_tools = list(set(core_tools + mcp_tools))
+            
+            c = _get_letta_client()
+            # Register the tools with the agent in Letta
+            await c.patch(_url(f"/v1/agents/{_agent_id}"), json={"tools": all_tools})
+            log.info("letta_dynamic_discovery_ok", tools_count=len(all_tools), mcp_count=len(mcp_tools))
         except Exception as e:
-            log.warning("letta_tool_sync_failed", error=str(e))
+            log.warning("letta_dynamic_discovery_failed", error=str(e))
             
     return _agent_id
 
@@ -210,6 +219,12 @@ async def get_agent_id() -> str | None:
 
 async def send_message(text: str, role: str = "user") -> str | None:
     """Send a message to Rocky (Letta) and return the assistant reply."""
+    # 1. Semantic Cache check
+    if role == "user":
+        cached = await semantic_cache.check(text)
+        if cached:
+            return cached
+
     agent_id = await get_agent_id()
     if not agent_id:
         return None
@@ -235,6 +250,25 @@ async def send_message(text: str, role: str = "user") -> str | None:
     except Exception as e:
         log.error("letta_send_failed", error=str(e), agent_id=agent_id)
         return None
+    
+    finally:
+        # Store in cache if we have a valid response
+        if role == "user" and 'data' in locals() and data:
+            tool_used = False
+            res = None
+            # Need to find the response again to store it
+            for msg in data.get("messages", []):
+                if msg.get("message_type") == "tool_call":
+                    tool_used = True
+                    break
+                
+                if msg.get("message_type") == "assistant_message":
+                    res = msg.get("content", "").strip()
+                elif msg.get("role") == "assistant" and msg.get("content"):
+                    res = msg["content"].strip()
+            
+            if res and not tool_used:
+                await semantic_cache.store(text, res)
 
 
 async def send_message_stream(text: str, role: str = "user") -> AsyncGenerator[str, None]:
@@ -242,6 +276,13 @@ async def send_message_stream(text: str, role: str = "user") -> AsyncGenerator[s
     Send a message to Rocky (Letta) and yield assistant message tokens in real-time.
     Uses SSE-style streaming from the Letta API.
     """
+    # 1. Semantic Cache check
+    if role == "user":
+        cached = await semantic_cache.check(text)
+        if cached:
+            yield cached
+            return
+
     agent_id = await get_agent_id()
     if not agent_id:
         return
@@ -249,6 +290,8 @@ async def send_message_stream(text: str, role: str = "user") -> AsyncGenerator[s
     c = _get_letta_client()
     url = _url(f"/v1/agents/{agent_id}/messages")
     payload = {"messages": [{"role": role, "content": text}], "stream": True}
+    full_response = []
+    tool_used = False
 
     try:
         async with c.stream("POST", url, json=payload) as r:
@@ -271,8 +314,10 @@ async def send_message_stream(text: str, role: str = "user") -> AsyncGenerator[s
                     if mtype == "assistant_message":
                         content = data.get("content", "")
                         if content:
+                            full_response.append(content)
                             yield content
                     elif mtype == "tool_call":
+                        tool_used = True
                         call = data.get("tool_call", {})
                         fname = call.get("name")
                         yield f"\n[Tool Call: {fname}] "
@@ -287,6 +332,11 @@ async def send_message_stream(text: str, role: str = "user") -> AsyncGenerator[s
     except Exception as e:
         log.error("letta_stream_failed", error=str(e))
         yield ""
+    
+    finally:
+        # Store in cache if we accumulated a response and no tools were used
+        if role == "user" and 'full_response' in locals() and full_response and not tool_used:
+            await semantic_cache.store(text, "".join(full_response))
 
 
 # ── Memory inspection ─────────────────────────────────────────────────────

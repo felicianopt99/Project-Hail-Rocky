@@ -17,7 +17,8 @@ _TOOL_META: dict[str, dict] = {
     "set_timer":         {"category": "productivity",  "description": "Set a countdown timer."},
     "get_weather":       {"category": "information",   "description": "Weather and forecast."},
     "search_wikipedia":  {"category": "knowledge",     "description": "Wikipedia summaries."},
-    "calculate":         {"category": "productivity",  "description": "Mathematical calculations."},
+    "execute_python":    {"category": "productivity",  "description": "Run Python code for analysis/math."},
+    "check_server_health": {"category": "system",       "description": "Monitor Optiplex hardware health."},
     "control_lights":    {"category": "home",          "description": "Control smart home lights."},
     "activate_scene":    {"category": "home",          "description": "Activate a Home Assistant scene."},
 }
@@ -93,8 +94,8 @@ def _parse_test_args(tool: str, text: str) -> dict:
         return {"city": text.strip() or "Lisbon"}
     if tool == "search_wikipedia":
         return {"query": text.strip() or "Project Hail Mary"}
-    if tool == "calculate":
-        return {"expression": text.strip() or "2 ** 10"}
+    if tool == "execute_python":
+        return {"code": f"print({text.strip() or '2 ** 10'})"}
     if tool == "set_timer":
         nums = re.findall(r"\d+", text)
         return {"duration_seconds": int(nums[0]) * 60 if nums else 60, "label": "test"}

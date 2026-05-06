@@ -64,10 +64,11 @@ def build_system_prompt(
     intimacy_score: float = 35.0,
     message: str = "",
     include_date_egg: bool = True,
+    home_summary: str = "All systems normal.",
 ) -> str:
     prompt = _BASE
 
-    # Dynamic Context Injection (Replaces get_datetime tool)
+    # Native Temporal & Environmental Awareness
     try:
         tz_name = settings.timezone
         now = datetime.now(ZoneInfo(tz_name))
@@ -75,10 +76,10 @@ def build_system_prompt(
         now = datetime.now()
         tz_name = "UTC"
 
-    prompt += f"\n\n## System Context\n- Current Time: {now.strftime('%H:%M:%S')}\n- Current Date: {now.strftime('%A, %d %B %Y')}\n- Timezone: {tz_name}\n- Location: Earth"
+    prompt += f"\n\n## System Context (Native Awareness)\n- Current Time: {now.strftime('%H:%M:%S')}\n- Current Date: {now.strftime('%A, %d %B %Y')}\n- Timezone: {tz_name}\n- Home Status: {home_summary}\n- Location: Earth"
 
     # Home Assistant (via MCP)
-    prompt += "\n\n## Home Assistant Status\nYou have access to smart home devices via MCP tools. Call the appropriate tools to list devices or control them."
+    prompt += "\n\n## Home Assistant Status\nYou have access to smart home devices via MCP tools. Use 'Home Status' above for immediate context, but call tools for precise actions."
 
     # Emotional state modifier
     if mod := _STATE_MODIFIERS.get(emotional_state):

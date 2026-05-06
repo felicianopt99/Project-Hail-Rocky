@@ -91,14 +91,25 @@ class PipecatBridge:
                 self._running = False
 
     async def _listen(self):
-        """Listen for audio output from Pipecat and relay to Socket.io client."""
+        """Listen for audio output from Pipecat and relay to WebRTC or Socket.io."""
         log.info("pipecat_bridge_listen_loop_started")
+        from ..api.socketio_handlers import _session
+        
+        sample_rate = 24000 # Default
+        
         try:
             async for message in self._ws:
                 if isinstance(message, bytes):
-                    # Relay PCM chunk back to frontend
-                    # log.debug("pipecat_bridge_received_audio", size=len(message))
-                    await self._sio.emit("tts_chunk", message, to=self._sid)
+                    # Relay PCM chunk
+                    session = _session(self._sid)
+                    webrtc_track = session.get("webrtc_audio_track")
+                    
+                    if webrtc_track:
+                        # High performance WebRTC path
+                        webrtc_track.add_audio(message, sample_rate=sample_rate)
+                    else:
+                        # Legacy Socket.io path (fallback)
+                        await self._sio.emit("tts_chunk", message, to=self._sid)
                 else:
                     # Handle control messages (json)
                     try:
@@ -111,6 +122,7 @@ class PipecatBridge:
                         elif msg_type == "voice_debug":
                             await self._sio.emit("voice_debug", data, to=self._sid)
                         elif msg_type == "tts_start":
+                            sample_rate = data.get("sampleRate", 24000)
                             await self._sio.emit("tts_start", data, to=self._sid)
                             await self._sio.emit("status_update", "synthesizing_tts", to=self._sid)
                         elif msg_type == "tts_end":

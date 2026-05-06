@@ -61,12 +61,24 @@ export default function App() {
     }
   }, []);
 
-  const { audioState, analyzer, handleManualTrigger } = useAudioManager({
+  const { audioState, analyzer, audioCtxRef, handleManualTrigger } = useAudioManager({
     socket,
     addToast,
   });
 
-  const { isAudioActive } = useAudioPipeline({ socket, addToast, setStatus, speakBrowserFallback, lastAssistantTextRef });
+  const { isAudioActive: isPipelineActive } = useAudioPipeline({ 
+    socket, 
+    addToast, 
+    setStatus, 
+    speakBrowserFallback, 
+    lastAssistantTextRef,
+    externalAudioCtxRef: audioCtxRef,
+    externalAnalyzerRef: analyzer
+  });
+
+  const isAudioActive = useCallback(() => {
+    return isPipelineActive() || ["speaking", "listening", "processing"].includes(audioState);
+  }, [isPipelineActive, audioState]);
 
   useRockySockets(addToast, isAudioActive);
   useWakeWord();
@@ -114,8 +126,8 @@ export default function App() {
       console.log("[App] Auth request received:", req);
       setPendingAuth(req);
     };
-    socket.on("request_skill_auth", handleAuthRequest);
-    return () => { socket.off("request_skill_auth", handleAuthRequest); };
+    socket.on("REQUEST_CONFIRMATION", handleAuthRequest);
+    return () => { socket.off("REQUEST_CONFIRMATION", handleAuthRequest); };
   }, []);
 
   const handleGrantAuth = () => {

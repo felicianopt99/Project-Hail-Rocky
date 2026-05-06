@@ -9,6 +9,13 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     llm_model: str = ""
 
+    # Embeddings (for Semantic Cache)
+    embedding_model: str = "groq/llama-3.3-70b-versatile" # Default fallback, better to use a real embedding model
+    # Note: Groq doesn't have an embedding model yet, so we should probably use something else or litellm's default
+    semantic_cache_enabled: bool = True
+    semantic_cache_threshold: float = 0.95
+    semantic_cache_ttl: int = 3600 * 24 # 1 day
+
     # STT
     groq_stt_model: str = "whisper-large-v3"
     groq_stt_language: str = "en"  # Default to English
@@ -27,7 +34,7 @@ class Settings(BaseSettings):
     # Home Assistant
     ha_base_url: str = ""       # e.g. http://192.168.1.100:8123
     ha_access_token: str = ""   # Long-Lived Access Token from HA profile page
-    ha_mcp_url: str = "http://ha-mcp:3000" # MCP server for Home Assistant
+    ha_mcp_url: str = "http://ha-mcp:8000" # MCP server for Home Assistant
 
     # Redis
     redis_url: str = "redis://rocky-redis:6381"

@@ -20,7 +20,7 @@ _DIARY_PROMPT = (
 )
 
 
-async def run() -> None:
+async def run(ctx: dict) -> None:
     log.info("diary_writer_started")
 
     if not await is_available():

@@ -1,8 +1,10 @@
 import asyncio
 import structlog
+import numpy as np
 from fastapi import APIRouter, Request
 from aiortc import RTCPeerConnection, RTCSessionDescription
-from aiortc.mediastreams import MediaStreamTrack
+from aiortc.mediastreams import MediaStreamTrack, AudioStreamTrack
+from av import AudioFrame
 
 from .socketio_handlers import _session
 from ..bridges.pipecat_bridge import PipecatBridge
@@ -17,6 +19,45 @@ sio_instance = None
 def set_sio(sio):
     global sio_instance
     sio_instance = sio
+
+
+class PipecatAudioTrack(AudioStreamTrack):
+    """
+    Outgoing WebRTC track that transmits audio from Pipecat to the browser.
+    """
+    def __init__(self):
+        super().__init__()
+        self._queue = asyncio.Queue()
+        self._next_pts = 0
+
+    async def recv(self):
+        # Wait for a frame from the queue
+        frame = await self._queue.get()
+        
+        # Ensure PTS is set for correct timing in the browser
+        frame.pts = self._next_pts
+        self._next_pts += frame.samples
+            
+        return frame
+
+    def add_audio(self, data: bytes, sample_rate: int = 24000):
+        """Pushes raw PCM data as an AudioFrame into the track."""
+        try:
+            # Convert raw bytes (S16LE) to numpy array
+            samples = np.frombuffer(data, dtype=np.int16)
+            
+            # Reshape for mono (1, samples)
+            samples = samples.reshape(1, -1)
+            
+            # Create AudioFrame
+            frame = AudioFrame.from_ndarray(samples, format='s16', layout='mono')
+            frame.sample_rate = sample_rate
+            frame.time_base = 1 / sample_rate
+            
+            self._queue.put_nowait(frame)
+        except Exception as e:
+            log.error("webrtc_add_audio_error", error=str(e))
+
 
 @router.post("/offer")
 async def offer(request: Request):
@@ -36,6 +77,11 @@ async def offer(request: Request):
     
     session["webrtc_pc"] = pc
 
+    # Create outgoing track for Rocky's voice
+    outgoing_track = PipecatAudioTrack()
+    session["webrtc_audio_track"] = outgoing_track
+    pc.addTrack(outgoing_track)
+
     @pc.on("connectionstatechange")
     async def on_connectionstatechange():
         log.info("webrtc_connection_state", state=pc.connectionState, sid=sid)
@@ -43,6 +89,7 @@ async def offer(request: Request):
             await pc.close()
             if session.get("webrtc_pc") == pc:
                 session.pop("webrtc_pc", None)
+                session.pop("webrtc_audio_track", None)
 
     @pc.on("track")
     def on_track(track: MediaStreamTrack):
@@ -84,12 +131,7 @@ async def process_audio_track(track: MediaStreamTrack, sid: str):
         while True:
             frame = await track.recv()
             
-            # AIORTC provides AudioFrame objects.
-            # STT/Pipecat typically expects 16-bit PCM, 16kHz, Mono.
-            # Note: Production systems should use an av.AudioResampler here if 
-            # the browser sends a different sample rate.
-            
-            # Extract raw PCM data
+            # Extract raw PCM data from incoming track (User -> Backend)
             # to_ndarray() returns (channels, samples)
             data = frame.to_ndarray().tobytes()
             

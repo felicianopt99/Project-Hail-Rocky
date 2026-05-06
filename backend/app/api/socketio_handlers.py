@@ -7,6 +7,7 @@ import socketio
 
 from ..config import settings
 from ..core.redis_client import get_redis
+from ..core.semantic_cache import semantic_cache
 from ..rocky.personality import (
     system_prompt as personality,
     emotional_states as states,
@@ -202,7 +203,7 @@ async def _try_tools(
                         "messages": messages,
                         "state": state
                     }
-                    await sio.emit("request_skill_auth", result, to=sid)
+                    await sio.emit("REQUEST_CONFIRMATION", result, to=sid)
                     return True
 
                 messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
@@ -290,6 +291,25 @@ async def _chat_litellm(
     Pure conversational LLM response — no tools (those are handled by _try_tools).
     Single streaming call, no wasted API cost.
     """
+    # 1. Semantic Cache check
+    cached = await semantic_cache.check(content)
+    if cached:
+        # Check if Pipecat is active
+        bridge = session.get("pipecat_bridge")
+        is_pipecat_active = bridge and bridge._running
+
+        if not is_pipecat_active:
+            await sio.emit("chat_token", cached, to=sid)
+            if settings.has_tts():
+                await _emit_tts(sid, cached, sio, state)
+            
+            await sio.emit("chat_response", {"text": cached}, to=sid)
+            await sio.emit("status_update", "idle", to=sid)
+        
+        session["history"].append({"role": "assistant", "content": cached})
+        log.info("chat_litellm_cache_hit", sid=sid)
+        return
+
     system = personality.build_system_prompt(
         emotional_state=state, intimacy_score=score, message=content
     )
@@ -337,6 +357,11 @@ async def _chat_litellm(
         if not is_pipecat_active:
             await sio.emit("chat_response", {"text": full_response}, to=sid)
             await sio.emit("status_update", "idle", to=sid)
+        
+        # Store in semantic cache
+        if full_response:
+            await semantic_cache.store(content, full_response)
+            
         log.info("chat_litellm_ok", sid=sid, state=state)
 
     except Exception as exc:

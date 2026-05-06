@@ -21,6 +21,9 @@ services:
       - ./backend/app:/app/app
       - ./tests:/app/tests
       - ./scripts:/app/scripts
+    depends_on:
+      rocky-redis-test:
+        condition: service_healthy
     command: [ "pytest", "-vv", "tests/unit", "tests/functional", "--cov=app", "--cov-report=html:/app/tests/coverage_html" ]
 
   voice-engine-test:
@@ -43,7 +46,7 @@ services:
       - ./tests:/app/tests
     command: [ "pytest", "app/tests", "tests/integration/test_voice_stress.py", "--cov=app" ]
 
-  redis-test:
+  rocky-redis-test:
     image: redis:7-alpine
     container_name: rocky-redis-test
     ports:
@@ -51,6 +54,11 @@ services:
     networks:
       - rocky_test_net
     command: redis-server --port 6381
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6381", "ping"]
+      interval: 2s
+      timeout: 2s
+      retries: 10
 
   postgres-test:
     image: pgvector/pgvector:pg16

@@ -60,36 +60,50 @@ BASE_TOOLS: list[dict] = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "check_server_health",
+            "description": "Get real-time hardware status of the Optiplex server (CPU temp, RAM usage, Disk space).",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+            },
+        },
+    },
 ]
+
 
 async def get_tools() -> list[dict]:
     """
-    Fetch all available tools, including local basics and dynamic MCP tools.
+    Dynamic Skill Discovery (MCP):
+    Returns a union of hardcoded BASE_TOOLS and dynamic tools from MCP servers.
+    This allows Rocky to learn new skills simply by adding Docker containers.
     """
     tools = list(BASE_TOOLS)
     
-    if settings.ha_mcp_url:
-        try:
-            async with httpx.AsyncClient(timeout=5.0) as client:
-                url = f"{settings.ha_mcp_url.rstrip('/')}/tools"
-                r = await client.get(url)
-                if r.status_code == 200:
-                    mcp_data = r.json()
-                    # MCP spec: tool list is in "tools" key
-                    mcp_tools = mcp_data.get("tools", [])
-                    
-                    for t in mcp_tools:
-                        # Convert MCP format to LiteLLM/OpenAI format
-                        tools.append({
-                            "type": "function",
-                            "function": {
-                                "name": t["name"],
-                                "description": t.get("description", ""),
-                                "parameters": t.get("inputSchema", {"type": "object", "properties": {}}),
-                            }
-                        })
-                    log.info("mcp_tools_imported", count=len(mcp_tools), url=url)
-        except Exception as e:
-            log.warning("mcp_tools_fetch_failed", url=settings.ha_mcp_url, error=str(e))
+    if not settings.ha_mcp_url:
+        return tools
+
+    try:
+        async with httpx.AsyncClient(timeout=3.0) as client:
+            url = f"{settings.ha_mcp_url.rstrip('/')}/tools"
+            r = await client.get(url)
+            if r.status_code == 200:
+                mcp_tools = r.json().get("tools", [])
+                
+                for t in mcp_tools:
+                    # Convert MCP spec to OpenAI/LiteLLM function format
+                    tools.append({
+                        "type": "function",
+                        "function": {
+                            "name": t["name"],
+                            "description": t.get("description", ""),
+                            "parameters": t.get("inputSchema", {"type": "object", "properties": {}}),
+                        }
+                    })
+                log.info("mcp_discovery_ok", count=len(mcp_tools), url=url)
+    except Exception as e:
+        log.warning("mcp_discovery_failed", url=settings.ha_mcp_url, error=str(e))
             
     return tools

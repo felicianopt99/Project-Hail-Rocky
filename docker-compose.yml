@@ -57,13 +57,15 @@ services:
 
   # ── Redis ─────────────────────────────────────────────────────────────────
   redis:
-    image: redis:7-alpine
+    image: redis/redis-stack-server:latest
     container_name: rocky-redis
     ports:
       - "6381:6381"
+      - "8001:8001" # RedisInsight UI
     networks:
       - rocky_net
-    command: redis-server --port 6381 --maxmemory 512mb --maxmemory-policy allkeys-lru
+    environment:
+      - REDIS_ARGS=--port 6381 --maxmemory 512mb --maxmemory-policy allkeys-lru
     restart: unless-stopped
 
   # ── PostgreSQL (Letta backend — Phase 5) ─────────────────────────────────

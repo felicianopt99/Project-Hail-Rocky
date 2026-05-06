@@ -28,12 +28,18 @@ webrtc.set_sio(sio)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-
-    scheduler = setup_scheduler()
-    scheduler.start()
+    worker = setup_scheduler()
+    # Start worker in the background
+    worker_task = asyncio.create_task(worker.start())
+    
     yield
-
-    scheduler.shutdown(wait=False)
+    
+    # Graceful shutdown
+    await worker.stop()
+    try:
+        await asyncio.wait_for(worker_task, timeout=5.0)
+    except asyncio.TimeoutError:
+        pass
 
 
 fastapi_app = FastAPI(

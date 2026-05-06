@@ -15,9 +15,13 @@ def test_openapi_docs(api_client: TestClient):
     assert response.status_code == 200
     assert "openapi" in response.json()
 
-def test_settings_unauthorized(api_client: TestClient):
+def test_settings_unauthorized(api_client: TestClient, mocker):
     """Verify that settings endpoint requires auth (if implemented)."""
-    # Assuming /api/settings requires some form of validation or is accessible
+    # Mock Redis to avoid connection issues during tests
+    mock_redis = mocker.AsyncMock()
+    mock_redis.ping.return_value = True
+    mocker.patch("app.api.settings_api.get_redis", return_value=mock_redis)
+    
     response = api_client.get("/api/settings")
     # If it's a GET, it might return defaults or 401 depending on implementation
     assert response.status_code in [200, 401]
@@ -28,8 +32,13 @@ def test_brain_status(api_client: TestClient):
     # We expect 200 if service is up, or 401 if it requires auth
     assert response.status_code in [200, 401, 404] # 404 if not implemented yet
 
-def test_system_health_check(api_client: TestClient):
+def test_system_health_check(api_client: TestClient, mocker):
     """Verify the centralized system health endpoint."""
+    # Mock Redis for system health check
+    mock_redis = mocker.AsyncMock()
+    mock_redis.ping.return_value = True
+    mocker.patch("app.api.system.redis_client.get_redis", return_value=mock_redis)
+    
     response = api_client.get("/api/system/health")
     assert response.status_code == 200
     data = response.json()

@@ -27,6 +27,8 @@ interface AudioPipelineOptions {
   setStatus: (status: any) => void;
   speakBrowserFallback: (text: string) => void;
   lastAssistantTextRef: React.MutableRefObject<string>;
+  externalAudioCtxRef?: React.MutableRefObject<AudioContext | null>;
+  externalAnalyzerRef?: AnalyserNode | null;
 }
 
 export function useAudioPipeline({ 
@@ -34,11 +36,18 @@ export function useAudioPipeline({
   addToast, 
   setStatus, 
   speakBrowserFallback,
-  lastAssistantTextRef
+  lastAssistantTextRef,
+  externalAudioCtxRef,
+  externalAnalyzerRef
 }: AudioPipelineOptions) {
   const [isAudioReady, setIsAudioReady] = useState(false);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const analyzerRef = useRef<AnalyserNode | null>(null);
+  const internalAudioCtxRef = useRef<AudioContext | null>(null);
+  const internalAnalyzerRef = useRef<AnalyserNode | null>(null);
+  
+  // Use external refs if available, otherwise fall back to internal ones
+  const audioCtxRef = externalAudioCtxRef || internalAudioCtxRef;
+  const analyzerRef = useRef<AnalyserNode | null>(null); // We keep a local ref to the current analyzer in use
+
   const gainNodeRef = useRef<GainNode | null>(null);
   const activeSources = useRef<Set<AudioBufferSourceNode>>(new Set());
   const nextChunkTimeRef = useRef<number>(0);
@@ -78,20 +87,34 @@ export function useAudioPipeline({
     // Only go to idle if we weren't already triggered into a listening/thinking state
     // This prevents the "wake word -> interrupt -> idle" race condition
     setStatus((prev: string) => (prev === "synthesizing_tts" ? "idle" : prev));
-  }, [setStatus, socket]);
+  }, [setStatus, socket, audioCtxRef]);
 
   useEffect(() => {
+    // 1. Initialization
     if (!audioCtxRef.current) {
+      // Only initialize if we are NOT using an external context (or if it hasn't been initialized yet)
       const Ctx = window.AudioContext || (window as any).webkitAudioContext;
       audioCtxRef.current = new Ctx();
-      analyzerRef.current = audioCtxRef.current.createAnalyser();
-      analyzerRef.current.fftSize = 256;
-      gainNodeRef.current = audioCtxRef.current.createGain();
-      gainNodeRef.current.gain.value = 0.8;
+      setIsAudioReady(true);
+    } else {
       setIsAudioReady(true);
     }
 
-    const audioCtx = audioCtxRef.current;
+    if (!analyzerRef.current) {
+        if (externalAnalyzerRef) {
+            analyzerRef.current = externalAnalyzerRef;
+        } else {
+            analyzerRef.current = audioCtxRef.current.createAnalyser();
+            analyzerRef.current.fftSize = 256;
+        }
+    }
+
+    if (!gainNodeRef.current && audioCtxRef.current) {
+      gainNodeRef.current = audioCtxRef.current.createGain();
+      gainNodeRef.current.gain.value = 0.8;
+    }
+
+    const audioCtx = audioCtxRef.current!;
     const analyzer = analyzerRef.current!;
 
     const scheduleNextChunk = () => {
