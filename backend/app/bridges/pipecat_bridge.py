@@ -28,28 +28,51 @@ class PipecatBridge:
             return
 
         self._starting = True
-        # Voice engine URL from settings (e.g. http://127.0.0.1:8880 -> ws://127.0.0.1:8880/voice)
         base_url = settings.voice_engine_url.replace("http://", "ws://")
         url = f"{base_url}/voice?sid={self._sid}"
         
-        try:
-            log.info("pipecat_bridge_connecting", url=url)
-            # Increase timeout for handshake to 20s
-            self._ws = await websockets.connect(url, open_timeout=20)
-            self._running = True
-            self._task = asyncio.create_task(self._listen())
-            log.info("pipecat_bridge_started", sid=self._sid)
-            
-            # Flush buffered audio
-            while not self._queue.empty():
-                chunk = await self._queue.get()
-                await self._ws.send(chunk)
-                log.debug("pipecat_bridge_flushed_chunk", size=len(chunk))
-        except Exception as e:
-            log.error("pipecat_bridge_start_failed", error=str(e))
-            self._ws = None
-        finally:
-            self._starting = False
+        max_retries = 5
+        backoff = 0.5
+        
+        for attempt in range(max_retries):
+            try:
+                log.info("pipecat_bridge_connecting", url=url, attempt=attempt+1)
+                # Increase timeout for handshake to 20s
+                self._ws = await websockets.connect(url, open_timeout=20)
+                self._running = True
+                self._task = asyncio.create_task(self._listen())
+                log.info("pipecat_bridge_started", sid=self._sid)
+                
+                if settings.voice_debug_events:
+                    await self._sio.emit("voice_debug", {"stage": "bridge_started"}, to=self._sid)
+                
+                # Flush buffered audio
+                while not self._queue.empty():
+                    chunk = await self._queue.get()
+                    await self._ws.send(chunk)
+                
+                self._starting = False
+                return # Success!
+                
+            except (ConnectionRefusedError, OSError) as e:
+                log.warning("pipecat_bridge_retry", attempt=attempt+1, error=str(e), next_retry_in=backoff)
+                if attempt == max_retries - 1:
+                    log.error("pipecat_bridge_max_retries_reached", error=str(e))
+                    await self._sio.emit("voice_error", {
+                        "code": "VOICE_ENGINE_UNAVAILABLE",
+                        "message": f"Voice Engine unavailable after {max_retries} attempts."
+                    }, to=self._sid)
+                    await self._sio.emit("status_update", "error", to=self._sid)
+                else:
+                    await asyncio.sleep(backoff)
+                    backoff *= 2 # Exponential backoff
+            except Exception as e:
+                log.error("pipecat_bridge_unexpected_error", error=str(e))
+                await self._sio.emit("voice_error", {"message": f"Bridge Error: {e}"}, to=self._sid)
+                break
+        
+        self._ws = None
+        self._starting = False
 
     async def send_audio(self, chunk: bytes):
         if not self._ws or not self._running:
@@ -82,7 +105,11 @@ class PipecatBridge:
                         msg_type = data.get("type")
                         log.info("pipecat_bridge_received_control", type=msg_type)
                         
-                        if msg_type == "tts_start":
+                        if msg_type == "voice_error":
+                            await self._sio.emit("voice_error", data, to=self._sid)
+                        elif msg_type == "voice_debug":
+                            await self._sio.emit("voice_debug", data, to=self._sid)
+                        elif msg_type == "tts_start":
                             await self._sio.emit("tts_start", data, to=self._sid)
                             await self._sio.emit("status_update", "synthesizing_tts", to=self._sid)
                         elif msg_type == "tts_end":

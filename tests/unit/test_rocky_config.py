@@ -60,7 +60,7 @@ def test_get_llm_model_priority():
     assert "nvidia_nim" in settings.get_llm_model()
 
 def test_service_flags():
-    settings = get_clean_settings(voice_engine_url="http://voice:8880")
+    settings = get_clean_settings(voice_engine_url="http://voice:8881")
     assert settings.has_tts() is True
     assert settings.has_pipecat() is True
     

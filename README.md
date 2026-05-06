@@ -7,11 +7,11 @@ Project Rocky is a sophisticated, self-hosted AI assistant designed to live on y
 
 ## 🌟 Key Features
 
-- **Immersive Personality**: Full implementation of Rocky's unique character, including emotional states, catching phrases, and evolving intimacy levels.
-- **Real-Time Voice Pipeline**: Ultra-low latency voice interaction using Pipecat (VAD → STT → LLM → TTS).
-- **Hierarchical Memory**: Powered by Letta (formerly MemGPT), allowing Rocky to remember past interactions, user preferences, and "learn" over time.
-- **Smart Home Command**: Native integration with Home Assistant to control lights, appliances, and automated routines.
-- **Cyberpunk UI**: A reactive, futuristic dashboard built with React 19 and Framer Motion, featuring real-time audio visualization.
+- **Immersive Personality**: Rocky's unique character with emotional states, pitch-shifted alien voice, and evolving intimacy levels.
+- **Real-Time Voice Pipeline**: Ultra-low latency interaction using Pipecat (VAD → Speaker ID → STT → LLM → TTS → Voice FX).
+- **Hierarchical Memory**: Powered by Letta (formerly MemGPT), allowing Rocky to remember past interactions and user-specific facts.
+- **Smart Home Command**: Native tool-calling integration with Home Assistant to control lights, timers, and routines.
+- **Cyberpunk UI**: A reactive dashboard built with React 19, featuring real-time audio visualization and emotional state feedback.
 
 ## 🛠️ Technical Highlights
 

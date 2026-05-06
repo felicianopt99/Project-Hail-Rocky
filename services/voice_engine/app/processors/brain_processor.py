@@ -12,9 +12,10 @@ class RockyBrainProcessor(FrameProcessor):
     It receives a TranscriptionFrame (from STT) and emits TextFrames (to TTS).
     """
 
-    def __init__(self, sid: str, backend_url: str = "http://127.0.0.1:8000"):
+    def __init__(self, sid: str, websocket=None, backend_url: str = "http://127.0.0.1:8000"):
         super().__init__()
         self._sid = sid
+        self._ws = websocket
         self._backend_url = backend_url
         self._client = httpx.AsyncClient(timeout=60.0)
         self._flow_manager = None
@@ -24,13 +25,11 @@ class RockyBrainProcessor(FrameProcessor):
         self._flow_manager = flow_manager
 
     async def process_frame(self, frame: Frame, direction):
-        await super().process_frame(frame, direction)
-
         if isinstance(frame, LLMContextFrame):
             # Get the last user message
             user_msg = frame.context.messages[-1]
             if user_msg["role"] != "user" or self._is_processing:
-                await self.push_frame(frame)
+                await self.push_frame(frame, direction)
                 return
 
             self._is_processing = True
@@ -50,8 +49,7 @@ class RockyBrainProcessor(FrameProcessor):
                 
                 # Filter if it contains leakage phrases OR is just a single common word/artifact OR is too short
                 if (any(phrase in text_lc for phrase in leakage_phrases) or 
-                    text_lc in ["you", "bye", "obrigado", "e ai", "e aí", "pessoal", "galera", "boa tarde", "bom dia", "boa noite"] or 
-                    len(text_lc) < 3):
+                    text_lc in ["you", "bye", "obrigado", "e ai", "e aí", "pessoal", "galera", "boa tarde", "bom dia", "boa noite"]):
                     log.info("brain_leakage_filtered", text=text)
                     return
                 
@@ -62,6 +60,14 @@ class RockyBrainProcessor(FrameProcessor):
                     "content": text,
                     "context": frame.context.messages # Pass the full Pipecat context to Letta
                 }
+
+                if self._ws:
+                    import json
+                    await self._ws.send_text(json.dumps({
+                        "type": "voice_debug", 
+                        "stage": "llm_request_sent",
+                        "text": text
+                    }))
 
                 max_retries = 2
                 for attempt in range(max_retries):
@@ -83,12 +89,12 @@ class RockyBrainProcessor(FrameProcessor):
                                     # Aggregation logic: push to TTS only when we have a natural break (word or sentence)
                                     # to ensure Rocky finishes words properly and intonation is better.
                                     if any(p in chunk for p in " .?!,;:\n\r\t"):
-                                        await self.push_frame(TextFrame(text=text_buffer))
+                                        await self.push_frame(TextFrame(text=text_buffer), direction)
                                         text_buffer = ""
                             
                             # Flush any remaining text in the buffer
                             if text_buffer.strip():
-                                await self.push_frame(TextFrame(text=text_buffer))
+                                await self.push_frame(TextFrame(text=text_buffer), direction)
                             
                             # Post-process response for Flow transitions
                             # If Rocky says specific keywords, we trigger the FlowManager
@@ -104,14 +110,14 @@ class RockyBrainProcessor(FrameProcessor):
                     except Exception as e:
                         if attempt == max_retries - 1:
                             log.error("brain_error_final", error=str(e), text=text)
-                            await self.push_frame(TextFrame(text="Rocky brain hurt. Sorry."))
+                            await self.push_frame(TextFrame(text="Rocky brain hurt. Sorry."), direction)
                         else:
                             log.warning("brain_retry", attempt=attempt+1, error=str(e))
                             await asyncio.sleep(0.5)
             finally:
                 self._is_processing = False
         else:
-            await self.push_frame(frame)
+            await self.push_frame(frame, direction)
 
     async def cleanup(self):
         await self._client.aclose()

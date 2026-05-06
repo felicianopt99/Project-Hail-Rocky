@@ -436,8 +436,8 @@ API REST + WebSocket bem documentadas
 Como Usamos
 Home Assistant como executor universal de ações físicas
 Rocky nunca fala diretamente com devices — pede ao HA
-Skill OVOS lights faz REST calls para HA REST API
-Skill OVOS scenes ativa cenas do HA
+Skill `control_lights` faz REST calls para HA REST API
+Skill `activate_scene` ativa cenas do HA
 Sensores virtuais (clima, ar, calendário) configurados no HA
 Integrações Relevantes Para Nós
 Philips Hue / Xiaomi Yeelight / Tuya (lâmpadas)
@@ -581,11 +581,11 @@ text
    │ gRPC/HTTP  │            │            │            │ HTTP
    ▼            ▼            ▼            ▼            ▼
 ┌─────────┐ ┌────────┐ ┌─────────┐ ┌──────────┐ ┌──────────────┐
-│Pipecat  │ │ Letta  │ │  OVOS   │ │ LiteLLM  │ │Home Assistant│
-│Service  │ │ Server │ │  Core   │ │  Proxy   │ │   (Docker)   │
+│Pipecat  │ │ Letta  │ │ Native  │ │ LiteLLM  │ │Home Assistant│
+│Service  │ │ Server │ │ Tools   │ │          │ │              │
 │         │ │        │ │         │ │          │ │              │
-│VAD→STT  │ │Memory  │ │Skills   │ │LLM Router│ │2000+ devices │
-│→LLM→TTS │ │Agents  │ │Intent   │ │Fallback  │ │Scenes/Auto   │
+│VAD→STT  │ │Memory  │ │Skill    │ │LLM Router│ │2000+ devices │
+│→LLM→TTS │ │Agents  │ │Executor │ │Fallback  │ │Scenes/Auto   │
 └────┬────┘ └───┬────┘ └────┬────┘ └────┬─────┘ └──────┬───────┘
      │          │           │           │              │
      │          │           │           │              │
@@ -626,40 +626,36 @@ text
    ↓ Avatar reage ao estado emocional do Rocky
 Latência total esperada: 400-800ms (do fim da fala até início da resposta)
 
-9.3 Fluxo de Uma Skill Execution
+9.3 Fluxo de Execução de Skill (Native Tool Calling)
 text
 1. UTILIZADOR diz: "Rocky, timer for 5 minutes"
    
 2. PIPECAT transcreve → "timer for 5 minutes"
    
-3. LETTA AGENT recebe texto
-   ↓ Detecta que é intent de skill (não conversação pura)
-   ↓ Publica no OVOS message bus via bridge
+3. ROCKY BRAIN (Backend Bridge)
+   ↓ Recebe texto do Pipecat
+   ↓ Invoca LiteLLM com definições de ferramentas (tools)
    
-4. OVOS CORE
-   ↓ Padatious/Adapt parseia intent → "TimerSkill"
-   ↓ Extrai parâmetros → duration=300s
-   ↓ Carrega skill `ovos-skill-timer`
-   ↓ Skill executa: agenda timer em APScheduler
+4. LITELLM / LLM
+   ↓ Identifica intenção de chamar a ferramenta `set_timer`
+   ↓ Extrai parâmetros → duration=300, label="5 minutes"
+   ↓ Retorna ToolCallFrame ao Backend
    
-5. SKILL retorna resultado → "Timer set for 5 minutes"
+5. SKILL EXECUTOR (backend/app/tools/executor.py)
+   ↓ Recebe a chamada da ferramenta
+   ↓ Executa lógica Python (ex: agenda timer em APScheduler)
+   ↓ Retorna o resultado para o LLM
    
-6. OVOS envia resposta de volta via message bus
-   
-7. LETTA recebe resultado
+6. LLM
+   ↓ Recebe o resultado da execução ("Timer set for 5 minutes")
    ↓ Formula resposta final com personalidade Rocky:
      "Good, human. Rocky remember. Five minutes. Will tell."
    
-8. Resposta vai para PIPECAT → TTS → FRONTEND
+7. Resposta vai para PIPECAT → TTS → FRONTEND
 9.4 Containers Docker
 Container	Imagem Base	Função	CPU Limit	RAM Limit
 nginx	nginx:alpine	Reverse proxy + serve frontend	0.5	256MB
-rocky-api	python:3.11-slim	FastAPI + Granian gateway	1.0	1GB
-pipecat	Custom (Dockerfile)	Pipeline de voz	1.5	1.5GB
-litellm	ghcr.io/berriai/litellm	LLM router	0.5	512MB
-letta	letta/letta	Memória + agents	1.0	1GB
-ovos-core	smartgic/ovos-core	Skills engine	0.5	512MB
-ovos-messagebus	smartgic/ovos-messagebus	Message bus	0.2	128MB
+rocky-api	python:3.11-slim	FastAPI gateway + Tool Executor	1.0	1GB
 homeassistant	ghcr.io/home-assistant/home-assistant	Smart home hub	1.0	1GB
 redis	redis:7-alpine	Cache + pub/sub	0.5	512MB
 qdrant	qdrant/qdrant	Vector DB	0.5	512MB
@@ -747,7 +743,7 @@ Recebe TranscriptionFrame
 Extrai texto + speaker_id
 Chama Letta API: agent.send_message(text, user_id=speaker_id)
 Letta retorna resposta + função calls (se houver)
-Se função call → emite FunctionCallFrame (para OVOS)
+Se função call → emite FunctionCallFrame (para Skill Executor)
 Se texto → cria LLMMessagesFrame com resposta Letta
 Passa frame
 10.3 Barge-in (Interrupção)
@@ -1537,10 +1533,14 @@ project-hail-rocky/
 │       │
 │       ├── bridges/                   ← cola entre frameworks
 │       │   ├── __init__.py
-│       │   ├── ovos_bridge.py         ← Pipecat ↔ OVOS
 │       │   ├── letta_bridge.py        ← Pipecat ↔ Letta
-│       │   ├── ha_bridge.py           ← OVOS ↔ Home Assistant
+│       │   ├── ha_bridge.py           ← Native ↔ Home Assistant
 │       │   └── litellm_client.py      ← cliente HTTP para LiteLLM proxy
+│       │
+│       ├── tools/                     ← Implementação nativa de ferramentas
+│       │   ├── definitions.py
+│       │   ├── executor.py
+│       │   └── registry.py
 │       │
 │       ├── core/
 │       │   ├── __init__.py

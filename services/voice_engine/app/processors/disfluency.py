@@ -17,12 +17,10 @@ class DisfluencyInjector(FrameProcessor):
         self._min_len = min_length
 
     async def process_frame(self, frame: Frame, direction):
-        await super().process_frame(frame, direction)
-
         if isinstance(frame, TextFrame):
             text = frame.text
             if len(text) >= self._min_len and random.random() < self._prob:
                 text = random.choice(_DISFLUENCIES) + text
-            await self.push_frame(TextFrame(text=text))
+            await self.push_frame(TextFrame(text=text), direction)
         else:
-            await self.push_frame(frame)
+            await self.push_frame(frame, direction)

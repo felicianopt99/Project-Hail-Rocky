@@ -321,6 +321,7 @@ async def _chat_litellm(
             await _emit_tts(sid, sentence_buf.strip(), sio, state)
 
         session["history"].append({"role": "assistant", "content": full_response})
+        log.info("emitting_chat_response", sid=sid, length=len(full_response))
         await sio.emit("chat_response", {"text": full_response}, to=sid)
         await sio.emit("status_update", "idle", to=sid)
         log.info("chat_litellm_ok", sid=sid, state=state)
@@ -451,6 +452,7 @@ def register(sio: socketio.AsyncServer) -> None:
             if not transcript:
                 await sio.emit("status_update", "idle", to=sid)
                 return
+            log.info("emitting_transcript_result", sid=sid, length=len(transcript))
             await sio.emit("transcript_result", transcript, to=sid)
             if settings.has_llm():
                 await _chat(sid, transcript, sio, language=lang_override or "en")
@@ -464,7 +466,7 @@ def register(sio: socketio.AsyncServer) -> None:
     @sio.event
     async def audio_chunk(sid: str, data):
         """Streaming PCM chunks — 2026 Pipecat Pipeline."""
-        log.info("audio_chunk_received", type=type(data).__name__, size=len(data) if hasattr(data, "__len__") else "N/A")
+        log.info("audio_chunk_received", size=len(data) if hasattr(data, "__len__") else "N/A", sid=sid)
         session = _session(sid)
         
         # 1. Barge-in detection
@@ -472,9 +474,7 @@ def register(sio: socketio.AsyncServer) -> None:
             await _cancel_tts(sid, sio)
 
         # 2. Pipecat Bridge (Streaming)
-        print(f"DEBUG: HAS PIPECAT? {settings.has_pipecat()} - URL: {settings.voice_engine_url}")
         if settings.has_pipecat():
-            # log.debug("audio_chunk_pipecat", sid=sid)
             bridge = session.get("pipecat_bridge")
             if not bridge:
                 log.info("pipecat_bridge_initializing", sid=sid)
@@ -483,8 +483,13 @@ def register(sio: socketio.AsyncServer) -> None:
                 await bridge.start()
             
             await bridge.send_audio(bytes(data) if not isinstance(data, bytes) else data)
-            if bridge._running:
-                return {"success": True, "streamed": True}
+            
+            if settings.voice_debug_events:
+                await sio.emit("voice_debug", {"stage": "audio_chunk_relayed", "size": len(data)}, to=sid)
+                
+            # If Pipecat is enabled, we stay in this path. 
+            # We only fallback to legacy if specifically requested or if Pipecat is fundamentally broken.
+            return {"success": True, "streamed": True}
 
         # 3. Legacy accumulation fallback
         buf = session.setdefault("audio_buf", bytearray())
@@ -498,6 +503,9 @@ def register(sio: socketio.AsyncServer) -> None:
     @sio.event
     async def manual_stop(sid: str, data=None):
         """User stopped speaking — cancel any TTS, then STT + speaker ID → chat."""
+        log.info("manual_stop_received", sid=sid)
+        if settings.voice_debug_events:
+            await sio.emit("voice_debug", {"stage": "manual_stop_received"}, to=sid)
         import asyncio as _asyncio
         from ..voice.stt import transcribe
 
@@ -505,11 +513,22 @@ def register(sio: socketio.AsyncServer) -> None:
         await _cancel_tts(sid, sio)
 
         session = _session(sid)
-        buf: bytearray = session.pop("audio_buf", bytearray())
+        
+        # Se o Pipecat estiver ativo (ou a ligar), deixamos que seja o Pipecat a ditar o fluxo.
+        # Injetamos um pouco de silêncio para forçar o VAD a detetar o fim da fala mais rápido.
+        if settings.has_pipecat():
+            bridge = session.get("pipecat_bridge")
+            if bridge and (bridge._running or bridge._starting):
+                # 1 second of silence (16kHz, 16-bit mono = 32000 bytes)
+                # This forces the Pipecat VAD to detect the end of speech for Push-to-talk.
+                silence = b"\x00" * 32000
+                await bridge.send_audio(silence)
+                log.info("manual_stop_forced_via_silence", sid=sid, bytes=len(silence))
+                if settings.voice_debug_events:
+                    await sio.emit("voice_debug", {"stage": "end_of_turn_sent", "method": "silence"}, to=sid)
+                return
 
-        if not buf or not settings.has_stt():
-            await sio.emit("status_update", "idle", to=sid)
-            return
+        buf: bytearray = session.pop("audio_buf", bytearray())
 
         pcm = bytes(buf)
         await sio.emit("status_update", "processing_stt", to=sid)
@@ -543,6 +562,7 @@ def register(sio: socketio.AsyncServer) -> None:
                     session["speaker"] = name
                     await sio.emit("speaker_identified", {"name": name}, to=sid)
 
+            log.info("emitting_transcript_result", sid=sid, length=len(transcript))
             await sio.emit("transcript_result", transcript, to=sid)
             await _chat(sid, transcript, sio)
         except Exception as exc:
@@ -551,6 +571,9 @@ def register(sio: socketio.AsyncServer) -> None:
 
     @sio.event
     async def manual_activation(sid: str, data=None):
+        log.info("manual_activation_received", sid=sid)
+        if settings.voice_debug_events:
+            await sio.emit("voice_debug", {"stage": "manual_activation_observed"}, to=sid)
         await sio.emit("status_update", "listening", to=sid)
 
     @sio.event

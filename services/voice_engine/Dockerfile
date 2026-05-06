@@ -34,6 +34,6 @@ COPY app/ ./app/
 ENV MODELS_DIR=/models
 ENV VOICE_ENGINE_DEFAULT_VOICE=am_michael
 
-EXPOSE 8880
+EXPOSE 8881
 
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8880"]
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8881"]

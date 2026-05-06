@@ -263,7 +263,7 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
                 
                 if (silenceMs > SILENCE_DURATION) {
                   log("info", `Silence detected (${silenceMs}ms), auto-stopping...`);
-                  stopAudioCapture();
+                  stopAudioCapture("processing");
                   socket.emit("manual_stop");
                   return;
                 }
@@ -405,8 +405,9 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
   };
 
   // ========== STOP AUDIO CAPTURE ==========
-  const stopAudioCapture = useCallback(() => {
+  const stopAudioCapture = useCallback((nextState: AudioState = "idle") => {
     log("info", "Stopping audio capture...", {
+      nextState,
       queuedChunks: audioChunkQueueRef.current.length,
     });
     isCapturingRef.current = false;
@@ -445,7 +446,7 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
         audioChunkQueueRef.current = [];
       }
 
-      setAudioState("idle");
+      setAudioState(nextState);
     } catch (err: any) {
       log("error", "Error stopping audio capture", err.message);
     }
@@ -457,7 +458,8 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
 
     if (audioState === "listening" || audioState === "processing") {
       log("info", "Already capturing, stopping...");
-      stopAudioCapture();
+      stopAudioCapture("processing");
+      socket.emit("manual_stop");
     } else if (audioState === "idle" || audioState === "error") {
       startAudioCapture();
     }

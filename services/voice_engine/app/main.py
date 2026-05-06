@@ -77,7 +77,8 @@ LANG_MAP = {
 
 @app.websocket("/voice")
 async def voice_websocket(websocket: WebSocket):
-    log.info("voice_websocket_request_received", params=dict(websocket.query_params))
+    await websocket.accept()
+    log.info("voice_websocket_accepted", params=dict(websocket.query_params))
     # Extract initial settings from query params
     emotional_state = websocket.query_params.get("state", "neutral")
     sid = websocket.query_params.get("sid", "default")
@@ -141,7 +142,8 @@ async def synthesize(req: SynthRequest):
 async def health():
     return {
         "status": "ok" if _kokoro else "error",
+        "stt_configured": bool(os.getenv("GROQ_API_KEY")),
         "engine": "Kokoro-ONNX",
         "sample_rate": SAMPLE_RATE,
-        "default_voice": DEFAULT_VOICE
+        "version": "1.0.0"
     }

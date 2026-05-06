@@ -9,7 +9,7 @@ from datetime import datetime
 
 # Configuration
 BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
-VOICE_ENGINE_URL = os.getenv("VOICE_ENGINE_URL", "http://127.0.0.1:8880")
+VOICE_ENGINE_URL = os.getenv("VOICE_ENGINE_URL", "http://127.0.0.1:8881")
 
 # Colors
 GREEN = "\033[92m"

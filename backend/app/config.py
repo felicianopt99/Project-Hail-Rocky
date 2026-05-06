@@ -13,7 +13,8 @@ class Settings(BaseSettings):
     groq_stt_language: str = "en"  # Default to English
 
     # Voice Engine (Consolidated synthesis + effects)
-    voice_engine_url: str = ""  # e.g. http://127.0.0.1:8880
+    voice_engine_url: str = ""  # e.g. http://127.0.0.1:8881
+    voice_debug_events: bool = False
 
 
     # Frontend (used for CORS origin restriction)

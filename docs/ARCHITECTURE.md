@@ -31,9 +31,10 @@ Project Hail Rocky is a self-hosted smart home AI assistant built around the per
     │            │   │            │   │                    │
     │ VAD (VAD)  │   │ Core mem.  │   │  Lights / Scenes   │
     │ Groq STT   │   │ Recall     │   │  2000+ devices     │
-    │ Kokoro TTS  │   │ Archival   │   │  Wyoming protocol  │
-    │ PitchShift │   │ (Qdrant)   │   │                    │
-    │ Reverb     │   │ Postgres   │   │                    │
+    │ Speaker ID │   │ Archival   │   │  Wyoming protocol  │
+    │ Kokoro TTS │   │ (Qdrant)   │   │                    │
+    │ PitchShift │   │ Postgres   │   │                    │
+    │ Reverb     │   │            │   │                    │
     │ Compress.  │   │            │   │                    │
     └────────────┘   └────────────┘   └────────────────────┘
           │
@@ -52,22 +53,18 @@ Project Hail Rocky is a self-hosted smart home AI assistant built around the per
 
 ## Voice Pipeline
 
-**Intended full pipeline (Pipecat-routed):**
+**Current state (Active Pipecat Pipeline):**
 ```
-Browser mic → PCM chunks (AudioWorklet) → Backend → Pipecat
-  Pipecat: Silero VAD → Speaker ID → Groq Whisper STT
-         → PersonalityInjector → Letta/LiteLLM (streaming)
-         → SentenceAggregator → Kokoro TTS
-         → VoiceEffectsProcessor (pitch +2 semitons, reverb, compression)
-         → PCM chunks → Backend → Frontend → AudioWorklet playback
-```
-
-**Current state (direct path — no voice effects yet):**
-```
-Browser mic → WebM/Opus → Backend → Groq Whisper → LiteLLM → Kokoro TTS → Frontend
+Browser mic → PCM chunks (Socket.io) → Backend → Pipecat
+  Pipecat: Silero VAD → Azure Speaker ID → Groq Whisper STT
+         → RockyBrainProcessor (Hallucination filter) → Letta (Persistent memory)
+         → LiteLLM (Streaming tokens) → DisfluencyInjector
+         → Kokoro TTS (Sentence-level aggregation)
+         → VoiceEffectsProcessor (Pitch/Reverb/Compression per emotional state)
+         → PCM chunks → Backend → Frontend (AudioWorklet)
 ```
 
-Voice effects wiring is the primary in-progress item. See roadmap below.
+The pipeline is fully operational with low latency (~600ms start-to-speak). Speaker ID and voice effects are fully integrated.
 
 ---
 
@@ -170,9 +167,15 @@ Tools can be enabled/disabled per-session from the Skills page.
 ## Roadmap
 
 ### In Progress
-1. **Voice effects wiring** — Route TTS via `Pipecat /synthesize` so pitch/reverb apply per emotional state
-2. **Speculative TTS** — Start speaking after first sentence, not after full LLM response
-3. **Interruption handling** — Cancel TTS in-flight when user starts speaking
+1. **MCP-compatible tool registry** — Transition to Model Context Protocol for more standardized tool discovery
+2. **TypeScript socket event types** — Strengthen the bridge between React frontend and FastAPI backend
+3. **AudioWorklet refactor** — Improve browser-side buffer management for smoother playback under load
+
+### Recently Completed
+- **Voice effects wiring** — Integrated Spotify Pedalboard into Pipecat pipeline
+- **Speculative TTS** — Sentence-level streaming with natural break aggregation
+- **Interruption handling** — Robust barge-in detection and TTS cancellation
+- **Speaker ID** — Azure-based speaker identification and greeting logic
 
 ### Planned (Tier 0–2)
 - CORS restriction + auth enforcement on destructive endpoints

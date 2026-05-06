@@ -195,7 +195,7 @@ def run_checks():
         check_letta_agents(letta_url)
 
     # Voice Engine
-    voice_url = env_vars.get("VOICE_ENGINE_URL", "http://127.0.0.1:8880")
+    voice_url = env_vars.get("VOICE_ENGINE_URL", "http://127.0.0.1:8881")
     check_http("Voice Engine (Kokoro-ONNX)", f"{voice_url.rstrip('/')}/health")
 
     # Qdrant
