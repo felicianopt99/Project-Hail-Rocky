@@ -4,9 +4,14 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     container_name: rocky-backend-test
-    network_mode: host
+    ports:
+      - "8000:8000"
+    networks:
+      - rocky_test_net
     environment:
-      - REDIS_URL=redis://localhost:6381/1
+      - REDIS_URL=redis://rocky-redis-test:6381/1
+      - LETTA_URL=http://rocky-letta-test:8283
+      - MCP_URL=http://rocky-ha-mcp-test:3000
       - NODE_ENV=test
       - LOG_LEVEL=DEBUG
       - PYTHONPATH=/app
@@ -23,7 +28,10 @@ services:
       context: ./services/voice_engine
       dockerfile: Dockerfile
     container_name: rocky-voice-test
-    network_mode: host
+    ports:
+      - "8881:8881"
+    networks:
+      - rocky_test_net
     environment:
       - NODE_ENV=test
       - PYTHONPATH=/app
@@ -38,5 +46,60 @@ services:
   redis-test:
     image: redis:7-alpine
     container_name: rocky-redis-test
-    network_mode: host
+    ports:
+      - "6381:6381"
+    networks:
+      - rocky_test_net
     command: redis-server --port 6381
+
+  postgres-test:
+    image: pgvector/pgvector:pg16
+    container_name: rocky-postgres-test
+    ports:
+      - "5433:5433"
+    networks:
+      - rocky_test_net
+    command: postgres -p 5433
+    environment:
+      - POSTGRES_DB=rocky_test
+      - POSTGRES_USER=rocky
+      - POSTGRES_PASSWORD=rocky-secret
+
+  qdrant-test:
+    image: qdrant/qdrant:latest
+    container_name: rocky-qdrant-test
+    ports:
+      - "6333:6333"
+    networks:
+      - rocky_test_net
+
+  letta-test:
+    image: letta/letta:latest
+    container_name: rocky-letta-test
+    ports:
+      - "8283:8283"
+    networks:
+      - rocky_test_net
+    env_file:
+      - .env
+    depends_on:
+      - postgres-test
+      - qdrant-test
+
+  ha-mcp-test:
+    image: ghcr.io/homeassistant-ai/ha-mcp:latest
+    container_name: rocky-ha-mcp-test
+    environment:
+      - HOMEASSISTANT_URL=${HA_BASE_URL}
+      - HOMEASSISTANT_TOKEN=${HA_ACCESS_TOKEN}
+      - FASTMCP_TRANSPORT=sse
+      - FASTMCP_PORT=3000
+      - FASTMCP_HOST=0.0.0.0
+    ports:
+      - "3000:3000"
+    networks:
+      - rocky_test_net
+
+networks:
+  rocky_test_net:
+    driver: bridge

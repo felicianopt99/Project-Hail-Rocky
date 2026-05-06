@@ -10,6 +10,8 @@ from datetime import datetime
 # Configuration
 BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
 VOICE_ENGINE_URL = os.getenv("VOICE_ENGINE_URL", "http://127.0.0.1:8881")
+LETTA_URL = os.getenv("LETTA_URL", "http://127.0.0.1:8283")
+MCP_URL = os.getenv("MCP_URL", "http://127.0.0.1:3000")
 
 # Colors
 GREEN = "\033[92m"
@@ -43,29 +45,53 @@ class TestBattery:
     async def test_service_health(self):
         print(f"\n{BOLD}--- Infrastructure & Health ---{RESET}")
         
-        # Test Backend
+        # Test Backend (FastAPI 8000)
         try:
             start = time.time()
             resp = await self.client.get(f"{BACKEND_URL}/api/health")
             duration = (time.time() - start) * 1000
             if resp.status_code == 200:
-                await self.log_result("HEALTH", "Backend Reachable", True, "OK", duration)
+                await self.log_result("HEALTH", "FastAPI Backend", True, "OK", duration)
             else:
-                await self.log_result("HEALTH", "Backend Reachable", False, f"Status {resp.status_code}")
+                await self.log_result("HEALTH", "FastAPI Backend", False, f"Status {resp.status_code}")
         except Exception as e:
-            await self.log_result("HEALTH", "Backend Reachable", False, str(e))
+            await self.log_result("HEALTH", "FastAPI Backend", False, str(e))
 
-        # Test Voice Engine
+        # Test Voice Engine (8881)
         try:
             start = time.time()
             resp = await self.client.get(f"{VOICE_ENGINE_URL}/health")
             duration = (time.time() - start) * 1000
             if resp.status_code == 200:
-                await self.log_result("HEALTH", "Voice Engine Reachable", True, "OK", duration)
+                await self.log_result("HEALTH", "Voice Engine", True, "OK", duration)
             else:
-                await self.log_result("HEALTH", "Voice Engine Reachable", False, f"Status {resp.status_code}")
+                await self.log_result("HEALTH", "Voice Engine", False, f"Status {resp.status_code}")
         except Exception as e:
-            await self.log_result("HEALTH", "Voice Engine Reachable", False, str(e))
+            await self.log_result("HEALTH", "Voice Engine", False, str(e))
+
+        # Test Letta Server (8283)
+        try:
+            start = time.time()
+            resp = await self.client.get(f"{LETTA_URL}/")
+            duration = (time.time() - start) * 1000
+            if resp.status_code in [200, 404]: # 404 might still mean it's up if root is not defined
+                await self.log_result("HEALTH", "Letta Server", True, "Reachable", duration)
+            else:
+                await self.log_result("HEALTH", "Letta Server", False, f"Status {resp.status_code}")
+        except Exception as e:
+            await self.log_result("HEALTH", "Letta Server", False, str(e))
+
+        # Test HA-MCP Server (3000)
+        try:
+            start = time.time()
+            resp = await self.client.get(f"{MCP_URL}/")
+            duration = (time.time() - start) * 1000
+            if resp.status_code == 200:
+                await self.log_result("HEALTH", "HA-MCP Server", True, "OK", duration)
+            else:
+                await self.log_result("HEALTH", "HA-MCP Server", False, f"Status {resp.status_code}")
+        except Exception as e:
+            await self.log_result("HEALTH", "HA-MCP Server", False, str(e))
 
     async def test_brain_logic(self):
         print(f"\n{BOLD}--- Brain Logic & Personality ---{RESET}")
@@ -114,6 +140,23 @@ class TestBattery:
             except Exception as e:
                 await self.log_result("BRAIN", f"Scenario: {s['name']}", False, str(e))
 
+    async def test_webrtc_readiness(self):
+        print(f"\n{BOLD}--- WebRTC Pipeline Readiness ---{RESET}")
+        
+        # Test WebRTC Offer endpoint (/api/webrtc/offer)
+        try:
+            start = time.time()
+            # It's a POST route, so a GET should return 405 Method Not Allowed
+            resp = await self.client.get(f"{BACKEND_URL}/api/webrtc/offer")
+            duration = (time.time() - start) * 1000
+            
+            if resp.status_code in [200, 405]:
+                await self.log_result("WEBRTC", "Offer Endpoint Acessible", True, f"Status {resp.status_code}", duration)
+            else:
+                await self.log_result("WEBRTC", "Offer Endpoint Acessible", False, f"Unexpected Status {resp.status_code}")
+        except Exception as e:
+            await self.log_result("WEBRTC", "Offer Endpoint Acessible", False, str(e))
+
     async def test_tts_performance(self):
         print(f"\n{BOLD}--- Voice Engine Performance (TTS) ---{RESET}")
         text = "This is a performance test for the Rocky voice synthesis system. It should be fast."
@@ -148,6 +191,7 @@ class TestBattery:
         print(f"Start Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         
         await self.test_service_health()
+        await self.test_webrtc_readiness()
         await self.test_brain_logic()
         await self.test_tts_performance()
         
