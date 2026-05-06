@@ -29,7 +29,7 @@ const StatCard = memo(function StatCard({
   return (
     <div className="space-y-2">
       <div className="flex justify-between items-center">
-        <span className="vibe-label !text-[8px] opacity-30">{label}</span>
+        <span className="vibe-label text-[8px]! opacity-30">{label}</span>
         <span className={`text-sm font-mono font-bold ${colorMap[color].split(" ")[0]}`}>
           {value}
         </span>
@@ -164,7 +164,7 @@ export default function Dashboard() {
           ))}
           <button 
             onClick={() => setIsRoutineEditorOpen(true)}
-            className="vibe-card px-4 py-3 border-dashed border-white/10 bg-white/[0.02] hover:border-white/20 transition-all flex items-center justify-center text-white/20 hover:text-white/40"
+            className="vibe-card px-4 py-3 border-dashed border-white/10 bg-white/2 hover:border-white/20 transition-all flex items-center justify-center text-white/20 hover:text-white/40"
             title="Edit Routines"
           >
             <Settings2 size={12} />
@@ -220,7 +220,7 @@ export default function Dashboard() {
                   {weather.temp}<span className="text-cyan-500/50">°C</span>
                 </div>
                 <div className="flex flex-col">
-                  <div className="text-[10px] font-bold text-white/80 uppercase tracking-[0.1em] leading-tight max-w-[150px] line-clamp-2">
+                  <div className="text-[10px] font-bold text-white/80 uppercase tracking-widest leading-tight max-w-[150px] line-clamp-2">
                     {weather.desc}
                   </div>
                   <div className="text-[8px] text-white/30 mt-1 font-mono uppercase">

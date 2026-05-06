@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import {
   Cpu, Mic, Volume2, Database, Wifi, CheckCircle2, XCircle,
   User, Zap, Bell, Sliders, ChevronRight, RefreshCw, Loader2,
-  Server, Brain, Activity,
+  Server, Brain, Activity, Home,
 } from "lucide-react";
 import socket from "../lib/socket";
 import { useRockyStore } from "../store/useRockyStore";
@@ -16,7 +16,8 @@ interface ServiceMap {
   tts: boolean;
   letta: boolean;
   speaker: boolean;
-  redis: boolean;
+  redis:   boolean;
+  mcp:     boolean;
 }
 
 interface BackendSettings {
@@ -44,7 +45,7 @@ function StatusDot({ ok }: { ok: boolean }) {
 
 function Row({ label, value, sub }: { label: string; value?: React.ReactNode; sub?: string }) {
   return (
-    <div className="flex items-center justify-between py-3 border-b border-white/[0.04] last:border-0">
+    <div className="flex items-center justify-between py-3 border-b border-white/4 last:border-0">
       <div>
         <div className="text-xs font-bold text-white/70">{label}</div>
         {sub && <div className="text-[10px] text-white/25 font-mono mt-0.5">{sub}</div>}
@@ -173,6 +174,7 @@ export default function SettingsPage() {
     letta:   { label: "Letta",   icon: <Brain size={13} /> },
     speaker: { label: "Speaker", icon: <Activity size={13} /> },
     redis:   { label: "Redis",   icon: <Database size={13} /> },
+    mcp:     { label: "HA-MCP",  icon: <Home size={13} /> },
   };
 
   return (
@@ -207,13 +209,15 @@ export default function SettingsPage() {
             {/* ── Service Status ────────────────────────────── */}
             <Section icon={<Server size={14} />} title="Services" accent="green">
               <div className="grid grid-cols-3 gap-0">
-                {data && (Object.keys(data.services) as (keyof ServiceMap)[]).map((key, i) => {
+                {data && (Object.keys(data.services) as (keyof ServiceMap)[]).map((key, i, arr) => {
                   const ok = data.services[key];
                   const { label, icon } = SERVICE_LABELS[key];
+                  const isLastRow = i >= arr.length - (arr.length % 3 || 3);
+                  const isLastInRow = i % 3 === 2 || i === arr.length - 1;
                   return (
                     <div
                       key={key}
-                      className={`flex flex-col items-center gap-1.5 py-4 ${i % 3 !== 2 ? "border-r border-white/[0.04]" : ""} ${i < 3 ? "border-b border-white/[0.04]" : ""}`}
+                      className={`flex flex-col items-center gap-1.5 py-4 ${!isLastInRow ? "border-r border-white/4" : ""} ${!isLastRow ? "border-b border-white/4" : ""}`}
                     >
                       <div className={ok ? "text-green-400" : "text-white/15"}>{icon}</div>
                       <span className={`text-[9px] font-black uppercase tracking-widest ${ok ? "text-white/60" : "text-white/20"}`}>{label}</span>
@@ -243,12 +247,12 @@ export default function SettingsPage() {
                 value={modelShort(data?.llm.active_model ?? null)}
                 sub={data?.llm.active_model ?? undefined}
               />
-              <div className="flex items-center justify-between py-3 border-b border-white/[0.04]">
+              <div className="flex items-center justify-between py-3 border-b border-white/4">
                 <span className="text-xs font-bold text-white/70">API Keys</span>
                 <div className="flex items-center gap-3">
                   {data && Object.entries(data.llm.providers).map(([provider, ok]) => (
                     <div key={provider} className="flex items-center gap-1">
-                      <StatusDot ok={ok} />
+                      <StatusDot ok={ok as boolean} />
                       <span className="text-[10px] font-mono text-white/30 capitalize">{provider}</span>
                     </div>
                   ))}
@@ -286,7 +290,7 @@ export default function SettingsPage() {
             {/* ── Preferences ──────────────────────────────── */}
             <Section icon={<Sliders size={14} />} title="Preferences" accent="amber">
               {/* User name */}
-              <div className="flex items-center justify-between py-3 border-b border-white/[0.04]">
+              <div className="flex items-center justify-between py-3 border-b border-white/4">
                 <div>
                   <div className="text-xs font-bold text-white/70">Your Name</div>
                   <div className="text-[10px] text-white/25 font-mono">Rocky uses this to address you</div>
@@ -312,7 +316,7 @@ export default function SettingsPage() {
               </div>
 
               {/* Proactivity */}
-              <div className="flex items-center justify-between py-3 border-b border-white/[0.04]">
+              <div className="flex items-center justify-between py-3 border-b border-white/4">
                 <div>
                   <div className="text-xs font-bold text-white/70">Proactive Mode</div>
                   <div className="text-[10px] text-white/25">Rocky speaks without being asked</div>

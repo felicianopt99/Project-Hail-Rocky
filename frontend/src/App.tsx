@@ -114,10 +114,10 @@ export default function App() {
     <div className="h-screen w-screen bg-black text-white overflow-hidden flex flex-col font-sans selection:bg-cyan-500/30">
       <AmbientBackground />
 
-      <header className="relative h-14 border-b border-white/[0.06] flex items-center justify-between px-4 z-30 bg-black/30 backdrop-blur-xl shrink-0">
+      <header className="relative h-14 border-b border-white/6 flex items-center justify-between px-4 z-30 bg-black/30 backdrop-blur-xl shrink-0">
         <div className="flex items-center gap-3">
           <div className="relative w-8 h-8">
-            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-cyan-500 to-blue-700 shadow-[0_0_16px_rgba(6,182,212,0.5)]" />
+            <div className="absolute inset-0 rounded-full bg-linear-to-br from-cyan-500 to-blue-700 shadow-[0_0_16px_rgba(6,182,212,0.5)]" />
             <motion.div
               animate={{ scale: [1, 1.25, 1], opacity: [0.9, 1, 0.9] }}
               transition={{ repeat: Infinity, duration: 2.4, ease: "easeInOut" }}
@@ -130,7 +130,7 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.06]">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/4 border border-white/6">
             <div className="flex items-center gap-1.5">
               <div className={`w-1.5 h-1.5 rounded-full transition-all ${isConnected ? "bg-green-400 shadow-[0_0_5px_rgba(74,222,128,0.8)]" : "bg-red-400/60"}`} />
               <span className="text-[7px] font-mono text-white/25 uppercase tracking-wider">

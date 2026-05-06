@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .core.logging import setup_logging
-from .api import dashboard, socketio_handlers, auth, skills, settings_api, speaker, memory, brain, webrtc
+from .api import dashboard, socketio_handlers, auth, skills, settings_api, speaker, memory, brain, webrtc, system
 from .config import settings
 from .workers.scheduler import setup as setup_scheduler
 
@@ -65,6 +65,7 @@ fastapi_app.include_router(speaker.router, prefix="/api/speaker/profiles", tags=
 fastapi_app.include_router(memory.router, prefix="/api/memory", tags=["memory"])
 fastapi_app.include_router(brain.router, prefix="/api/brain", tags=["brain"])
 fastapi_app.include_router(webrtc.router, prefix="/api/webrtc", tags=["webrtc"])
+fastapi_app.include_router(system.router, prefix="/api/system", tags=["system"])
 
 
 @fastapi_app.get("/api/health")

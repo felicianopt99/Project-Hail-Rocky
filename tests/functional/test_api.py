@@ -27,3 +27,16 @@ def test_brain_status(api_client: TestClient):
     response = api_client.get("/api/brain/status")
     # We expect 200 if service is up, or 401 if it requires auth
     assert response.status_code in [200, 401, 404] # 404 if not implemented yet
+
+def test_system_health_check(api_client: TestClient):
+    """Verify the centralized system health endpoint."""
+    response = api_client.get("/api/system/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert "redis" in data
+    assert "letta" in data
+    assert "mcp" in data
+    # Statuses should be strings
+    assert isinstance(data["redis"], str)
+    assert isinstance(data["letta"], str)
+    assert isinstance(data["mcp"], str)

@@ -3,6 +3,7 @@ from fastapi import APIRouter
 from ..config import settings
 from ..bridges import letta_bridge
 from ..core.redis_client import get_redis
+import httpx
 
 router = APIRouter()
 
@@ -11,8 +12,17 @@ router = APIRouter()
 async def get_settings():
     """Return non-sensitive runtime config and service availability."""
     redis = await get_redis()
-    redis_ok = redis is not None
+    redis_ok = redis is not None and await redis.ping()
     letta_ok = settings.has_letta and await letta_bridge.is_available()
+    
+    mcp_ok = False
+    if settings.ha_mcp_url:
+        try:
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                r = await client.get(f"{settings.ha_mcp_url.rstrip('/')}/tools")
+                mcp_ok = r.status_code == 200
+        except Exception:
+            mcp_ok = False
 
     return {
         "version": "0.1.0",
@@ -23,6 +33,7 @@ async def get_settings():
             "letta":   letta_ok,
             "speaker": settings.has_speaker_id(),
             "redis":   redis_ok,
+            "mcp":     mcp_ok,
         },
         "llm": {
             "active_model": settings.get_llm_model() or None,
