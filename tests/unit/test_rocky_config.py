@@ -66,7 +66,7 @@ def test_service_flags():
     assert settings.has_pipecat() is True
     
     settings = get_clean_settings(letta_url="http://letta:8283")
-    assert settings.has_letta() is True
+    assert settings.has_letta is True
     
     settings = get_clean_settings(azure_speaker_key="key")
     assert settings.has_speaker_id() is True

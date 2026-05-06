@@ -7,7 +7,11 @@ import numpy as np
 from aiortc import RTCPeerConnection, RTCSessionDescription, MediaStreamTrack
 from av import AudioFrame
 
-BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8000")
+from app.main import app as fastapi_app
+
+# Use ASGI transport for functional tests to avoid connection issues
+transport = httpx.ASGITransport(app=fastapi_app)
+BASE_URL = "http://test"
 
 class SineWaveAudioTrack(MediaStreamTrack):
     """
@@ -56,10 +60,10 @@ async def test_webrtc_pipeline_handshake():
     await pc.setLocalDescription(offer)
 
     # 2. Send Offer via POST
-    async with httpx.AsyncClient() as client:
+    async with httpx.AsyncClient(transport=transport, base_url=BASE_URL) as client:
         try:
             resp = await client.post(
-                f"{BACKEND_URL}/api/webrtc/offer",
+                "/api/webrtc/offer",
                 json={
                     "sdp": pc.localDescription.sdp,
                     "type": pc.localDescription.type,
@@ -68,7 +72,7 @@ async def test_webrtc_pipeline_handshake():
                 timeout=10.0
             )
         except Exception as e:
-            pytest.fail(f"Could not connect to backend at {BACKEND_URL}: {e}")
+            pytest.fail(f"Could not connect to backend at {BASE_URL}: {e}")
 
         # 3. Validate Response
         assert resp.status_code == 200, f"Expected 200 OK, got {resp.status_code}"
@@ -111,6 +115,6 @@ async def test_webrtc_offer_method_not_allowed():
     """
     Ensures that the /offer endpoint correctly rejects non-POST requests.
     """
-    async with httpx.AsyncClient() as client:
-        resp = await client.get(f"{BACKEND_URL}/api/webrtc/offer")
+    async with httpx.AsyncClient(transport=transport, base_url=BASE_URL) as client:
+        resp = await client.get("/api/webrtc/offer")
         assert resp.status_code == 405

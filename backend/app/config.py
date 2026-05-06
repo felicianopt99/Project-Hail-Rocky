@@ -1,3 +1,4 @@
+from pydantic import ConfigDict, computed_field
 from pydantic_settings import BaseSettings
 
 
@@ -43,9 +44,10 @@ class Settings(BaseSettings):
     azure_speaker_key: str = ""     # Cognitive Services key
     azure_speaker_region: str = "westeurope"
 
-    class Config:
-        env_file = ".env"
-        extra = "ignore"
+    model_config = ConfigDict(
+        env_file=".env",
+        extra="ignore"
+    )
 
     def get_llm_model(self) -> str:
         if self.llm_model:
@@ -70,6 +72,8 @@ class Settings(BaseSettings):
     def has_pipecat(self) -> bool:
         return bool(self.voice_engine_url)
 
+    @computed_field
+    @property
     def has_letta(self) -> bool:
         return bool(self.letta_url)
 

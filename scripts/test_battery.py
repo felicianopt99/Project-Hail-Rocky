@@ -157,6 +157,30 @@ class TestBattery:
         except Exception as e:
             await self.log_result("WEBRTC", "Offer Endpoint Acessible", False, str(e))
 
+    async def check_webrtc_performance(self):
+        print(f"\n{BOLD}--- WebRTC Performance ---{RESET}")
+        
+        # We send a dummy offer to measure negotiation latency
+        url = f"{BACKEND_URL}/api/webrtc/offer"
+        payload = {
+            "sdp": "v=0\r\no=- 0 0 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\n", 
+            "type": "offer",
+            "sid": "perf_test_sid"
+        }
+        
+        try:
+            start = time.time()
+            # This might fail with 400/500 if the SDP is too invalid, but we measure the response time
+            resp = await self.client.post(url, json=payload)
+            duration = (time.time() - start) * 1000
+            
+            if duration > 1000:
+                await self.log_result("PERF", "WebRTC Offer Latency", False, f"Performance Degradada: {duration:.2f}ms", duration)
+            else:
+                await self.log_result("PERF", "WebRTC Offer Latency", True, "OK", duration)
+        except Exception as e:
+            await self.log_result("PERF", "WebRTC Offer Latency", False, str(e))
+
     async def test_tts_performance(self):
         print(f"\n{BOLD}--- Voice Engine Performance (TTS) ---{RESET}")
         text = "This is a performance test for the Rocky voice synthesis system. It should be fast."
@@ -192,6 +216,7 @@ class TestBattery:
         
         await self.test_service_health()
         await self.test_webrtc_readiness()
+        await self.check_webrtc_performance()
         await self.test_brain_logic()
         await self.test_tts_performance()
         

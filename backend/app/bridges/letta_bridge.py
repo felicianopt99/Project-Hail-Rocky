@@ -29,7 +29,12 @@ def _get_letta_client() -> httpx.AsyncClient:
     global _client
     if _client is None or _client.is_closed:
         _client = httpx.AsyncClient(timeout=30.0, follow_redirects=True)
-    return _client
+async def close_client():
+    """Close the shared Letta HTTP client."""
+    global _client
+    if _client and not _client.is_closed:
+        await _client.aclose()
+        log.debug("letta_client_closed")
 
 
 
@@ -261,11 +266,21 @@ async def send_message_stream(text: str, role: str = "user") -> AsyncGenerator[s
                 
                 try:
                     data = json.loads(line)
-                    # Letta assistant message chunks
-                    if data.get("message_type") == "assistant_message":
+                    mtype = data.get("message_type")
+                    
+                    if mtype == "assistant_message":
                         content = data.get("content", "")
                         if content:
                             yield content
+                    elif mtype == "tool_call":
+                        call = data.get("tool_call", {})
+                        fname = call.get("name")
+                        yield f"\n[Tool Call: {fname}] "
+                    elif mtype == "thought":
+                        thought = data.get("thought", "")
+                        if thought and settings.voice_debug_events:
+                            yield f"\n[Thought: {thought}] "
+                            
                 except json.JSONDecodeError:
                     continue
 

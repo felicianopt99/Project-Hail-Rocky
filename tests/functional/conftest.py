@@ -2,7 +2,7 @@ import pytest
 import asyncio
 from fastapi.testclient import TestClient
 from socketio import AsyncClient
-from app.main import fastapi_app, sio
+from app.main import app as fastapi_app, sio
 from app.config import settings
 
 @pytest.fixture(scope="session")
@@ -10,6 +10,14 @@ def event_loop():
     """Create an instance of the default event loop for each test case."""
     loop = asyncio.get_event_loop_policy().new_event_loop()
     yield loop
+    
+    # Global Cleanup
+    from app.bridges import letta_bridge
+    if loop.is_running():
+        loop.create_task(letta_bridge.close_client())
+    else:
+        loop.run_until_complete(letta_bridge.close_client())
+        
     loop.close()
 
 @pytest.fixture

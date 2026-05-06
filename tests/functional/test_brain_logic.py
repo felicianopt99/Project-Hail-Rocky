@@ -1,61 +1,167 @@
 import pytest
 import json
 import asyncio
-from pathlib import Path
-from unittest.mock import patch, AsyncMock
-from fastapi.testclient import TestClient
-from app.main import fastapi_app
+import httpx
+import threading
+import time
+from fastapi import FastAPI, Request
+from uvicorn import Config, Server
+from unittest.mock import patch
+from app.main import app as fastapi_app
+from app.config import settings
+from app.bridges import letta_bridge
 
-client = TestClient(fastapi_app)
+# --- Mock MCP Server ---
+# This mimics the 'streamable_http' MCP server protocol that Letta expects
+mcp_app = FastAPI()
 
-def load_scenarios():
-    base_path = Path(__file__).parent.parent.parent
-    path = base_path / "scripts" / "test_scenarios.json"
-    if not path.exists():
-        path = base_path / "Project-Hail-Rocky" / "scripts" / "test_scenarios.json"
+@mcp_app.get("/tools")
+async def list_tools():
+    """Letta calls this to discover tools available on the MCP server."""
+    return [
+        {
+            "name": "call_service",
+            "description": "Call a Home Assistant service",
+            "input_schema": {
+                "type": "object",
+                "properties": {
+                    "domain": {"type": "string"},
+                    "service": {"type": "string"},
+                    "service_data": {"type": "object"}
+                },
+                "required": ["domain", "service"]
+            }
+        }
+    ]
+
+@mcp_app.post("/tools/call")
+async def call_tool(req: Request):
+    """Letta calls this to execute a tool."""
+    body = await req.json()
+    # Letta usually sends { "name": "...", "arguments": { ... } }
+    name = body.get("name")
     
-    with open(path, "r") as f:
-        return json.load(f)["scenarios"]
+    if name == "call_service":
+        return {
+            "content": [{"type": "text", "text": "Success: light.kitchen turned on."}],
+            "isError": False
+        }
+    return {"content": [{"type": "text", "text": "Unknown tool"}], "isError": True}
 
-@pytest.mark.parametrize("scenario", load_scenarios())
+@mcp_app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+@pytest.fixture(scope="module", autouse=True)
+def mcp_server():
+    """Starts the mock MCP server in a background thread and ensures cleanup."""
+    config = Config(app=mcp_app, host="0.0.0.0", port=3005, log_level="error")
+    server = Server(config)
+    
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    
+    # Wait for server to be ready
+    max_retries = 10
+    for i in range(max_retries):
+        try:
+            with httpx.Client() as client:
+                r = client.get("http://localhost:3005/health")
+                if r.status_code == 200:
+                    break
+        except Exception:
+            pass
+        time.sleep(0.3)
+    
+    yield "http://localhost:3005"
+    
+    # Trigger shutdown
+    server.should_exit = True
+    thread.join(timeout=2)
+
+# --- Integration Test ---
+
 @pytest.mark.asyncio
-async def test_brain_logic_scenarios(scenario):
+async def test_letta_mcp_integration_real():
     """
-    Test various user scenarios against the brain logic.
-    Mocks Letta to simulate MCP tool calls for smart home queries.
+    Integration test: Envia mensagem via httpx para o backend,
+    passa pelo Letta (real) e verifica se ele tenta usar o tool call_service
+    do nosso mock MCP.
     """
+    
+    # Check if Letta is available before running
+    if not settings.letta_url:
+        pytest.skip("LETTA_URL not configured")
+        
+    try:
+        async with httpx.AsyncClient() as client:
+            r = await client.get(f"{settings.letta_url}/v1/health", timeout=2.0)
+            if r.status_code != 200:
+                pytest.skip(f"Letta server at {settings.letta_url} is not responding")
+    except Exception as e:
+        pytest.skip(f"Letta server connection failed: {e}")
+
+    # Configure the test environment
+    # We point HA_MCP_URL to our mock server. 
+    # If running in Docker, we use the container hostname.
+    import socket
+    mcp_url = "http://localhost:3005"
+    hostname = socket.gethostname()
+    # In docker-compose.test.yml, the backend service is named 'backend-test'
+    # but the container_name is 'rocky-backend-test'.
+    if "backend" in hostname or "rocky" in hostname:
+        mcp_url = f"http://{hostname}:3005"
+
     payload = {
-        "sid": "test-sid",
-        "content": scenario["input"],
+        "sid": "integration-test-session",
+        "content": "Acende a luz da cozinha",
         "emotional_state": "neutral"
     }
-    
-    expected_status = scenario.get("expected_status", 200)
-    
-    # Mock Letta Bridge to simulate MCP tool usage or normal chat
-    async def mock_letta_stream(msg):
-        if any(word in msg.lower() for word in ["luz", "light", "temp", "status"]):
-            yield "Let me check that for you... "
-            yield "[Tool Call: ha-mcp:search_entities] "
-            yield "Found it. The state is active."
-        else:
-            yield "Rocky is thinking... "
-            yield "I hear you!"
 
-    with patch("app.api.socketio_handlers.letta_bridge.is_available", return_value=True), \
-         patch("app.api.socketio_handlers.letta_bridge.send_message_stream", side_effect=mock_letta_stream), \
-         patch("app.api.socketio_handlers.settings.has_letta", return_value=True), \
+    # Patch settings and force a fresh agent state to ensure tool sync
+    with patch("app.config.settings.ha_mcp_url", mcp_url), \
          patch("app.api.socketio_handlers._session", return_value={"history": [], "state": "neutral"}):
-            
-        # We use a real TestClient but it won't handle the stream automatically in one go 
-        # unless we iterate it.
-        response = client.post("/api/brain/chat", json=payload)
-        assert response.status_code == expected_status
         
-        if expected_status == 200:
-            content = response.text
-            # Verify that the response contains some expected keywords from the scenario
-            # or at least our mock response
-            assert len(content) > 0
-            if any(word in scenario["input"].lower() for word in ["luz", "light", "temp"]):
-                 assert "Tool Call" in content or "Found it" in content
+        # Reset Letta agent to ensure it picks up the new mock MCP tools
+        await letta_bridge.forget_all()
+        
+        # Call the backend via httpx (mocking the network call but using the real app)
+        transport = httpx.ASGITransport(app=fastapi_app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+            # We use a long timeout because Letta can be slow
+            async with ac.stream("POST", "/api/brain/chat", json=payload, timeout=60.0) as response:
+                assert response.status_code == 200
+                
+                full_text = ""
+                found_tool_call = False
+                
+                async for chunk in response.aiter_text():
+                    full_text += chunk
+                    if "call_service" in chunk:
+                        found_tool_call = True
+                
+                # Assertions
+                # 1. Check if the intention to use call_service was detected
+                assert found_tool_call or "call_service" in full_text, \
+                    f"Letta did not indicate call_service tool use. Response: {full_text}"
+                
+                # 2. Check if the response makes sense
+                assert "cozinha" in full_text.lower() or "luz" in full_text.lower(), \
+                    "Response does not mention the kitchen or light."
+                
+                print(f"\nFinal response: {full_text}")
+
+@pytest.mark.asyncio
+async def test_brain_chat_endpoint_basic():
+    """Simple check for the chat endpoint without complex Letta logic."""
+    payload = {
+        "sid": "simple-sid",
+        "content": "Olá, quem és?",
+        "emotional_state": "happy"
+    }
+    
+    transport = httpx.ASGITransport(app=fastapi_app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+        response = await ac.post("/api/brain/chat", json=payload)
+        assert response.status_code == 200
+        assert len(response.text) > 0

@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import AsyncMock, patch, MagicMock
 from fastapi.testclient import TestClient
-from app.main import fastapi_app
+from app.main import app as fastapi_app
 
 client = TestClient(fastapi_app)
 
@@ -58,9 +58,9 @@ async def test_brain_mcp_tool_trigger():
         yield "[Tool Call: ha-mcp:search_entities] "
         yield "The lights are off."
 
-    with patch("app.api.socketio_handlers.letta_bridge.is_available", return_value=True), \
+    with patch("app.api.socketio_handlers.settings.letta_url", "http://mock-letta"), \
+         patch("app.api.socketio_handlers.letta_bridge.is_available", return_value=True), \
          patch("app.api.socketio_handlers.letta_bridge.send_message_stream", side_effect=mock_letta_stream), \
-         patch("app.api.socketio_handlers.settings.has_letta", return_value=True), \
          patch("app.api.socketio_handlers._session", return_value={"history": [], "state": "neutral"}):
             
         response = client.post("/api/brain/chat", json=payload)

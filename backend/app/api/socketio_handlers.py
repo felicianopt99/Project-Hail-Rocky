@@ -76,7 +76,7 @@ async def _chat(sid: str, content: str, sio: socketio.AsyncServer, language: str
     if tool_response:
         return # Tool was handled
 
-    if settings.has_letta() and await letta_bridge.is_available():
+    if settings.has_letta and await letta_bridge.is_available():
         await _chat_letta(sid, content, new_state, score, session, sio, user_id=user_id, language=language)
     else:
         await _chat_litellm(sid, content, new_state, score, session, sio, user_id=user_id)

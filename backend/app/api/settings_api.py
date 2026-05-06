@@ -12,7 +12,7 @@ async def get_settings():
     """Return non-sensitive runtime config and service availability."""
     redis = await get_redis()
     redis_ok = redis is not None
-    letta_ok = settings.has_letta() and await letta_bridge.is_available()
+    letta_ok = settings.has_letta and await letta_bridge.is_available()
 
     return {
         "version": "0.1.0",
