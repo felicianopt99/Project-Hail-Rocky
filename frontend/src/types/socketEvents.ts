@@ -1,4 +1,4 @@
-import { Message, RockyStatus, AppMode, LightState, Stats, Weather, LogEntry, Protocol, ProtocolSettings } from "../store/useRockyStore";
+import { Message, RockyStatus, LightState, Stats, Weather, LogEntry, Protocol, ProtocolSettings, Routine } from "../store/useRockyStore";
 
 export interface ChatResponse {
   text: string;
@@ -28,7 +28,21 @@ export interface ServiceStatus {
 
 export interface UiHint {
   type: string;
-  value: any;
+  value: unknown;
+}
+
+export interface SoundTrigger {
+  type: "accept" | "success" | "error";
+}
+
+export interface SetVolume {
+  level: number;
+}
+
+export interface AuthRequest {
+  tool: string;
+  args: Record<string, unknown>;
+  tool_call_id: string;
 }
 
 export interface TtsStart {
@@ -88,15 +102,19 @@ export interface ServerToClientEvents {
   protocol_updated: (data: ProtocolUpdated) => void;
   protocol_created: (p: Protocol) => void;
   protocol_deleted: (data: ProtocolDeleted) => void;
-  routines_list: (routines: any[]) => void;
+  routines_list: (routines: Routine[]) => void;
   pong_latency: (sentAt: number) => void;
+  set_volume: (data: SetVolume) => void;
+  sound_trigger: (data: SoundTrigger) => void;
+  VOICE_RECOVERING: () => void;
+  REQUEST_CONFIRMATION: (data: AuthRequest) => void;
 }
 
 export interface ClientToServerEvents {
   chat_request: (data: { content: string }) => void;
-  manual_stop: (data?: any) => void;
-  voice_interrupt: (data?: any) => void;
-  manual_activation: (data?: any) => void;
-  auth_granted: (data: { id: string }) => void;
+  manual_stop: (data?: unknown) => void;
+  voice_interrupt: (data?: unknown) => void;
+  manual_activation: (data?: unknown) => void;
+  auth_granted: (data: { tool_call_id: string }) => void;
   ping: (data: number) => void;
 }

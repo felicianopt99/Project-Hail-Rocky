@@ -6,7 +6,7 @@ import asyncio
 import structlog
 
 from ..api import socketio_handlers
-from ..config import settings
+from ..core.semantic_cache import semantic_cache
 
 log = structlog.get_logger()
 
@@ -25,6 +25,23 @@ async def chat(req: BrainRequest):
     """
     if not req.content.strip():
         raise HTTPException(status_code=400, detail="Content cannot be empty")
+    
+    # ── Fast-path Semantic Cache check ───────────────────
+    cached = await semantic_cache.check(req.content)
+    if cached:
+        log.info("brain_chat_cache", cache_hit=True, sid=req.sid)
+        # We still want to run the full pipeline in the background to update 
+        # state, intimacy and history, but we can return the cached response 
+        # immediately to the Pipecat pipeline for zero-latency speech.
+        # However, the user said "ignora a chamada ao agente Letta".
+        # Running it in background might still call Letta.
+        
+        # If we return now, we bypass the whole socketio_handlers._chat.
+        # To keep it simple and follow the "ignore Letta" instruction:
+        return StreamingResponse(iter([cached]), media_type="text/plain")
+    
+    log.info("brain_chat_cache", cache_hit=False, sid=req.sid)
+
     # This is a bit tricky because socketio_handlers.py is designed for Socket.io.
     # We'll need a way to run the chat logic and capture the output tokens.
     

@@ -76,12 +76,48 @@ async def _chat(sid: str, content: str, sio: socketio.AsyncServer, language: str
     )
     await sio.emit("system_state_update", state_update.model_dump(exclude_none=True), to=sid)
 
-    # ── Tool calling + Letta/LiteLLM ───────────────────────
+    # ── Tool calling ───────────────────────────────────────
     # We try tools first. If no tool is needed, _try_tools returns False and we proceed.
     tool_response = await _try_tools(sid, content, new_state, score, session, sio, user_id=user_id)
     if tool_response:
+        log.info("decision_pipeline_tool_handled", sid=sid)
         return # Tool was handled
 
+    # ── Semantic Cache check ───────────────────────────────
+    # We check the cache before calling Letta or LiteLLM to save latency and cost.
+    cached = await semantic_cache.check(content)
+    if cached:
+        log.info("decision_pipeline_cache", cache_hit=True, sid=sid)
+        
+        # Check if Pipecat is active to determine how to emit the response
+        bridge = session.get("pipecat_bridge")
+        is_pipecat_active = bridge and bridge._running
+        
+        # If Pipecat is NOT active, we send the full response via socket
+        if not is_pipecat_active:
+            # For immediate display, we can also emit the "tokens" (the whole thing)
+            await sio.emit("chat_token", cached, to=sid)
+            
+            resp = socket_schemas.ChatResponse(text=cached)
+            await sio.emit("chat_response", resp.model_dump(), to=sid)
+            await sio.emit("status_update", "idle", to=sid)
+            
+            # Also handle TTS for cached responses if enabled
+            if settings.has_tts():
+                await _emit_tts(sid, cached, sio, new_state)
+        else:
+            # If Pipecat is active, we just emit the token for brain.py to capture it
+            # brain.py yields tokens from the queue when event == "chat_token"
+            await sio.emit("chat_token", cached, to=sid)
+            # Signal end for mock_sio in brain.py
+            await sio.emit("chat_response", {"text": cached}, to=sid)
+
+        session["history"].append({"role": "assistant", "content": cached})
+        return
+
+    log.info("decision_pipeline_cache", cache_hit=False, sid=sid)
+
+    # ── Letta / LiteLLM ────────────────────────────────────
     if settings.has_letta and await letta_bridge.is_available():
         await _chat_letta(sid, content, new_state, score, session, sio, user_id=user_id, language=language)
     else:
@@ -281,6 +317,11 @@ async def _chat_letta(
             resp = socket_schemas.ChatResponse(text=full_reply)
             await sio.emit("chat_response", resp.model_dump(), to=sid)
             await sio.emit("status_update", "idle", to=sid)
+        
+        # Store in semantic cache
+        if full_reply:
+            await semantic_cache.store(content, full_reply)
+            
         log.info("chat_letta_ok", sid=sid, state=state, chars=len(full_reply), pipecat_active=is_pipecat_active)
 
     except Exception as exc:
@@ -299,20 +340,7 @@ async def _chat_litellm(
     Pure conversational LLM response — no tools (those are handled by _try_tools).
     Single streaming call, no wasted API cost.
     """
-    # 1. Semantic Cache check
-    cached = await semantic_cache.check(content)
-    if cached:
-        # Check if Pipecat is active
-        bridge = session.get("pipecat_bridge")
-        is_pipecat_active = bridge and bridge._running
-
-            resp = socket_schemas.ChatResponse(text=cached)
-            await sio.emit("chat_response", resp.model_dump(), to=sid)
-            await sio.emit("status_update", "idle", to=sid)
-        
-        session["history"].append({"role": "assistant", "content": cached})
-        log.info("chat_litellm_cache_hit", sid=sid)
-        return
+    # (Cache check moved to caller _chat for both Letta and LiteLLM)
 
     system = personality.build_system_prompt(
         emotional_state=state, intimacy_score=score, message=content

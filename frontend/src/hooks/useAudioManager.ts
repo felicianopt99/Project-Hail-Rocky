@@ -2,7 +2,6 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import { useRockyStore } from "../store/useRockyStore";
 import { eventBus, RockyEvents } from "../lib/eventBus";
 
-// The socket from our lib/socket.ts is a custom class, not socket.io-client
 interface CustomSocket {
   on: (event: string, handler: (data: any) => void) => void;
   off: (event: string, handler: (data: any) => void) => void;
@@ -16,6 +15,7 @@ type AudioState = "idle" | "requesting_mic" | "listening" | "processing" | "spea
 interface AudioManagerOptions {
   socket: CustomSocket;
   addToast: (msg: string, type: "info" | "error" | "warning") => void;
+  startWebRTC?: (micStream: MediaStream) => Promise<void>;
 }
 
 const LOG_TAG = "[AudioManager]";
@@ -32,38 +32,33 @@ function log(level: "info" | "warn" | "error", msg: string, data?: any) {
   }
 }
 
-export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
+/**
+ * useAudioManager - 2026 Edition
+ * Handles microphone permissions, local VAD, and provides the mic stream
+ * to the AudioPipeline for WebRTC transmission.
+ */
+export function useAudioManager({ socket, addToast, startWebRTC }: AudioManagerOptions) {
   const [audioState, setAudioState] = useState<AudioState>("idle");
   const [micAvailable, setMicAvailable] = useState(false);
 
-  // Audio contexts (for visualization)
   const audioCtxRef = useRef<AudioContext | null>(null);
   const [analyzer, setAnalyzer] = useState<AnalyserNode | null>(null);
   const analyzerRef = useRef<AnalyserNode | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
 
-  // WebRTC
-  const pcRef = useRef<RTCPeerConnection | null>(null);
-
-  // State flags
   const isCapturingRef = useRef(false);
   
-  // VAD Settings (client-side VAD still used for auto-stop)
   const SILENCE_THRESHOLD = 35;
   const SILENCE_DURATION = 2500;
   const silenceStartRef = useRef<number | null>(null);
 
-  // ========== CORE INITIALIZATION ==========
   useEffect(() => {
     log("info", "Initializing AudioManager...");
 
     const initAudioContext = async () => {
       try {
         if (audioCtxRef.current) return;
-
         const Ctx = window.AudioContext || (window as any).webkitAudioContext;
-        if (!Ctx) throw new Error("AudioContext not available");
-
         const audioCtx = new Ctx();
         const analyzer = audioCtx.createAnalyser();
         analyzer.fftSize = 256;
@@ -72,7 +67,6 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
         analyzerRef.current = analyzer;
         setAnalyzer(analyzer);
         setMicAvailable(true);
-        log("info", "AudioContext initialized");
       } catch (err: any) {
         log("error", "Failed to initialize AudioContext", err.message);
         addToast("Audio system unavailable", "error");
@@ -80,7 +74,6 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
       }
     };
 
-    // Check for HTTPS/localhost
     const isSecure = typeof window !== "undefined" &&
       (window.location.protocol === "https:" || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1");
 
@@ -95,7 +88,6 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
     }
   }, [addToast]);
 
-  // ========== REQUEST MICROPHONE ==========
   const requestMicrophone = useCallback(async (): Promise<MediaStream | null> => {
     log("info", "Requesting microphone access...");
     setAudioState("requesting_mic");
@@ -106,13 +98,12 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
           echoCancellation: true,
           noiseSuppression: true,
           autoGainControl: true,
-          sampleRate: 16000, // Hint for STT compatibility
+          sampleRate: 16000,
         },
         video: false,
       };
 
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      log("info", "Microphone access granted");
       streamRef.current = stream;
       return stream;
     } catch (err: any) {
@@ -123,20 +114,14 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
     }
   }, [addToast]);
 
-  // ========== STOP AUDIO CAPTURE ==========
   const stopAudioCapture = useCallback((nextState: AudioState = "idle") => {
     if (!isCapturingRef.current) return;
     
-    log("info", "Stopping WebRTC audio capture...");
+    log("info", "Stopping audio capture...");
     isCapturingRef.current = false;
 
-    if (pcRef.current) {
-      pcRef.current.close();
-      pcRef.current = null;
-    }
-
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current.getTracks().forEach((track: MediaStreamTrack) => track.stop());
       streamRef.current = null;
     }
 
@@ -144,81 +129,39 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
     setAudioState(nextState);
   }, []);
 
-  // ========== START AUDIO CAPTURE (WebRTC) ==========
   const startAudioCapture = useCallback(async () => {
     if (isCapturingRef.current) return;
     
-    log("info", "Starting WebRTC audio session...");
+    log("info", "Starting audio session...");
     setAudioState("listening");
 
     try {
       const stream = await requestMicrophone();
       if (!stream) return;
 
-      // 1. Setup local visualization
+      // 1. Local Visualization
       if (audioCtxRef.current && analyzerRef.current) {
         if (audioCtxRef.current.state === "suspended") await audioCtxRef.current.resume();
         const source = audioCtxRef.current.createMediaStreamSource(stream);
         source.connect(analyzerRef.current);
       }
 
-      // 2. Setup WebRTC PeerConnection
-      const pc = new RTCPeerConnection({
-        iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-      });
-      pcRef.current = pc;
-
-      // 3. Add microphone track
-      stream.getAudioTracks().forEach(track => pc.addTrack(track, stream));
-
-      // 4. Handle incoming track (Rocky's voice)
-      pc.ontrack = (event) => {
-        log("info", "Assistant audio track received via WebRTC");
-        const remoteStream = event.streams[0];
-        
-        if (audioCtxRef.current && analyzerRef.current) {
-          const remoteSource = audioCtxRef.current.createMediaStreamSource(remoteStream);
-          // Connect to analyzer for visualization
-          remoteSource.connect(analyzerRef.current);
-          // Connect to output for hearing Rocky
-          remoteSource.connect(audioCtxRef.current.destination);
-        }
-      };
-
-      // 5. Create Offer
-      const offer = await pc.createOffer();
-      await pc.setLocalDescription(offer);
-
-      // 6. Signal to backend
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
-      const response = await fetch(`${backendUrl}/api/webrtc/offer`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sdp: pc.localDescription?.sdp,
-          type: pc.localDescription?.type,
-          sid: socket.id
-        })
-      });
-
-      if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-      
-      const answer = await response.json();
-      await pc.setRemoteDescription(new RTCSessionDescription(answer));
+      // 2. Delegate WebRTC connection to AudioPipeline
+      if (startWebRTC) {
+        await startWebRTC(stream);
+      }
 
       isCapturingRef.current = true;
       socket.emit("manual_activation");
       
-      log("info", "Two-way WebRTC connection established");
-
     } catch (err: any) {
-      log("error", "Failed to start WebRTC capture", err.message);
+      log("error", "Failed to start capture", err.message);
       setAudioState("error");
-      addToast("Failed to start WebRTC stream", "error");
+      addToast("Failed to start audio stream", "error");
     }
-  }, [requestMicrophone, socket, addToast]);
+  }, [requestMicrophone, socket, addToast, startWebRTC]);
 
-  // ========== VAD LOOP (Local monitoring for auto-stop) ==========
+  // VAD Loop
   useEffect(() => {
     if (audioState !== "listening") return;
 
@@ -230,7 +173,7 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
       
       let sum = 0;
       for (let i = 0; i < dataArray.length; i++) {
-        const val = (dataArray[i] - 128) / 128;
+        const val = (dataArray[i]! - 128) / 128;
         sum += val * val;
       }
       const rms = Math.sqrt(sum / dataArray.length) * 100;
@@ -240,9 +183,7 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
         const silenceMs = Date.now() - silenceStartRef.current;
         
         if (silenceMs > SILENCE_DURATION) {
-          log("info", `Silence detected (${silenceMs}ms), stopping user capture...`);
-          // Note: We don't close the PC here anymore, just change state and notify backend
-          // stopAudioCapture("processing"); 
+          log("info", `Silence detected, stopping user capture...`);
           setAudioState("processing");
           socket.emit("manual_stop");
           silenceStartRef.current = null;
@@ -253,12 +194,10 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
     }, 100);
 
     return () => clearInterval(interval);
-  }, [audioState, socket]); // Removed stopAudioCapture from deps to avoid re-bind
+  }, [audioState, socket]);
 
-  // ========== MANUAL TRIGGER ==========
   const handleManualTrigger = useCallback(() => {
     if (audioState === "listening" || audioState === "processing") {
-      // Manual stop: we can close the connection or just stop capture
       socket.emit("manual_stop");
       setAudioState("processing");
     } else {
@@ -266,26 +205,22 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
     }
   }, [audioState, startAudioCapture, socket]);
 
-  // ========== SOCKET LISTENERS ==========
+  // Socket Listeners for UI State
   useEffect(() => {
     const onStatusUpdate = (status: string) => {
       if (status === "listening") {
         setAudioState("listening");
       } else if (["processing_stt", "thinking_llm"].includes(status)) {
         setAudioState("processing");
-        // Keep WebRTC open to receive response
       } else if (status === "synthesizing_tts") {
         setAudioState("speaking");
-        // Keep WebRTC open to hear Rocky
       } else if (status === "idle") {
         setAudioState("idle");
-        // Connection can be closed now
         if (isCapturingRef.current) stopAudioCapture();
       }
     };
 
     socket.on("status_update", onStatusUpdate);
-    
     const onWakeWord = () => startAudioCapture();
     eventBus.on(RockyEvents.WAKE_WORD_DETECTED, onWakeWord);
 
@@ -295,7 +230,7 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
     };
   }, [socket, stopAudioCapture, startAudioCapture]);
 
-  // ========== AUTO-RESTART LOOP (Continuous Mode) ==========
+  // Auto-restart logic
   const status = useRockyStore(s => s.status);
   const isListeningGlobal = useRockyStore(s => s.isListening);
 
@@ -310,11 +245,8 @@ export function useAudioManager({ socket, addToast }: AudioManagerOptions) {
     }
   }, [status, isListeningGlobal, startAudioCapture, audioState]);
 
-  // ========== CLEANUP ==========
   useEffect(() => {
-    return () => {
-      stopAudioCapture();
-    };
+    return () => stopAudioCapture();
   }, [stopAudioCapture]);
 
   return {

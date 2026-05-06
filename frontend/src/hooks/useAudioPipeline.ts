@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { Socket } from "socket.io-client";
 import { eventBus, RockyEvents } from '../lib/eventBus';
+import { ServerToClientEvents, ClientToServerEvents, SetVolume, SoundTrigger } from "../types/socketEvents";
+import { RockyStatus } from "../store/useRockyStore";
 
 const earconCache = new Map<string, AudioBuffer>();
 
@@ -22,15 +24,20 @@ async function loadEarcon(file: string, audioCtx: AudioContext): Promise<AudioBu
 }
 
 interface AudioPipelineOptions {
-  socket: any;
+  socket: Socket<ServerToClientEvents, ClientToServerEvents>;
   addToast: (message: string, type: "info" | "success" | "error" | "warning") => void;
-  setStatus: (status: any) => void;
+  setStatus: (status: RockyStatus | ((prev: RockyStatus) => RockyStatus)) => void;
   speakBrowserFallback: (text: string) => void;
   lastAssistantTextRef: React.MutableRefObject<string>;
   externalAudioCtxRef?: React.MutableRefObject<AudioContext | null>;
   externalAnalyzerRef?: AnalyserNode | null;
 }
 
+/**
+ * useAudioPipeline - 2026 Edition
+ * Manages assistant voice output via WebRTC for ultra-low latency.
+ * Replaces legacy Socket.io PCM chunking and manual jitter buffering.
+ */
 export function useAudioPipeline({ 
   socket, 
   addToast, 
@@ -42,194 +49,141 @@ export function useAudioPipeline({
 }: AudioPipelineOptions) {
   const [isAudioReady, setIsAudioReady] = useState(false);
   const internalAudioCtxRef = useRef<AudioContext | null>(null);
-  const internalAnalyzerRef = useRef<AnalyserNode | null>(null);
   
-  // Use external refs if available, otherwise fall back to internal ones
+  // Audio nodes
   const audioCtxRef = externalAudioCtxRef || internalAudioCtxRef;
-  const analyzerRef = useRef<AnalyserNode | null>(null); // We keep a local ref to the current analyzer in use
-
+  const analyzerRef = useRef<AnalyserNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
-  const activeSources = useRef<Set<AudioBufferSourceNode>>(new Set());
-  const nextChunkTimeRef = useRef<number>(0);
-  const currentSampleRateRef = useRef<number>(22050);
-  const audioQueueRef = useRef<Float32Array[]>([]);
-  const isPlayingRef = useRef(false);
-  const jitterBufferTargetRef = useRef(80);
-  const lastChunkArrivalRef = useRef<number>(0);
-  const leftOverByteRef = useRef<number | null>(null);
+  
+  // WebRTC
+  const pcRef = useRef<RTCPeerConnection | null>(null);
   const isSpeakingRef = useRef(false);
 
-  const handleStopSpeaking = React.useCallback(() => {
+  const handleStopSpeaking = useCallback(() => {
     console.log("[Rocky] Interrupting speech...");
-    activeSources.current.forEach(source => {
-      try { 
-        source.onended = null; // Prevent recursion
-        source.stop(); 
-      } catch(e) {}
-    });
-    activeSources.current.clear();
-    audioQueueRef.current = [];
-    isPlayingRef.current = false;
     
-    // Reset scheduling time to current context time to avoid gaps on next playback
-    if (audioCtxRef.current) {
-      nextChunkTimeRef.current = audioCtxRef.current.currentTime + 0.05;
-    }
-    
-    isSpeakingRef.current = false;
-    
-    // Notify backend and local listeners of interruption (Barge-in)
+    // Notify backend to stop the pipeline
     if (socket) {
       socket.emit("voice_interrupt");
     }
     eventBus.emit(RockyEvents.INTERRUPT);
     
-    // Only go to idle if we weren't already triggered into a listening/thinking state
-    // This prevents the "wake word -> interrupt -> idle" race condition
-    setStatus((prev: string) => (prev === "synthesizing_tts" ? "idle" : prev));
-  }, [setStatus, socket, audioCtxRef]);
+    // We don't close the PC here, just let the track stop sending data
+    isSpeakingRef.current = false;
+    setStatus((prev: RockyStatus) => (prev === "synthesizing_tts" ? "idle" : prev));
+  }, [setStatus, socket]);
 
+  // Initialization
   useEffect(() => {
-    // 1. Initialization
     if (!audioCtxRef.current) {
-      // Only initialize if we are NOT using an external context (or if it hasn't been initialized yet)
       const Ctx = window.AudioContext || (window as any).webkitAudioContext;
       audioCtxRef.current = new Ctx();
-      setIsAudioReady(true);
-    } else {
-      setIsAudioReady(true);
     }
-
-    if (!analyzerRef.current) {
-        if (externalAnalyzerRef) {
-            analyzerRef.current = externalAnalyzerRef;
-        } else {
-            analyzerRef.current = audioCtxRef.current.createAnalyser();
-            analyzerRef.current.fftSize = 256;
-        }
+    
+    if (!analyzerRef.current && audioCtxRef.current) {
+      if (externalAnalyzerRef) {
+        analyzerRef.current = externalAnalyzerRef;
+      } else {
+        analyzerRef.current = audioCtxRef.current.createAnalyser();
+        analyzerRef.current.fftSize = 256;
+      }
     }
 
     if (!gainNodeRef.current && audioCtxRef.current) {
       gainNodeRef.current = audioCtxRef.current.createGain();
       gainNodeRef.current.gain.value = 0.8;
+      gainNodeRef.current.connect(audioCtxRef.current.destination);
     }
 
-    const audioCtx = audioCtxRef.current!;
-    const analyzer = analyzerRef.current!;
+    setIsAudioReady(true);
+  }, []);
 
-    const scheduleNextChunk = () => {
-      if (!audioQueueRef.current.length) {
-        isPlayingRef.current = false;
-        // Only set idle if we aren't currently receiving more chunks from TTS
-        // AND all active audio sources have finished playing.
-        if (!isSpeakingRef.current && activeSources.current.size === 0) {
-          setStatus("idle");
-        }
-        return;
-      }
+  // WebRTC Connection Logic
+  const startWebRTC = useCallback(async (micStream?: MediaStream) => {
+    if (!audioCtxRef.current) return;
+    
+    // Close existing connection if any
+    if (pcRef.current) {
+      pcRef.current.close();
+    }
 
-      const float32Array = audioQueueRef.current.shift()!;
-      const audioBuffer = audioCtx.createBuffer(1, float32Array.length, currentSampleRateRef.current);
-      audioBuffer.getChannelData(0).set(float32Array);
+    console.log("[Rocky] Initializing WebRTC Audio Pipeline...");
+    
+    const pc = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
+    });
+    pcRef.current = pc;
 
-      const source = audioCtx.createBufferSource();
-      source.buffer = audioBuffer;
-      source.connect(analyzer);
+    // 1. Add Mic Track (if available) to send to backend for STT/VAD
+    if (micStream) {
+      micStream.getAudioTracks().forEach(track => pc.addTrack(track, micStream));
+    }
+
+    // 2. Handle Incoming Track (Rocky's Voice)
+    pc.ontrack = (event) => {
+      console.log("[Rocky] Assistant audio track received via WebRTC");
+      const remoteStream = event.streams[0];
+      if (!remoteStream) return;
       
-      if (gainNodeRef.current) {
-        source.connect(gainNodeRef.current);
-        gainNodeRef.current.connect(audioCtx.destination);
-      } else {
-        source.connect(audioCtx.destination);
-      }
-
-      const startTime = Math.max(nextChunkTimeRef.current, audioCtx.currentTime);
-      source.start(startTime);
-      nextChunkTimeRef.current = startTime + audioBuffer.duration;
-
-      activeSources.current.add(source);
-      source.onended = () => {
-        activeSources.current.delete(source);
-        scheduleNextChunk();
-      };
-    };
-
-    const processAudioQueue = () => {
-      // Schedule ahead as much as possible
-      while (audioQueueRef.current.length > 0) {
-        // If we are scheduling too far ahead (> 1s), stop for now
-        if (nextChunkTimeRef.current > audioCtx.currentTime + 1.0) break;
-        
-        isPlayingRef.current = true;
-        scheduleNextChunk();
-      }
-    };
-
-    const onTtsStart = (options?: { sampleRate: number }) => {
+      const audioCtx = audioCtxRef.current!;
+      
       if (audioCtx.state === 'suspended') audioCtx.resume();
-      isSpeakingRef.current = true;
-      const newSampleRate = options?.sampleRate || 24000;
       
-      if (newSampleRate !== currentSampleRateRef.current || audioQueueRef.current.length === 0) {
-        console.log(`[Rocky] New TTS Segment. Sample Rate: ${newSampleRate}`);
-        currentSampleRateRef.current = newSampleRate;
-        if (audioQueueRef.current.length === 0) {
-          // Ensure we schedule from the current time plus a small safety buffer (200ms)
-          // without overlapping any future scheduled segments.
-          nextChunkTimeRef.current = Math.max(nextChunkTimeRef.current, audioCtx.currentTime + 0.2);
-        }
+      const remoteSource = audioCtx.createMediaStreamSource(remoteStream);
+      
+      // Route through analyzer for visualizer
+      if (analyzerRef.current) {
+        remoteSource.connect(analyzerRef.current);
       }
+      
+      // Route through gain node for volume control
+      if (gainNodeRef.current) {
+        remoteSource.connect(gainNodeRef.current);
+      } else {
+        remoteSource.connect(audioCtx.destination);
+      }
+    };
+
+    try {
+      // 3. Create and Send Offer
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || "http://localhost:8000";
+      const response = await fetch(`${backendUrl}/api/webrtc/offer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sdp: pc.localDescription?.sdp,
+          type: pc.localDescription?.type,
+          sid: socket.id
+        })
+      });
+
+      if (!response.ok) throw new Error(`WebRTC offer failed: ${response.status}`);
+      
+      const answer = await response.json();
+      await pc.setRemoteDescription(new RTCSessionDescription(answer));
+      
+      console.log("[Rocky] WebRTC Pipeline Connected.");
+    } catch (err) {
+      console.error("[Rocky] Failed to establish WebRTC connection:", err);
+      addToast("Audio pipeline failure", "error");
+    }
+  }, [socket.id, addToast, audioCtxRef]);
+
+  // Socket Event Listeners for Status/Metadata
+  useEffect(() => {
+    const onTtsStart = () => {
+      if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
+      isSpeakingRef.current = true;
       setStatus("synthesizing_tts");
     };
 
-    const onTtsChunk = (data: ArrayBuffer) => {
-      const now = performance.now();
-      if (lastChunkArrivalRef.current > 0) {
-        const delta = now - lastChunkArrivalRef.current;
-        if (delta > jitterBufferTargetRef.current) {
-          jitterBufferTargetRef.current = Math.min(300, jitterBufferTargetRef.current + 20);
-        } else if (delta < jitterBufferTargetRef.current / 2) {
-          jitterBufferTargetRef.current = Math.max(50, jitterBufferTargetRef.current - 5);
-        }
-      }
-      lastChunkArrivalRef.current = now;
-
-      const bytes = new Uint8Array(data);
-      let combined: Uint8Array;
-      
-      if (leftOverByteRef.current !== null) {
-        combined = new Uint8Array(bytes.length + 1);
-        combined[0] = leftOverByteRef.current;
-        combined.set(bytes, 1);
-        leftOverByteRef.current = null;
-      } else {
-        combined = bytes;
-      }
-
-      if (combined.length % 2 !== 0) {
-        leftOverByteRef.current = combined[combined.length - 1];
-        combined = combined.slice(0, combined.length - 1);
-      }
-
-      if (combined.length === 0) return;
-
-      try {
-        const int16Array = new Int16Array(combined.buffer, combined.byteOffset, combined.length / 2);
-        const float32Array = new Float32Array(int16Array.length);
-        for (let i = 0; i < int16Array.length; i++) float32Array[i] = int16Array[i] / 32768.0;
-
-        // Buffer limit: Only flush if we are severely behind to prevent memory issues.
-        // The previous limit of 15 was way too low and caused overlapping speech.
-        if (audioQueueRef.current.length > 100) {
-          console.warn("[Rocky] Audio queue overflow, clearing buffer.");
-          audioQueueRef.current = [];
-          nextChunkTimeRef.current = audioCtx.currentTime + 0.1;
-        }
-        audioQueueRef.current.push(float32Array);
-        processAudioQueue();
-      } catch (e) {
-        console.error("[Rocky] Audio processing error:", e);
-      }
+    const onTtsEnd = () => {
+      console.log("[Rocky] TTS stream finished.");
+      isSpeakingRef.current = false;
+      setStatus("idle");
     };
 
     const onTtsError = () => {
@@ -239,76 +193,62 @@ export function useAudioPipeline({
       }
     };
 
-    const onSetVolume = (data: { level: number }) => {
-      if (gainNodeRef.current) {
-        gainNodeRef.current.gain.setTargetAtTime(data.level / 100, audioCtx.currentTime, 0.1);
+    const onSetVolume = (data: SetVolume) => {
+      if (gainNodeRef.current && audioCtxRef.current) {
+        gainNodeRef.current.gain.setTargetAtTime(data.level / 100, audioCtxRef.current.currentTime, 0.1);
       }
       addToast(`🔊 Volume: ${data.level}%`, "info");
     };
 
-    const onStopSpeaking = () => handleStopSpeaking();
-
-    const onTtsEnd = () => {
-      console.log("[Rocky] TTS transfer finished.");
-      isSpeakingRef.current = false;
-      // We don't set idle here anymore, source.onended will do it
-      // when the queue is actually empty.
-    };
-
-    const playEarcon = async (type: string) => {
-      const audioCtx = audioCtxRef.current;
-      if (!audioCtx) return;
-
-      const fileMap: Record<string, string> = {
+    const playEarcon = async (type: SoundTrigger["type"]) => {
+      if (!audioCtxRef.current) return;
+      const fileMap: Record<SoundTrigger["type"], string> = {
         accept: "/earcons/accept.wav",
         success: "/earcons/success.wav",
         error: "/earcons/error.wav",
       };
-
       const file = fileMap[type];
       if (!file) return;
-
-      const decoded = await loadEarcon(file, audioCtx);
+      const decoded = await loadEarcon(file, audioCtxRef.current);
       if (!decoded) return;
-
       try {
-        const source = audioCtx.createBufferSource();
+        const source = audioCtxRef.current.createBufferSource();
         source.buffer = decoded;
-        source.connect(audioCtx.destination);
+        source.connect(audioCtxRef.current.destination);
         source.start(0);
       } catch (e) {
         console.warn(`[Rocky] Failed to play earcon ${type}:`, e);
       }
     };
 
-    socket.on("status_update", (status: string) => {
+    socket.on("status_update", (status: RockyStatus) => {
       if (status === "thinking_llm") {
         handleStopSpeaking();
       }
     });
     socket.on("tts_start", onTtsStart);
-    socket.on("tts_chunk", onTtsChunk);
     socket.on("tts_error", onTtsError);
     socket.on("tts_end", onTtsEnd);
     socket.on("set_volume", onSetVolume);
-    socket.on("stop_speaking", onStopSpeaking);
-    socket.on("sound_trigger", (data: { type: string }) => playEarcon(data.type));
+    socket.on("stop_speaking", () => handleStopSpeaking());
+    socket.on("sound_trigger", (data: SoundTrigger) => playEarcon(data.type));
     socket.on("VOICE_RECOVERING", () => {
       addToast("Recovering voice session...", "warning");
-      setStatus("processing"); // Visual indicator that something is happening
+      setStatus("processing_stt");
     });
 
+    // Cleanup listeners
     return () => {
+      socket.off("status_update");
       socket.off("tts_start", onTtsStart);
-      socket.off("tts_chunk", onTtsChunk);
       socket.off("tts_error", onTtsError);
       socket.off("tts_end", onTtsEnd);
       socket.off("set_volume", onSetVolume);
-      socket.off("stop_speaking", onStopSpeaking);
+      socket.off("stop_speaking");
       socket.off("sound_trigger");
       socket.off("VOICE_RECOVERING");
     };
-  }, [socket]);
+  }, [socket, setStatus, addToast, handleStopSpeaking, lastAssistantTextRef, speakBrowserFallback]);
 
   return {
     audioCtxRef,
@@ -316,6 +256,7 @@ export function useAudioPipeline({
     isSpeakingRef,
     handleStopSpeaking,
     isAudioReady,
-    isAudioActive: () => isSpeakingRef.current || activeSources.current.size > 0 || audioQueueRef.current.length > 0
+    startWebRTC, // Exported so AudioManager can trigger it
+    isAudioActive: () => isSpeakingRef.current
   };
 }

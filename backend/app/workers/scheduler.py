@@ -38,3 +38,14 @@ def setup() -> Worker:
     )
 
     return worker
+
+
+async def shutdown():
+    """Closes the SAQ queue connection."""
+    log.info("scheduler_shutdown_started")
+    try:
+        if hasattr(queue, "redis"):
+            await queue.redis.aclose()
+        log.info("scheduler_shutdown_complete")
+    except Exception as e:
+        log.error("scheduler_shutdown_failed", error=str(e))

@@ -61,12 +61,15 @@ export default function App() {
     }
   }, []);
 
+  const startWebRTCRef = useRef<((stream: MediaStream) => Promise<void>) | null>(null);
+
   const { audioState, analyzer, audioCtxRef, handleManualTrigger } = useAudioManager({
     socket,
     addToast,
+    startWebRTC: (stream) => startWebRTCRef.current?.(stream)
   });
 
-  const { isAudioActive: isPipelineActive } = useAudioPipeline({ 
+  const { isAudioActive: isPipelineActive, startWebRTC } = useAudioPipeline({ 
     socket, 
     addToast, 
     setStatus, 
@@ -75,6 +78,11 @@ export default function App() {
     externalAudioCtxRef: audioCtxRef,
     externalAnalyzerRef: analyzer
   });
+
+  // Keep the ref updated with the latest callback
+  useEffect(() => {
+    startWebRTCRef.current = startWebRTC;
+  }, [startWebRTC]);
 
   const isAudioActive = useCallback(() => {
     return isPipelineActive() || ["speaking", "listening", "processing"].includes(audioState);

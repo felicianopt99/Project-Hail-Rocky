@@ -25,13 +25,13 @@ export interface Protocol {
   description: string;
   icon: string;
   color: string;
-  settings: ProtocolSettings | any;
+  settings: ProtocolSettings;
 }
 
 export interface RoutineAction {
   device: string;
   action: string;
-  params?: Record<string, any>;
+  params?: Record<string, unknown>;
 }
 
 export interface Routine {

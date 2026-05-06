@@ -94,6 +94,11 @@ services:
     volumes:
       - postgres-data:/var/lib/postgresql/data
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -p 5433 -U rocky -d rocky"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     profiles:
       - letta
       - full
@@ -127,6 +132,11 @@ services:
     networks:
       - rocky_net
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     profiles:
       - ha
       - full
@@ -144,6 +154,11 @@ services:
     volumes:
       - qdrant-data:/qdrant/storage
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:6333/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     profiles:
       - letta
       - full
@@ -162,8 +177,10 @@ services:
       - letta-data:/root/.letta
     restart: unless-stopped
     depends_on:
-      - postgres
-      - qdrant
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8283/v1/health || exit 1"]
       interval: 10s

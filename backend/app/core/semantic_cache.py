@@ -75,5 +75,22 @@ class RockySemanticCache:
         except Exception as e:
             log.warning("semantic_cache_store_failed", error=str(e))
 
+    async def close(self):
+        """
+        Close the Redis connection of the semantic cache.
+        """
+        if self.cache and hasattr(self.cache, "redis"):
+            try:
+                # SemanticCache.redis might be a sync or async client
+                # In newer redis-vl it can be async. We try to close it.
+                if hasattr(self.cache.redis, "aclose"):
+                    await self.cache.redis.aclose()
+                elif hasattr(self.cache.redis, "close"):
+                    # If it's sync, closing it won't hurt
+                    self.cache.redis.close()
+                log.info("semantic_cache_closed")
+            except Exception as e:
+                log.warning("semantic_cache_close_failed", error=str(e))
+
 # Singleton instance
 semantic_cache = RockySemanticCache()

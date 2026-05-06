@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .core.logging import setup_logging
 from .api import dashboard, socketio_handlers, auth, skills, settings_api, speaker, memory, brain, webrtc, system
 from .config import settings
-from .workers.scheduler import setup as setup_scheduler
+from .workers.scheduler import setup as setup_scheduler, shutdown as shutdown_scheduler
 from .core.http_client import AsyncHTTPClient
 
 setup_logging()
@@ -27,6 +27,9 @@ socketio_handlers.register(sio)
 webrtc.set_sio(sio)
 
 
+from .core.semantic_cache import semantic_cache
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     worker = setup_scheduler()
@@ -36,12 +39,20 @@ async def lifespan(app: FastAPI):
     yield
     
     # Graceful shutdown
+    log.info("application_shutdown_started")
     await worker.stop()
+    await shutdown_scheduler()
+    await semantic_cache.close()
     await AsyncHTTPClient.close_client()
+    
     try:
         await asyncio.wait_for(worker_task, timeout=5.0)
     except asyncio.TimeoutError:
-        pass
+        log.warning("worker_shutdown_timeout")
+    except Exception as e:
+        log.error("worker_shutdown_error", error=str(e))
+    
+    log.info("application_shutdown_complete")
 
 
 fastapi_app = FastAPI(

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import socket from "../lib/socket";
 import { eventBus, RockyEvents } from "../lib/eventBus";
-import { useRockyStore, Message, RockyStatus, AppMode, LightState, Stats, Weather, LogEntry, Protocol, ProtocolSettings } from "../store/useRockyStore";
+import { useRockyStore, Message, RockyStatus, AppMode, Stats, Weather, LogEntry, Protocol, Routine } from "../store/useRockyStore";
 import { 
   ChatResponse, 
   ChatError, 
@@ -39,7 +39,9 @@ function playWakeBeep() {
   }
 }
 
-export function useRockySockets(addToast: (msg: string, type: any) => void, isAudioActive: () => boolean) {
+type ToastType = "info" | "success" | "error" | "warning";
+
+export function useRockySockets(addToast: (msg: string, type: ToastType) => void, isAudioActive: () => boolean) {
   const store = useRockyStore();
   const isInterruptedRef = useRef(false);
 
@@ -107,7 +109,7 @@ export function useRockySockets(addToast: (msg: string, type: any) => void, isAu
     };
 
     const onChatError = (error: ChatError) => {
-      addToast("Failed to send message - try again", "error");
+      addToast(`Failed to send message: ${error.message}`, "error");
       store.setIsTyping(false);
       store.setStatus("idle");
       console.error("[Chat Error]", error);
@@ -144,7 +146,7 @@ export function useRockySockets(addToast: (msg: string, type: any) => void, isAu
 
     const onUiHint = (hint: UiHint) => {
       if (hint.type === "environmental_update") {
-        store.setEnvironmentalState(hint.value);
+        store.setEnvironmentalState(hint.value as any); // Cast as any for complex state update
       }
     };
 
@@ -158,7 +160,7 @@ export function useRockySockets(addToast: (msg: string, type: any) => void, isAu
       addToast("Connection lost - reconnecting...", "warning");
     };
 
-    const onConnectError = (error?: any) => {
+    const onConnectError = (error?: Error | any) => {
       store.setIsConnected(false);
       const msg = error?.message || "Connection error - check OpenClaw gateway";
       addToast(msg, "error");
@@ -188,7 +190,7 @@ export function useRockySockets(addToast: (msg: string, type: any) => void, isAu
     const onAreas = (data: Record<string, string>) => store.setAreas(data);
     const onLog = (log: LogEntry) => store.setLogs(prev => [log, ...prev].slice(0, 50));
     const onDevice = (data: DeviceUpdated) => store.updateLight(data.device, data.state);
-    const onRoutinesList = (routines: any[]) => store.setRoutines(routines);
+    const onRoutinesList = (routines: Routine[]) => store.setRoutines(routines);
 
     // Local interruption management
     const handleLocalInterrupt = () => {
@@ -266,5 +268,7 @@ export function useRockySockets(addToast: (msg: string, type: any) => void, isAu
       
       eventBus.off(RockyEvents.INTERRUPT, handleLocalInterrupt);
     };
-  }, [addToast, isAudioActive]);
+  }, [addToast, isAudioActive, store]);
+  
+  return null;
 }
