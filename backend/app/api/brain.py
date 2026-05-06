@@ -7,6 +7,7 @@ import structlog
 
 from ..api import socketio_handlers
 from ..core.semantic_cache import semantic_cache
+from ..core.trace import set_trace_id, get_trace_id
 
 log = structlog.get_logger()
 
@@ -23,6 +24,8 @@ async def chat(req: BrainRequest):
     Stream tokens from Rocky's brain.
     This bypasses Socket.io and provides a direct interface for the Pipecat pipeline.
     """
+    set_trace_id()
+    structlog.contextvars.bind_contextvars(sid=req.sid, trace_id=get_trace_id())
     if not req.content.strip():
         raise HTTPException(status_code=400, detail="Content cannot be empty")
     

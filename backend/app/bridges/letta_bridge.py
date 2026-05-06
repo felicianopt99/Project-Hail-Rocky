@@ -16,6 +16,7 @@ from ..rocky.letta_config import (
     HA_MCP_SERVER_NAME
 )
 from ..core.semantic_cache import semantic_cache
+from ..core.trace import get_trace_id
 
 log = structlog.get_logger()
 
@@ -230,9 +231,16 @@ async def send_message(text: str, role: str = "user") -> str | None:
         return None
 
     try:
-        payload = {"messages": [{"role": role, "content": text}], "stream": False}
+        trace_id = get_trace_id()
+        payload = {
+            "messages": [{"role": role, "content": text}], 
+            "stream": False,
+            "metadata": {"trace_id": trace_id} if trace_id else {},
+            "tags": [f"trace_id:{trace_id}"] if trace_id else []
+        }
+        headers = {"X-Trace-Id": trace_id} if trace_id else {}
         c = _get_letta_client()
-        r = await c.post(_url(f"/v1/agents/{agent_id}/messages"), json=payload)
+        r = await c.post(_url(f"/v1/agents/{agent_id}/messages"), json=payload, headers=headers)
         r.raise_for_status()
         data = r.json()
 
@@ -289,12 +297,19 @@ async def send_message_stream(text: str, role: str = "user") -> AsyncGenerator[s
 
     c = _get_letta_client()
     url = _url(f"/v1/agents/{agent_id}/messages")
-    payload = {"messages": [{"role": role, "content": text}], "stream": True}
+    trace_id = get_trace_id()
+    payload = {
+        "messages": [{"role": role, "content": text}], 
+        "stream": True,
+        "metadata": {"trace_id": trace_id} if trace_id else {},
+        "tags": [f"trace_id:{trace_id}"] if trace_id else []
+    }
+    headers = {"X-Trace-Id": trace_id} if trace_id else {}
     full_response = []
     tool_used = False
 
     try:
-        async with c.stream("POST", url, json=payload) as r:
+        async with c.stream("POST", url, json=payload, headers=headers) as r:
             r.raise_for_status()
             async for line in r.aiter_lines():
                 if not line or not line.strip():
