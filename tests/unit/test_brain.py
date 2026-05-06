@@ -39,24 +39,30 @@ async def test_brain_chat_validation():
     response = client.post("/api/brain/chat", json=payload)
     assert response.status_code == 422
 
-@patch("app.api.brain.socketio_handlers._chat")
-def test_brain_generate_logic(mock_chat):
+@pytest.mark.asyncio
+async def test_brain_mcp_tool_trigger():
     """
-    Test the direct token generation logic in brain.py.
-    This is a deeper unit test of the generator function.
+    Unit test to verify that asking about smart home status triggers
+    the expected tool call simulation in our mock.
     """
-    from app.api.brain import BrainRequest, chat
-    import asyncio
+    from app.api.brain import BrainRequest
     
-    req = BrainRequest(sid="test", content="hello")
-    
-    # We want to test if it correctly captures tokens from the mock_sio.emit calls
-    async def side_effect(sid, content, sio):
-        await sio.emit("chat_token", "Hello")
-        await sio.emit("chat_token", " world")
-        await sio.emit("chat_response", {"text": "Hello world"})
-    
-    mock_chat.side_effect = side_effect
-    
-    # This is slightly complex to test directly because it's a StreamingResponse
-    # but we've verified the structure above.
+    payload = {
+        "sid": "test-mcp",
+        "content": "Quais são as luzes da sala?",
+        "emotional_state": "neutral"
+    }
+
+    async def mock_letta_stream(msg):
+        yield "Checking Home Assistant... "
+        yield "[Tool Call: ha-mcp:search_entities] "
+        yield "The lights are off."
+
+    with patch("app.api.socketio_handlers.letta_bridge.is_available", return_value=True), \
+         patch("app.api.socketio_handlers.letta_bridge.send_message_stream", side_effect=mock_letta_stream), \
+         patch("app.api.socketio_handlers.settings.has_letta", return_value=True), \
+         patch("app.api.socketio_handlers._session", return_value={"history": [], "state": "neutral"}):
+            
+        response = client.post("/api/brain/chat", json=payload)
+        assert response.status_code == 200
+        assert "ha-mcp:search_entities" in response.text

@@ -9,19 +9,27 @@
       "language": "pt"
     },
     {
-      "id": "HOME-001",
-      "category": "Smart Home",
-      "name": "Kitchen Lights",
-      "input": "Liga as luzes da cozinha agora",
-      "expected_keywords": ["cozinha", "luzes", "ligar", "acesas", "ligadas", "on"],
-      "language": "pt"
-    },
-    {
       "id": "HOME-002",
       "category": "Smart Home",
       "name": "Living Room Temp",
       "input": "Qual é a temperatura da sala?",
       "expected_keywords": ["temperatura", "sala", "graus", "celsius"],
+      "language": "pt"
+    },
+    {
+      "id": "HOME-STATE-001",
+      "category": "Smart Home",
+      "name": "Kitchen Fridge Temp",
+      "input": "Qual é a temperatura do frigorífico?",
+      "expected_keywords": ["frigorífico", "temperatura", "frio", "graus"],
+      "language": "pt"
+    },
+    {
+      "id": "HOME-STATE-002",
+      "category": "Smart Home",
+      "name": "Bedroom Door Status",
+      "input": "A porta do quarto está aberta?",
+      "expected_keywords": ["porta", "quarto", "aberta", "fechada"],
       "language": "pt"
     },
     {
@@ -33,14 +41,6 @@
       "language": "pt"
     },
     {
-      "id": "KNOW-002",
-      "category": "Knowledge",
-      "name": "Python History",
-      "input": "Who created the Python programming language?",
-      "expected_keywords": ["guido", "rossum", "python", "created", "programming"],
-      "language": "en"
-    },
-    {
       "id": "GREET-002",
       "category": "Personality",
       "name": "Standard Greeting EN",
@@ -49,19 +49,19 @@
       "language": "en"
     },
     {
-      "id": "HOME-003",
+      "id": "HOME-STATE-003",
       "category": "Smart Home",
-      "name": "Living Room Lights EN",
-      "input": "Turn on the living room lights please",
-      "expected_keywords": ["living", "room", "lights", "on", "turned"],
+      "name": "Outdoor Humidity EN",
+      "input": "What is the humidity outside?",
+      "expected_keywords": ["humidity", "outside", "percent", "wet"],
       "language": "en"
     },
     {
-      "id": "KNOW-003",
-      "category": "Knowledge",
-      "name": "Speed of Light",
-      "input": "What is the speed of light in a vacuum?",
-      "expected_keywords": ["speed", "light", "vacuum", "velocidade", "vácuo", "299"],
+      "id": "HOME-STATE-004",
+      "category": "Smart Home",
+      "name": "All Lights Status EN",
+      "input": "Are any lights on in the house?",
+      "expected_keywords": ["lights", "on", "house", "any"],
       "language": "en"
     },
     {
