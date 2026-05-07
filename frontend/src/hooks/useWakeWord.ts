@@ -32,11 +32,15 @@ const MIC_CONSTRAINTS: MediaStreamConstraints = {
 type Stage = "idle" | "keyword" | "speech";
 
 export function useWakeWord() {
+  const [error, setError] = useState<string | null>(null);
+  const isInitializing = useRef(false);
+  const porcupineReady = useRef(false);
+
   const {
     keywordDetection,
     isLoaded: porcupineLoaded,
     isListening: porcupineListening,
-    error: porcupineError,
+    error: porcupineHookError,
     init: porcupineInit,
     start: porcupineStart,
     stop: porcupineStop,
@@ -46,28 +50,40 @@ export function useWakeWord() {
   const vadRef = useRef<MicVAD | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const stageRef = useRef<Stage>("idle");
-  const porcupineReady = useRef(false);
 
   const rockyStatus = useRockyStore((s) => s.status);
   const isListening = useRockyStore((s) => s.isListening);
 
   // ── Porcupine one-time init ───────────────────────────────────────────────
   useEffect(() => {
-    if (!PICOVOICE_KEY || porcupineReady.current) return;
+    if (!PICOVOICE_KEY || porcupineReady.current || isInitializing.current) return;
 
-    porcupineInit(
-      PICOVOICE_KEY,
-      [{ publicPath: "/wakeword/hey_rocky.ppn", label: "Hey Rocky", sensitivity: 0.65 }],
-      { publicPath: "/wakeword/porcupine_params.pv" },
-    )
-      .then(() => {
+    const initialize = async () => {
+      isInitializing.current = true;
+      try {
+        console.log(`${LOG_TAG} Initializing Porcupine...`);
+        await porcupineInit(
+          PICOVOICE_KEY,
+          [{ publicPath: "/wakeword/hey_rocky.ppn", label: "Hey Rocky", sensitivity: 0.65 }],
+          { publicPath: "/wakeword/porcupine_params.pv" },
+        );
         porcupineReady.current = true;
+        setError(null);
         console.log(`${LOG_TAG} Porcupine ready.`);
-      })
-      .catch((err: Error) => console.error(`${LOG_TAG} Porcupine init failed:`, err.message));
+      } catch (err: any) {
+        const msg = err.message || "Unknown Porcupine error";
+        console.error(`${LOG_TAG} Porcupine init failed:`, msg);
+        setError(`Porcupine Error: ${msg}`);
+      } finally {
+        isInitializing.current = false;
+      }
+    };
 
-    return () => { porcupineRelease().catch(() => {}); };
-  }, [porcupineInit, porcupineRelease]);
+    initialize();
+
+    // No release here — we manage it in the global cleanup to avoid race conditions 
+    // when this effect might re-run due to dependency changes.
+  }, [porcupineInit]);
 
   // ── VAD + mic stream teardown ────────────────────────────────────────────
   const releaseVAD = useCallback(() => {
@@ -78,10 +94,6 @@ export function useWakeWord() {
   }, []);
 
   // ── Stage 2: opened after keyword, monitors for end of user utterance ────
-  //
-  // The VAD reuses the DSP mic stream that's already been handed to WebRTC.
-  // Echo-cancellation in MIC_CONSTRAINTS prevents Rocky's TTS from triggering
-  // a false speech-end, so Porcupine can safely restart before TTS is done.
   const activateSpeechStage = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
@@ -110,17 +122,18 @@ export function useWakeWord() {
           eventBus.emit(RockyEvents.VAD_SPEECH_STOP);
           stageRef.current = "keyword";
           releaseVAD();
-          // Restart keyword listening immediately. The mic stream we held is now
-          // gone, so Porcupine can reclaim the hardware without contention.
+          
           if (PICOVOICE_KEY && porcupineReady.current && !porcupineListening) {
-            porcupineStart().catch(console.error);
+            porcupineStart().catch(err => {
+              console.error(`${LOG_TAG} Failed to restart Porcupine:`, err.message);
+            });
           }
         },
         onVADMisfire: () => console.log(`${LOG_TAG} VAD misfire discarded.`),
       });
 
       await vadRef.current.start();
-      console.log(`${LOG_TAG} Speech stage active (Silero VAD + WebRTC open).`);
+      console.log(`${LOG_TAG} Speech stage active.`);
     } catch (err: any) {
       console.error(`${LOG_TAG} Speech stage failed:`, err.message);
       stageRef.current = "keyword";
@@ -164,7 +177,7 @@ export function useWakeWord() {
           if (status !== "idle" || !listening) return;
           const stream = streamRef.current;
           if (!stream?.active) return;
-          console.log(`${LOG_TAG} [Fallback] Speech detected — activating pipeline.`);
+          console.log(`${LOG_TAG} [Fallback] Speech detected.`);
           eventBus.emit(RockyEvents.VAD_SPEECH_START, stream);
         },
         onSpeechEnd: () => {
@@ -175,61 +188,86 @@ export function useWakeWord() {
       });
 
       await vadRef.current.start();
-      console.log(`${LOG_TAG} [Fallback] VAD-only mode active (set VITE_PICOVOICE_ACCESS_KEY to enable wake word).`);
+      console.log(`${LOG_TAG} [Fallback] VAD active.`);
     } catch (err: any) {
       console.error(`${LOG_TAG} [Fallback] VAD init failed:`, err.message);
       stageRef.current = "idle";
+      setError(`VAD Error: ${err.message}`);
     }
   }, []);
 
   // ── Porcupine keyword detection → hand off to speech stage ──────────────
   useEffect(() => {
     if (!keywordDetection || stageRef.current !== "keyword") return;
-    console.log(`${LOG_TAG} "Hey Rocky" detected — activating speech stage.`);
+    console.log(`${LOG_TAG} Wake word detected.`);
     stageRef.current = "speech";
-    porcupineStop().then(activateSpeechStage).catch(console.error);
+    porcupineStop().then(activateSpeechStage).catch(err => {
+      console.error(`${LOG_TAG} Error stopping Porcupine:`, err.message);
+      activateSpeechStage(); // Try to move to speech stage anyway
+    });
   }, [keywordDetection, porcupineStop, activateSpeechStage]);
 
   // ── Start / stop based on global listening toggle and Rocky idle state ───
   useEffect(() => {
     if (!isListening) {
       if (stageRef.current !== "idle") {
-        porcupineStop().catch(() => {});
+        if (porcupineReady.current && porcupineListening) {
+          porcupineStop().catch(() => {});
+        }
         releaseVAD();
         stageRef.current = "idle";
-        console.log(`${LOG_TAG} Listening disabled — idle.`);
+        console.log(`${LOG_TAG} Listening disabled.`);
       }
       return;
     }
 
-    // Only (re)start from a clean idle state; other transitions are self-managed
     if (rockyStatus !== "idle" || stageRef.current !== "idle") return;
 
     if (PICOVOICE_KEY) {
-      if (!porcupineLoaded) return; // wait for WASM model
+      if (!porcupineLoaded || !porcupineReady.current) return; 
       stageRef.current = "keyword";
       porcupineStart()
         .then(() => console.log(`${LOG_TAG} Keyword listening started.`))
-        .catch(console.error);
+        .catch(err => {
+          console.error(`${LOG_TAG} Keyword listening failed to start:`, err.message);
+          stageRef.current = "idle";
+          setError(`Porcupine Start Failed: ${err.message}`);
+        });
     } else {
       startFallbackVAD();
     }
-  }, [rockyStatus, isListening, porcupineLoaded, porcupineStart, porcupineStop, releaseVAD, startFallbackVAD]);
+  }, [rockyStatus, isListening, porcupineLoaded, porcupineStart, porcupineStop, releaseVAD, startFallbackVAD, porcupineListening]);
 
   useEffect(() => {
-    if (porcupineError) console.error(`${LOG_TAG} Porcupine error:`, porcupineError);
-  }, [porcupineError]);
+    if (porcupineHookError) {
+      console.error(`${LOG_TAG} Porcupine hook error:`, porcupineHookError);
+      setError(`Porcupine Hook: ${porcupineHookError.message || porcupineHookError}`);
+    }
+  }, [porcupineHookError]);
 
+  // Global Cleanup
   useEffect(() => {
     return () => {
-      porcupineStop().catch(() => {});
-      porcupineRelease().catch(() => {});
-      releaseVAD();
+      console.log(`${LOG_TAG} Cleaning up...`);
+      const cleanup = async () => {
+        try {
+          if (porcupineReady.current) {
+            await porcupineStop().catch(() => {});
+            await porcupineRelease().catch(() => {});
+            porcupineReady.current = false;
+          }
+        } catch (e) {
+          // ignore
+        }
+        releaseVAD();
+      };
+      cleanup();
     };
   }, [porcupineStop, porcupineRelease, releaseVAD]);
 
   return {
     stage: stageRef.current,
-    isWakeWordReady: PICOVOICE_KEY ? porcupineLoaded : true,
+    isWakeWordReady: PICOVOICE_KEY ? porcupineReady.current : true,
+    error,
   };
 }

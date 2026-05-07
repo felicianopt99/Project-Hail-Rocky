@@ -16,7 +16,8 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, 'src'),
-        'onnxruntime-web': 'onnxruntime-web/dist/ort.all.bundle.min.mjs',
+        'onnxruntime-web/wasm': path.resolve(__dirname, 'node_modules/onnxruntime-web/dist/ort.wasm.min.mjs'),
+        'onnxruntime-web': path.resolve(__dirname, 'node_modules/onnxruntime-web/dist/ort.all.bundle.min.mjs'),
       },
     },
     assetsInclude: ['**/*.onnx'],

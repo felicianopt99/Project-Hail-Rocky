@@ -180,6 +180,11 @@ export function useAudioPipeline({
     } catch (err) {
       console.error("[Rocky] Failed to establish WebRTC connection:", err);
       addToast("Audio pipeline failure", "error");
+      setStatus("idle");
+      if (pcRef.current) {
+        pcRef.current.close();
+        pcRef.current = null;
+      }
     }
   }, [socket.id, addToast, audioCtxRef]);
 

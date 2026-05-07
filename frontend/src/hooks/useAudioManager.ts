@@ -209,11 +209,29 @@ export function useAudioManager({ socket, addToast, startWebRTC }: AudioManagerO
     };
 
     socket.on("status_update", onStatusUpdate);
+    socket.on("disconnect", () => {
+      log("warn", "Socket disconnected — resetting audio state.");
+      setAudioState("idle");
+      stopAudioCapture();
+    });
 
     return () => {
       socket.off("status_update", onStatusUpdate);
+      socket.off("disconnect");
     };
   }, [socket, stopAudioCapture]);
+
+  // Timeout guard for "processing" state
+  useEffect(() => {
+    if (audioState !== "processing") return;
+
+    const timeout = setTimeout(() => {
+      log("warn", "Processing state timed out — resetting to idle.");
+      setAudioState("idle");
+    }, 12000); // 12 seconds max for LLM + TTS start
+
+    return () => clearTimeout(timeout);
+  }, [audioState]);
 
   useEffect(() => {
     return () => stopAudioCapture();

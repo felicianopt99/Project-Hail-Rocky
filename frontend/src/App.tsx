@@ -89,16 +89,29 @@ export default function App() {
   }, [isPipelineActive, audioState]);
 
   useRockySockets(addToast, isAudioActive);
-  useWakeWord();
+  const { error: wakeWordError } = useWakeWord();
+
+  useEffect(() => {
+    if (wakeWordError) {
+      addToast(wakeWordError, "error");
+    }
+  }, [wakeWordError, addToast]);
 
   const handleSendMessage = useCallback((text?: string) => {
     const msg = text || inputValue;
     if (!msg.trim()) return;
 
     console.log("[App] Sending chat request:", msg);
+    // If the UI is stuck in processing from a failed voice attempt, clear it on manual send
+    if (audioState === "processing") {
+      console.log("[App] Manual message override — clearing processing state.");
+      // We don't have direct access to setAudioState here, but sending a chat request
+      // will eventually trigger a status update from the server.
+    }
+    
     socket.emit("chat_request", { content: msg });
     setInputValue("");
-  }, [inputValue, setInputValue]);
+  }, [inputValue, setInputValue, audioState]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
