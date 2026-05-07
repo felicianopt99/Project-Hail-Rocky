@@ -87,8 +87,8 @@ async def _chat(sid: str, content: str, sio: socketio.AsyncServer, language: str
         log.info("cache_check", hit=True, sid=sid, score=round(score, 4), prompt=content[:50])
         
         # Check if Pipecat is active to determine how to emit the response
-        bridge = session.get("pipecat_bridge")
-        is_pipecat_active = bridge and bridge._running
+        from ..bridges.pipecat_bridge import PipecatBridge
+        is_pipecat_active = PipecatBridge().is_session_running(sid)
         
         # If Pipecat is NOT active, we send the full response via socket
         if not is_pipecat_active:
@@ -286,8 +286,8 @@ async def _chat_letta(
         sentence_buf = ""
         
         # Check if Pipecat is active to prevent redundant emissions
-        bridge = session.get("pipecat_bridge")
-        is_pipecat_active = bridge and bridge._running
+        from ..bridges.pipecat_bridge import PipecatBridge
+        is_pipecat_active = PipecatBridge().is_session_running(sid)
 
         async for token in letta_bridge.send_message_stream(msg):
             if not token:
@@ -365,8 +365,8 @@ async def _chat_litellm(
             max_tokens=1024,
         )
         # Check if Pipecat is active to prevent redundant emissions
-        bridge = session.get("pipecat_bridge")
-        is_pipecat_active = bridge and bridge._running
+        from ..bridges.pipecat_bridge import PipecatBridge
+        is_pipecat_active = PipecatBridge().is_session_running(sid)
 
         async for chunk in response:
             token = chunk.choices[0].delta.content or ""

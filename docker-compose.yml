@@ -133,7 +133,7 @@ services:
       - rocky_net
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:3000/health || exit 1"]
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/localhost/3000' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -155,7 +155,7 @@ services:
       - qdrant-data:/qdrant/storage
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:6333/health || exit 1"]
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/localhost/6333' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -173,6 +173,8 @@ services:
       - rocky_net
     env_file:
       - .env
+    environment:
+      - PORT=8283
     volumes:
       - letta-data:/root/.letta
     restart: unless-stopped
@@ -182,7 +184,7 @@ services:
       qdrant:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8283/v1/health || exit 1"]
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/localhost/8283' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -209,7 +211,7 @@ services:
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8881"]
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8881/health || exit 1"]
+      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/localhost/8881' || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 10

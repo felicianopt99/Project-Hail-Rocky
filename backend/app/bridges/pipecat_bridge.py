@@ -29,7 +29,8 @@ class PipecatBridge:
             self._sio = sio_server
         if self._initialized:
             return
-        self._sessions: Dict[str, Dict[str, Any]] = {} # sid -> connection info
+        self._sessions: Dict[str, Any] = {} # sid -> connection info
+        self._running = False
         self._initialized = True
         log.info("pipecat_bridge_initialized")
 
@@ -47,6 +48,7 @@ class PipecatBridge:
         return self._sessions[sid]
 
     async def start(self, sid: str):
+        self._running = True # Mark as running immediately when starting/connecting
         session = await self._get_connection(sid)
         if session["ws"] or session["starting"]:
             return
@@ -68,6 +70,7 @@ class PipecatBridge:
                 log.info("pipecat_bridge_connecting", url=url, attempt=attempt+1, sid=sid)
                 session["ws"] = await websockets.connect(url, open_timeout=20)
                 session["running"] = True
+                self._running = True
                 session["task"] = asyncio.create_task(self._listen(sid))
                 log.info("pipecat_bridge_started", sid=sid, trace_id=trace_id)
                 
@@ -100,6 +103,7 @@ class PipecatBridge:
         
         session["ws"] = None
         session["starting"] = False
+        self._running = any(s.get("running") or s.get("starting") for s in self._sessions.values())
 
     async def send_audio(self, sid: str, chunk: bytes):
         session = await self._get_connection(sid)
@@ -207,6 +211,10 @@ class PipecatBridge:
             except Exception:
                 pass
 
+    async def interrupt_speech(self, sid: str):
+        """Alias for send_cancel_frame for broader compatibility."""
+        await self.send_cancel_frame(sid)
+
     async def send_eot(self, sid: str):
         session = await self._get_connection(sid)
         if session["ws"] and session["running"]:
@@ -215,11 +223,20 @@ class PipecatBridge:
             except Exception:
                 pass
 
+    def is_session_running(self, sid: str) -> bool:
+        """Check if a specific session is currently active (running or starting)."""
+        session = self._sessions.get(sid)
+        return bool(session and (session.get("running") or session.get("starting")))
+
     async def stop(self, sid: str):
         if sid not in self._sessions:
             return
         session = self._sessions[sid]
         session["running"] = False
+        session["starting"] = False
+        
+        # Update global running state: True if any session is running or starting
+        self._running = any(s.get("running") or s.get("starting") for s in self._sessions.values())
         
         while not session["queue"].empty():
             try:

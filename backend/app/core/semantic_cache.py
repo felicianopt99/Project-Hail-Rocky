@@ -1,8 +1,17 @@
 import structlog
 import numpy as np
 from typing import Optional, List, Dict, Any
+
+# Workaround for redisvl 0.2.1 / redis-py 5.x compatibility
+try:
+    import sys
+    import redis.commands.search.index_definition as index_definition
+    sys.modules["redis.commands.search.indexDefinition"] = index_definition
+except ImportError:
+    pass
+
 from redisvl.extensions.llmcache import SemanticCache
-from redisvl.utils.vectorize import LiteLLMTextVectorizer
+from redisvl.utils.vectorize import OpenAITextVectorizer
 from ..config import settings
 
 log = structlog.get_logger()
@@ -20,7 +29,7 @@ class RockySemanticCache:
         try:
             # Initialize the vectorizer (LiteLLM)
             # We use LiteLLM to be consistent with the rest of the app
-            self.vectorizer = LiteLLMTextVectorizer(
+            self.vectorizer = OpenAITextVectorizer(
                 model=settings.embedding_model or "openai/text-embedding-3-small"
             )
 

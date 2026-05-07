@@ -19,7 +19,7 @@ from kokoro_onnx import Kokoro
 def setup_logging():
     structlog.configure(
         processors=[
-            structlog.contextvars.inject_contextvars,
+            structlog.contextvars.merge_contextvars,
             structlog.processors.TimeStamper(fmt="iso"),
             structlog.stdlib.add_log_level,
             structlog.processors.JSONRenderer() if os.getenv("LOG_FORMAT") == "JSON" else structlog.dev.ConsoleRenderer(),
