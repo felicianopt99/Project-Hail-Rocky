@@ -20,7 +20,7 @@ export default defineConfig(() => {
     },
     assetsInclude: ['**/*.onnx'],
     optimizeDeps: {
-      exclude: ['@ricky0123/vad-web', 'onnxruntime-web'],
+      exclude: ['onnxruntime-web'],
     },
     server: {
       hmr: true,
