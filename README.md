@@ -1,8 +1,3 @@
-Com certeza! Faz todo o sentido ter o README.md em inglês, dado que é a língua padrão e universal para repositórios de software (especialmente em projetos de código aberto ou com arquiteturas complexas). Além disso, expandi significativamente os detalhes técnicos, focando na arquitetura cognitiva, no pipeline de voz de baixa latência e na infraestrutura maciça de testes que o projeto possui.
-
-Aqui está a proposta detalhada para o novo README.md:
-
-Markdown
 # Project Hail Rocky 🎵👽
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue.svg)
