@@ -120,12 +120,17 @@ export default function App() {
     handleManualTrigger();
   }, [audioState, handleManualTrigger, mode]);
 
-  // Wake word detected on server → activate browser mic
+  // VAD speech detected locally → switch to visualizer so the user sees activity
+  // (useAudioManager reacts to the same event to start the WebRTC pipeline)
   useEffect(() => {
-    const onWake = () => handleMicClick();
-    eventBus.on(RockyEvents.WAKE_WORD_DETECTED, onWake);
-    return () => { eventBus.off(RockyEvents.WAKE_WORD_DETECTED, onWake); };
-  }, [handleMicClick]);
+    const onVADSpeechStart = () => {
+      if (useRockyStore.getState().mode !== "visualizer") {
+        useRockyStore.getState().setMode("visualizer");
+      }
+    };
+    eventBus.on(RockyEvents.VAD_SPEECH_START, onVADSpeechStart);
+    return () => { eventBus.off(RockyEvents.VAD_SPEECH_START, onVADSpeechStart); };
+  }, []);
 
   const [pendingAuth, setPendingAuth] = React.useState<any>(null);
 

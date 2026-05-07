@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState, useCallback } from "react";
-import { useRockyStore } from "../store/useRockyStore";
 import { eventBus, RockyEvents } from "../lib/eventBus";
 
 interface CustomSocket {
@@ -47,10 +46,6 @@ export function useAudioManager({ socket, addToast, startWebRTC }: AudioManagerO
   const streamRef = useRef<MediaStream | null>(null);
 
   const isCapturingRef = useRef(false);
-  
-  const SILENCE_THRESHOLD = 35;
-  const SILENCE_DURATION = 2500;
-  const silenceStartRef = useRef<number | null>(null);
 
   useEffect(() => {
     log("info", "Initializing AudioManager...");
@@ -88,27 +83,32 @@ export function useAudioManager({ socket, addToast, startWebRTC }: AudioManagerO
     }
   }, [addToast]);
 
+  const DSP_CONSTRAINTS: MediaTrackConstraints = {
+    echoCancellation: { exact: true },
+    noiseSuppression: { exact: true },
+    autoGainControl: { exact: true },
+    sampleRate: 16000,
+  };
+
   const requestMicrophone = useCallback(async (): Promise<MediaStream | null> => {
     log("info", "Requesting microphone access...");
     setAudioState("requesting_mic");
 
     try {
-      const constraints = {
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 16000,
-        },
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: DSP_CONSTRAINTS,
         video: false,
-      };
-
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      });
       streamRef.current = stream;
       return stream;
     } catch (err: any) {
-      log("error", "Microphone access denied", err);
-      addToast("Microphone access failed", "error");
+      if (err.name === "OverconstrainedError") {
+        log("error", "DSP constraints not supported by this device", err);
+        addToast("Microphone DSP not supported on this device", "error");
+      } else {
+        log("error", "Microphone access denied", err);
+        addToast("Microphone access failed", "error");
+      }
       setAudioState("error");
       return null;
     }
@@ -125,18 +125,19 @@ export function useAudioManager({ socket, addToast, startWebRTC }: AudioManagerO
       streamRef.current = null;
     }
 
-    silenceStartRef.current = null;
     setAudioState(nextState);
   }, []);
 
-  const startAudioCapture = useCallback(async () => {
+  const startAudioCapture = useCallback(async (externalStream?: MediaStream) => {
     if (isCapturingRef.current) return;
-    
+
     log("info", "Starting audio session...");
     setAudioState("listening");
 
     try {
-      const stream = await requestMicrophone();
+      // If the VAD provides the stream, use it directly (no new getUserMedia call).
+      // If triggered manually (button), request our own stream with DSP constraints.
+      const stream = externalStream ?? await requestMicrophone();
       if (!stream) return;
 
       // 1. Local Visualization
@@ -161,40 +162,27 @@ export function useAudioManager({ socket, addToast, startWebRTC }: AudioManagerO
     }
   }, [requestMicrophone, socket, addToast, startWebRTC]);
 
-  // VAD Loop
+  // Silero VAD events — emitted by useWakeWord when the WASM model detects speech
   useEffect(() => {
-    if (audioState !== "listening") return;
+    const onVADSpeechStart = (rawStream: unknown) => {
+      startAudioCapture(rawStream as MediaStream);
+    };
 
-    const interval = setInterval(() => {
-      if (!analyzerRef.current || !isCapturingRef.current) return;
+    const onVADSpeechStop = () => {
+      if (!isCapturingRef.current) return;
+      log("info", "VAD speech end — signalling backend to stop.");
+      socket.emit("manual_stop");
+      setAudioState("processing");
+    };
 
-      const dataArray = new Uint8Array(analyzerRef.current.fftSize);
-      analyzerRef.current.getByteTimeDomainData(dataArray);
-      
-      let sum = 0;
-      for (let i = 0; i < dataArray.length; i++) {
-        const val = (dataArray[i]! - 128) / 128;
-        sum += val * val;
-      }
-      const rms = Math.sqrt(sum / dataArray.length) * 100;
-      
-      if (rms < SILENCE_THRESHOLD) {
-        if (!silenceStartRef.current) silenceStartRef.current = Date.now();
-        const silenceMs = Date.now() - silenceStartRef.current;
-        
-        if (silenceMs > SILENCE_DURATION) {
-          log("info", `Silence detected, stopping user capture...`);
-          setAudioState("processing");
-          socket.emit("manual_stop");
-          silenceStartRef.current = null;
-        }
-      } else {
-        silenceStartRef.current = null;
-      }
-    }, 100);
+    eventBus.on(RockyEvents.VAD_SPEECH_START, onVADSpeechStart);
+    eventBus.on(RockyEvents.VAD_SPEECH_STOP, onVADSpeechStop);
 
-    return () => clearInterval(interval);
-  }, [audioState, socket]);
+    return () => {
+      eventBus.off(RockyEvents.VAD_SPEECH_START, onVADSpeechStart);
+      eventBus.off(RockyEvents.VAD_SPEECH_STOP, onVADSpeechStop);
+    };
+  }, [socket, startAudioCapture]);
 
   const handleManualTrigger = useCallback(() => {
     if (audioState === "listening" || audioState === "processing") {
@@ -221,29 +209,11 @@ export function useAudioManager({ socket, addToast, startWebRTC }: AudioManagerO
     };
 
     socket.on("status_update", onStatusUpdate);
-    const onWakeWord = () => startAudioCapture();
-    eventBus.on(RockyEvents.WAKE_WORD_DETECTED, onWakeWord);
 
     return () => {
       socket.off("status_update", onStatusUpdate);
-      eventBus.off(RockyEvents.WAKE_WORD_DETECTED, onWakeWord);
     };
-  }, [socket, stopAudioCapture, startAudioCapture]);
-
-  // Auto-restart logic
-  const status = useRockyStore(s => s.status);
-  const isListeningGlobal = useRockyStore(s => s.isListening);
-
-  useEffect(() => {
-    if (status === "idle" && isListeningGlobal && !isCapturingRef.current && audioState === "idle") {
-      const timer = setTimeout(() => {
-        if (!isCapturingRef.current && useRockyStore.getState().status === "idle") {
-          startAudioCapture();
-        }
-      }, 1500);
-      return () => clearTimeout(timer);
-    }
-  }, [status, isListeningGlobal, startAudioCapture, audioState]);
+  }, [socket, stopAudioCapture]);
 
   useEffect(() => {
     return () => stopAudioCapture();

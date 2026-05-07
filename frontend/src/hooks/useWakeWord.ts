@@ -1,131 +1,129 @@
 import { useEffect, useRef, useCallback } from "react";
+import { MicVAD } from "@ricky0123/vad-web";
 import { eventBus, RockyEvents } from "../lib/eventBus";
 import { useRockyStore } from "../store/useRockyStore";
 
+const LOG_TAG = "[EdgeVAD]";
+
+const DSP_AUDIO_CONSTRAINTS = {
+  channelCount: 1,
+  echoCancellation: { exact: true } as ConstrainBoolean,
+  noiseSuppression: { exact: true } as ConstrainBoolean,
+  autoGainControl: { exact: true } as ConstrainBoolean,
+  sampleRate: 16000,
+};
+
+async function openMicWithDSP(): Promise<MediaStream> {
+  return navigator.mediaDevices.getUserMedia({ audio: DSP_AUDIO_CONSTRAINTS });
+}
+
 /**
- * useWakeWord Hook
- * 
- * Implements 100% local wake word detection using the Browser's Speech Recognition API.
- * This replaces the backend-based Python wake word service to achieve zero latency
- * and remove dependencies on external API keys or complex local setups.
+ * useWakeWord — Edge VAD Edition
+ *
+ * Runs Silero VAD (WASM) locally on the mic stream. The microphone stays
+ * active while isListening=true, but VAD_SPEECH_START is only emitted when
+ * the model detects human speech with probability > 0.9, gating the backend
+ * pipeline from receiving audio during silence or noise.
  */
 export function useWakeWord() {
-  const recognitionRef = useRef<any>(null);
+  const vadRef = useRef<MicVAD | null>(null);
+  const isActiveRef = useRef(false);
+  const vadStreamRef = useRef<MediaStream | null>(null);
+
   const status = useRockyStore((s) => s.status);
   const isListeningGlobal = useRockyStore((s) => s.isListening);
-  const isStartedRef = useRef(false);
 
-  const stopRecognition = useCallback(() => {
-    if (recognitionRef.current) {
-      try {
-        recognitionRef.current.stop();
-      } catch (e) {
-        // Recognition might already be stopped
+  const stopVAD = useCallback(() => {
+    if (!isActiveRef.current) return;
+    vadRef.current?.pause();
+    isActiveRef.current = false;
+    console.log(`${LOG_TAG} Paused.`);
+  }, []);
+
+  const startVAD = useCallback(async () => {
+    if (isActiveRef.current) return;
+
+    try {
+      if (!vadRef.current) {
+        vadRef.current = await MicVAD.new({
+          baseAssetPath: "/vad/",
+          onnxWASMBasePath: "/vad/",
+          model: "legacy",
+          positiveSpeechThreshold: 0.9,
+          negativeSpeechThreshold: 0.5,
+          minSpeechMs: 300,
+          preSpeechPadMs: 100,
+          redemptionMs: 750,
+
+          getStream: async () => {
+            const stream = await openMicWithDSP();
+            vadStreamRef.current = stream;
+            return stream;
+          },
+          resumeStream: async () => {
+            const stream = await openMicWithDSP();
+            vadStreamRef.current = stream;
+            return stream;
+          },
+
+          ortConfig: (ort: any) => {
+            ort.env.logLevel = "error";
+            ort.env.wasm.numThreads = 1;
+          },
+
+          onSpeechStart: () => {
+            const { status, isListening } = useRockyStore.getState();
+            if (status !== "idle" || !isListening) return;
+
+            const stream = vadStreamRef.current;
+            if (!stream?.active) return;
+
+            console.log(`${LOG_TAG} Speech detected (p > 0.9) — activating pipeline.`);
+            eventBus.emit(RockyEvents.VAD_SPEECH_START, stream);
+          },
+
+          onSpeechEnd: (_audio: Float32Array) => {
+            console.log(`${LOG_TAG} Speech ended — stopping pipeline.`);
+            eventBus.emit(RockyEvents.VAD_SPEECH_STOP);
+          },
+
+          onVADMisfire: () => {
+            console.log(`${LOG_TAG} Misfire discarded (below minSpeechFrames).`);
+          },
+        });
       }
-      recognitionRef.current = null;
-      isStartedRef.current = false;
-      console.log("[WakeWord] Stopped recognition.");
+
+      await vadRef.current.start();
+      isActiveRef.current = true;
+      console.log(`${LOG_TAG} Active.`);
+    } catch (err: any) {
+      console.error(`${LOG_TAG} Init failed:`, err.message);
+      isActiveRef.current = false;
     }
   }, []);
 
-  const startRecognition = useCallback(() => {
-    if (isStartedRef.current) return;
-
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SpeechRecognition) {
-      console.warn("[WakeWord] Speech Recognition API not supported in this browser.");
-      return;
+  // Start VAD when idle+listening. Don't stop it during pipeline operation
+  // (status = listening/processing/speaking) — the mic must stay alive for WebRTC.
+  // Only pause when isListening goes false.
+  useEffect(() => {
+    if (!isListeningGlobal) {
+      stopVAD();
+    } else if (status === "idle") {
+      startVAD();
     }
-
-    try {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      // We set lang to undefined to let the browser use the default or detect, 
-      // but "en-US" or "pt-PT" are good candidates.
-      // recognition.lang = "en-US"; 
-
-      recognition.onstart = () => {
-        isStartedRef.current = true;
-        console.log("[WakeWord] Started listening for wake word...");
-      };
-
-      recognition.onresult = (event: any) => {
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          const transcript = event.results[i][0].transcript.toLowerCase();
-          
-          // Pattern matching for "Hey Rocky" or variations
-          const isMatch = 
-            transcript.includes("rocky") || 
-            transcript.includes("hey rocky") || 
-            transcript.includes("ei rocky") ||
-            transcript.includes("ok rocky");
-
-          if (isMatch) {
-            console.log("[WakeWord] Wake word detected in transcript:", transcript);
-            
-            // Stop recognition immediately to free up the microphone for the audio manager
-            stopRecognition();
-            
-            // Trigger the audio manager via EventBus
-            eventBus.emit(RockyEvents.WAKE_WORD_DETECTED);
-            break;
-          }
-        }
-      };
-
-      recognition.onerror = (event: any) => {
-        // 'no-speech' is common and not really an error for wake word detection
-        if (event.error !== "no-speech") {
-          console.error("[WakeWord] Recognition error:", event.error);
-        }
-        
-        if (event.error === "not-allowed" || event.error === "service-not-allowed") {
-           isStartedRef.current = false;
-        }
-      };
-
-      recognition.onend = () => {
-        isStartedRef.current = false;
-        recognitionRef.current = null;
-        
-        // Re-start if we are still in idle state and global listening is enabled
-        // This ensures the wake word engine stays alive
-        const currentState = useRockyStore.getState();
-        if (currentState.status === "idle" && currentState.isListening) {
-          setTimeout(() => {
-            if (useRockyStore.getState().status === "idle") {
-               startRecognition();
-            }
-          }, 100);
-        }
-      };
-
-      recognition.start();
-      recognitionRef.current = recognition;
-    } catch (err) {
-      console.error("[WakeWord] Failed to start speech recognition:", err);
-      isStartedRef.current = false;
-    }
-  }, [stopRecognition]);
+  }, [status, isListeningGlobal, startVAD, stopVAD]);
 
   useEffect(() => {
-    // We only listen for the wake word when the system is IDLE
-    // and the user has enabled "Continuous Listening" (isListeningGlobal)
-    if (status === "idle" && isListeningGlobal) {
-      startRecognition();
-    } else {
-      stopRecognition();
-    }
-
     return () => {
-      stopRecognition();
+      vadRef.current?.destroy();
+      vadRef.current = null;
+      isActiveRef.current = false;
     };
-  }, [status, isListeningGlobal, startRecognition, stopRecognition]);
+  }, []);
 
-  return { 
-    isStarted: isStartedRef.current,
-    start: startRecognition,
-    stop: stopRecognition
+  return {
+    isActive: isActiveRef.current,
+    start: startVAD,
+    stop: stopVAD,
   };
 }

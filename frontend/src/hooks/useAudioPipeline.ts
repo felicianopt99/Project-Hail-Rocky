@@ -115,8 +115,19 @@ export function useAudioPipeline({
     pcRef.current = pc;
 
     // 1. Add Mic Track (if available) to send to backend for STT/VAD
+    // Re-enforce DSP constraints at track level before handing off to PC
     if (micStream) {
-      micStream.getAudioTracks().forEach(track => pc.addTrack(track, micStream));
+      const dspConstraints: MediaTrackConstraints = {
+        echoCancellation: { exact: true },
+        noiseSuppression: { exact: true },
+        autoGainControl: { exact: true },
+      };
+      for (const track of micStream.getAudioTracks()) {
+        await track.applyConstraints(dspConstraints).catch(err =>
+          console.warn("[Rocky] Could not enforce DSP constraints on mic track:", err)
+        );
+        pc.addTrack(track, micStream);
+      }
     }
 
     // 2. Handle Incoming Track (Rocky's Voice)

@@ -11,8 +11,16 @@ export default defineConfig(() => {
         '@': path.resolve(__dirname, 'src'),
       },
     },
+    assetsInclude: ['**/*.onnx'],
+    optimizeDeps: {
+      exclude: ['@ricky0123/vad-web', 'onnxruntime-web'],
+    },
     server: {
       hmr: true,
+      headers: {
+        'Cross-Origin-Opener-Policy': 'same-origin',
+        'Cross-Origin-Embedder-Policy': 'require-corp',
+      },
       watch: {
         ignored: ['**/data/**'],
       },
