@@ -1,10 +1,10 @@
 [project]
 name = "rocky-backend"
 version = "0.1.0"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.109.0",
-    "uvicorn[standard]>=0.27.0",
+    "granian>=1.6.0",
     "python-socketio>=5.11.0",
     "pydantic>=2.5.0",
     "pydantic-settings>=2.1.0",
@@ -32,7 +32,7 @@ line-length = 100
 select = ["E", "F", "I"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 strict = true
 ignore_missing_imports = true
 disallow_untyped_defs = true

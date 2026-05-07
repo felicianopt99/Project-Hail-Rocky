@@ -1,4 +1,4 @@
-FROM llama3.2:1b
+FROM qwen2.5:3b
 
 # Optimization Parameters
 PARAMETER temperature 0.1

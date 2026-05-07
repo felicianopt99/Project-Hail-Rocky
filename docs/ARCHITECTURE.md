@@ -16,7 +16,7 @@ Project Hail Rocky is a self-hosted smart home AI assistant built around the per
                            │ WebRTC + Socket.io + REST
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
-│  Backend  FastAPI + python-socketio + aiortc                │
+│  Backend  FastAPI + python-socketio + aiortc  (Python 3.13) │
 │  ┌─────────────┐  ┌──────────────┐  ┌────────────────────┐ │
 │  │ WebRTC      │  │ Rocky Brain  │  │ Tool Calling       │ │
 │  │ & SocketIO  │  │ Personality  │  │ Lights / Weather / │ │
@@ -32,20 +32,20 @@ Project Hail Rocky is a self-hosted smart home AI assistant built around the per
     │ VAD (VAD)  │   │ Core mem.  │   │  Lights / Scenes   │
     │ Groq STT   │   │ Recall     │   │  2000+ devices     │
     │ Speaker ID │   │ Archival   │   │  (REST / MCP)      │
-    │ Kokoro TTS │   │ (Qdrant)   │   │                    │
+    │ Kokoro TTS │   │ (pgvector) │   │   ↑ ha-mcp SSE     │
     │ PitchShift │   │ Postgres   │   │                    │
     │ Reverb     │   │            │   │                    │
     │ Compress.  │   │            │   │                    │
     └────────────┘   └────────────┘   └────────────────────┘
           │
     ┌─────▼──────┐   ┌────────────┐   ┌────────────────────┐
-    │  LiteLLM   │   │   Redis    │   │   Wakeword         │
+    │  LiteLLM   │   │   Valkey   │   │   Wakeword         │
     │  Router    │   │            │   │   Detector         │
     │            │   │  Sessions  │   │   (Vosk, host)     │
     │ Groq fast  │   │  State     │   │   "Hey Rocky"      │
     │ NIM smart  │   │  Cache     │   │                    │
     │ Gemini vis │   │  Quotas    │   │                    │
-    │ Ollama off │   │            │   │                    │
+    │ Qwen2.5 3B │   │            │   │                    │
     └────────────┘   └────────────┘   └────────────────────┘
 ```
 
@@ -108,10 +108,11 @@ Core Memory (always in context)
 Recall Memory (recent conversations)
 └── Last N messages, textual search
 
-Archival Memory (Qdrant vector DB)
+Archival Memory (PostgreSQL + pgvector)
 ├── Important facts (score > 0.7)
 ├── Preferences, patterns, key events
 └── Semantic search via bge-m3 embeddings
+    — pgvector elimina o serviço Qdrant separado, poupando ~350 MB RAM
 ```
 
 Background workers (APScheduler):
@@ -126,10 +127,12 @@ Background workers (APScheduler):
 |-------|-------|----------|----------|
 | `rocky-fast` | llama-3.3-70b-versatile | Groq | Default conversation |
 | `rocky-smart` | llama-3.1-70b-instruct | NVIDIA NIM | Complex reasoning |
-| `rocky-vision` | gemini-2.0-flash-exp | Google | Images, documents |
-| `rocky-offline` | phi3:mini-4k-q4_K_M | Ollama | No internet fallback |
+| `rocky-vision` | gemini-2.0-flash | Google | Images, documents |
+| `rocky-offline` | qwen2.5:3b (Q4\_K\_M) | Ollama | No internet fallback |
 
 Fallback chain: `rocky-fast` → `rocky-smart` → `rocky-vision` → `rocky-offline`
+
+Qwen 2.5 3B substituiu o phi3:mini como modelo offline: melhor instruction-following, tool-calling nativo e suporte multilingual (PT/EN), com footprint idêntico (~2 GB RAM).
 
 ---
 
@@ -155,10 +158,10 @@ Tools can be enabled/disabled per-session from the Skills page.
 
 | Profile | Services | When to use |
 |---------|----------|-------------|
-| *(default)* | backend + frontend + redis | Minimal — text chat only |
-| `voice` | + kokoro + pipecat | Full voice pipeline |
-| `letta` | + postgres + qdrant + letta | Persistent memory |
-| `ha` | + homeassistant | Smart home control |
+| *(default)* | backend + frontend + valkey | Minimal — text chat only |
+| `voice` | + voice_engine | Full voice pipeline |
+| `letta` | + postgres (pgvector) + letta | Persistent memory |
+| `ha` | + homeassistant + ha-mcp | Smart home control |
 | `offline` | + ollama | No-internet fallback |
 | `full` | everything | Production |
 
@@ -209,7 +212,7 @@ Tools can be enabled/disabled per-session from the Skills page.
 | Auth | JWT (access 1h, refresh 7d), bcrypt passwords |
 | CORS | Origin restricted to `FRONTEND_URL` |
 | Secrets | `.env` with `chmod 0600`, never committed |
-| Data at rest | Memories never leave the server (Letta + Qdrant local) |
+| Data at rest | Memories nunca saem do servidor (Letta + pgvector local) |
 | Prompts | Audio and chat sent to Groq for processing (not stored per ToS) |
 
 ---

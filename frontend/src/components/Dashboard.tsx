@@ -1,5 +1,5 @@
-import React, { useEffect, useState, memo, useCallback, useMemo, useRef } from "react";
-import { Cloud, Wifi, RefreshCw, Activity, ListTodo, Cpu } from "lucide-react";
+import React, { useEffect, useState, useRef } from "react";
+import { Cloud, RefreshCw, Activity, ListTodo, Cpu } from "lucide-react";
 import socket from "../lib/socket";
 import { motion } from "motion/react";
 import { useRockyStore, LightState, useStats, useLogs, useLights, useWeather, useIsConnected, useLatency, useServiceStatus, useRoutines } from "../store/useRockyStore";
@@ -7,9 +7,8 @@ import RoutineEditor from "./RoutineEditor";
 import { LightButton } from "./LightButton";
 import { Settings2 } from "lucide-react";
 
-
-
-const StatCard = memo(function StatCard({
+// React Compiler handles memoization for these sub-components automatically.
+function StatCard({
   label,
   value,
   percentage,
@@ -43,9 +42,9 @@ const StatCard = memo(function StatCard({
       </div>
     </div>
   );
-});
+}
 
-const TimeDisplay = memo(function TimeDisplay() {
+function TimeDisplay() {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -63,7 +62,7 @@ const TimeDisplay = memo(function TimeDisplay() {
       </div>
     </div>
   );
-});
+}
 
 export default function Dashboard() {
   const stats = useStats();
@@ -83,68 +82,66 @@ export default function Dashboard() {
     socket.emit("get_routines", {});
   }, []);
 
-  const toggleLight = useCallback((device: string) => {
-    socket.emit("control_device", { device, action: "toggle" });
-  }, []);
-
-  const updateLight = useCallback((device: string, params: Partial<LightState>) => {
-    socket.emit("control_device", { device, action: "set", params });
-  }, []);
-
-  const syncDevices = useCallback(() => {
-    setIsSyncing(true);
-    socket.emit("sync_ha", {});
-    syncTimerRef.current = setTimeout(() => setIsSyncing(false), 2000);
-  }, []);
-
-  const executeRoutine = useCallback((routineId: string) => {
-    socket.emit("execute_routine", routineId);
-  }, []);
-
   useEffect(() => {
     return () => {
       if (syncTimerRef.current) clearTimeout(syncTimerRef.current);
     };
   }, []);
 
-  const { categorizedRooms, otherDevices } = useMemo((): { categorizedRooms: Record<string, string[]>; otherDevices: string[] } => {
-    const rooms: Record<string, string[]> = {};
-    const other: string[] = [];
+  // React Compiler memoizes these automatically — no useCallback needed.
+  const toggleLight = (device: string) => {
+    socket.emit("control_device", { device, action: "toggle" });
+  };
 
-    Object.keys(lights).forEach(id => {
-      const light = lights[id];
-      const areaName = light?.areaName;
-      if (areaName) {
-        if (!rooms[areaName]) rooms[areaName] = [];
-        rooms[areaName].push(id);
+  const updateLight = (device: string, params: Partial<LightState>) => {
+    socket.emit("control_device", { device, action: "set", params });
+  };
+
+  const syncDevices = () => {
+    setIsSyncing(true);
+    socket.emit("sync_ha", {});
+    syncTimerRef.current = setTimeout(() => setIsSyncing(false), 2000);
+  };
+
+  const executeRoutine = (routineId: string) => {
+    socket.emit("execute_routine", routineId);
+  };
+
+  // Room grouping — React Compiler memoizes this derived value automatically.
+  const rooms: Record<string, string[]> = {};
+  const other: string[] = [];
+  Object.keys(lights).forEach(id => {
+    const light = lights[id];
+    const areaName = light?.areaName;
+    if (areaName) {
+      if (!rooms[areaName]) rooms[areaName] = [];
+      rooms[areaName].push(id);
+    } else {
+      const name = light.name.toLowerCase();
+      const roomList = ["Living Room", "Bedroom", "Kitchen", "Bathroom", "Office", "Studio", "Hallway", "Garage", "Garden"];
+      const roomMatch = roomList.find(r => name.includes(r.toLowerCase()));
+      if (roomMatch) {
+        if (!rooms[roomMatch]) rooms[roomMatch] = [];
+        rooms[roomMatch].push(id);
       } else {
-        const name = light.name.toLowerCase();
-        const roomList = ["Living Room", "Bedroom", "Kitchen", "Bathroom", "Office", "Studio", "Hallway", "Garage", "Garden"];
-        const roomMatch = roomList.find(r => name.includes(r.toLowerCase()));
-
-        if (roomMatch) {
-          if (!rooms[roomMatch]) rooms[roomMatch] = [];
-          rooms[roomMatch].push(id);
-        } else {
-          const idNamePart = id.split(".")[1];
-          if (idNamePart) {
-            const parts = idNamePart.split("_");
-            if (parts.length > 1) {
-              const room = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
-              if (!rooms[room]) rooms[room] = [];
-              rooms[room].push(id);
-            } else {
-              other.push(id);
-            }
+        const idNamePart = id.split(".")[1];
+        if (idNamePart) {
+          const parts = idNamePart.split("_");
+          if (parts.length > 1) {
+            const room = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+            if (!rooms[room]) rooms[room] = [];
+            rooms[room].push(id);
           } else {
             other.push(id);
           }
+        } else {
+          other.push(id);
         }
       }
-    });
-
-    return { categorizedRooms: rooms, otherDevices: other };
-  }, [lights]);
+    }
+  });
+  const categorizedRooms = rooms;
+  const otherDevices = other;
 
   return (
     <div className="flex flex-col p-8 h-full space-y-6 overflow-y-auto custom-scrollbar bg-black">
@@ -157,12 +154,11 @@ export default function Dashboard() {
               onClick={() => executeRoutine(r.id)}
               className="vibe-card px-6 py-3 border-white/5 bg-white/5 hover:border-cyan-500/30 hover:bg-cyan-500/5 transition-all flex items-center gap-3 group"
             >
-              {/* Note: In a real app we'd map icon string to actual Lucide component */}
               <Activity size={12} className={`${r.color} opacity-50 group-hover:opacity-100`} />
               <span className="text-[10px] font-bold uppercase tracking-widest">{r.label}</span>
             </button>
           ))}
-          <button 
+          <button
             onClick={() => setIsRoutineEditorOpen(true)}
             className="vibe-card px-4 py-3 border-dashed border-white/10 bg-white/2 hover:border-white/20 transition-all flex items-center justify-center text-white/20 hover:text-white/40"
             title="Edit Routines"
@@ -201,7 +197,6 @@ export default function Dashboard() {
             animate={{ opacity: 1, y: 0 }}
             className="vibe-card p-6 flex flex-col justify-between h-72 lg:h-80 relative overflow-hidden"
           >
-            {/* Ambient Background Glow for Weather */}
             <div className="absolute -top-24 -right-24 w-48 h-48 bg-cyan-500/10 blur-[80px] rounded-full pointer-events-none" />
 
             <TimeDisplay />
@@ -214,7 +209,7 @@ export default function Dashboard() {
                   {weather.city}
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-6">
                 <div className="text-4xl font-light tracking-tighter text-white">
                   {weather.temp}<span className="text-cyan-500/50">°C</span>
@@ -302,8 +297,8 @@ export default function Dashboard() {
                       key={id}
                       id={id}
                       state={lights[id]}
-                      onToggle={toggleLight}
                       onUpdate={updateLight}
+                      onToggle={toggleLight}
                     />
                   ))}
                 </div>
@@ -324,7 +319,7 @@ export default function Dashboard() {
             Activity Log
           </div>
           <div className="flex-1 overflow-y-auto space-y-4 pr-2 custom-scrollbar">
-            {useMemo(() => [...logs].reverse(), [logs]).map((log, i) => (
+            {[...logs].reverse().map((log, i) => (
               <div key={i} className="flex items-start gap-3 group">
                 <div className="text-[8px] font-mono text-white/20 mt-0.5 shrink-0">
                   {new Date(log.timestamp).toLocaleTimeString([], { hour12: false, hour: "2-digit", minute: "2-digit" })}

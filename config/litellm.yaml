@@ -19,9 +19,12 @@ model_list:
       api_key: os.environ/GEMINI_API_KEY
       max_tokens: 2048
 
+  # Fallback offline: Qwen 2.5 3B (Q4_K_M via Ollama).
+  # Substituiu o phi3:mini — melhor instruction-following, multilingual,
+  # e tool-calling nativo sem fine-tuning adicional.
   - model_name: rocky-offline
     litellm_params:
-      model: ollama/rocky
+      model: ollama/qwen2.5:3b
       api_base: http://ollama:11434
 
 router_settings:

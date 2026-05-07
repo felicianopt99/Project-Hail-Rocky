@@ -195,6 +195,13 @@ export function useAudioPipeline({
       console.log("[Rocky] TTS stream finished.");
       isSpeakingRef.current = false;
       setStatus("idle");
+      // Close WebRTC to release the mic — Porcupine can now reclaim the hardware
+      // for the next wake-word cycle without mic contention.
+      if (pcRef.current) {
+        pcRef.current.close();
+        pcRef.current = null;
+        console.log("[Rocky] WebRTC closed — mic released for wake word.");
+      }
     };
 
     const onTtsError = () => {

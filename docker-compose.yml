@@ -11,12 +11,15 @@ services:
       - rocky_net
     env_file:
       - .env
+    environment:
+      # MCP endpoint exposed by ha-mcp (active when ha/full profile is running)
+      - HA_MCP_URL=http://ha-mcp:3000
     volumes:
       - ./backend/app:/app/app
       - ./tests/functional:/app/tests
     restart: unless-stopped
     depends_on:
-      redis:
+      valkey:
         condition: service_healthy
       voice_engine:
         condition: service_healthy
@@ -60,25 +63,25 @@ services:
     depends_on:
       - backend
 
-  # ── Redis ─────────────────────────────────────────────────────────────────
-  redis:
-    image: redis/redis-stack-server:latest
-    container_name: rocky-redis
+  # ── Valkey (drop-in Redis replacement, menor footprint de RAM) ────────────
+  valkey:
+    image: valkey/valkey:latest
+    container_name: rocky-valkey
     ports:
       - "6381:6381"
-      - "8001:8001" # RedisInsight UI
     networks:
       - rocky_net
-    environment:
-      - REDIS_ARGS=--port 6381 --maxmemory 512mb --maxmemory-policy allkeys-lru
+    command: ["valkey-server", "--port", "6381", "--maxmemory", "512mb", "--maxmemory-policy", "allkeys-lru"]
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "redis-cli", "-p", "6381", "ping"]
+      test: ["CMD", "valkey-cli", "-p", "6381", "ping"]
       interval: 5s
       timeout: 3s
       retries: 5
 
-  # ── PostgreSQL (Letta backend — Phase 5) ─────────────────────────────────
+  # ── PostgreSQL + pgvector (backend Letta + vector store) ─────────────────
+  # pgvector/pgvector:pg16 inclui a extensão vector — elimina a necessidade
+  # de um serviço Qdrant separado, poupando ~300-400 MB de RAM em idle.
   postgres:
     image: pgvector/pgvector:pg16
     container_name: rocky-postgres
@@ -118,6 +121,10 @@ services:
       - ha
 
   # ── Home Assistant MCP Server ─────────────────────────────────────────────
+  # Expõe as Native Tools do Home Assistant via Model Context Protocol (SSE).
+  # O backend consome este serviço em HA_MCP_URL=http://ha-mcp:3000 para
+  # permitir ao agente controlar dispositivos, ler estados e disparar automações
+  # sem código de integração adicional.
   ha-mcp:
     image: ghcr.io/homeassistant-ai/ha-mcp:latest
     container_name: rocky-ha-mcp
@@ -141,29 +148,9 @@ services:
       - ha
       - full
 
-
-  # ── Qdrant Vector DB (Phase 5 — Letta memory) ─────────────────────────
-  qdrant:
-    image: qdrant/qdrant:latest
-    container_name: rocky-qdrant
-    ports:
-      - "6333:6333"
-      - "6334:6334"
-    networks:
-      - rocky_net
-    volumes:
-      - qdrant-data:/qdrant/storage
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "bash -c ':> /dev/tcp/localhost/6333' || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    profiles:
-      - letta
-      - full
-
-  # ── Letta (Phase 5 — Memory & Agents) ────────────────────────────────
+  # ── Letta (Memory & Agents) ───────────────────────────────────────────────
+  # Vector store migrado do Qdrant para pgvector via LETTA_PG_URI.
+  # A extensão vector é fornecida pela imagem pgvector/pgvector:pg16.
   letta:
     image: letta/letta:latest
     container_name: rocky-letta
@@ -175,13 +162,14 @@ services:
       - .env
     environment:
       - PORT=8283
+      - LETTA_PG_URI=postgresql+asyncpg://rocky:${POSTGRES_PASSWORD:-rocky-secret}@postgres:5433/rocky
+      - LETTA_ARCHIVAL_STORAGE_TYPE=postgres
+      - LETTA_RECALL_STORAGE_TYPE=postgres
     volumes:
       - letta-data:/root/.letta
     restart: unless-stopped
     depends_on:
       postgres:
-        condition: service_healthy
-      qdrant:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "bash -c ':> /dev/tcp/localhost/8283' || exit 1"]
@@ -193,7 +181,7 @@ services:
       - letta
       - full
 
-  # ── Rocky Voice Engine (2026 Consolidated Architecture) ───────────────
+  # ── Rocky Voice Engine ────────────────────────────────────────────────────
   voice_engine:
     build:
       context: ./services/voice_engine
@@ -221,7 +209,6 @@ services:
       - full
 
 
-
 networks:
   rocky_net:
     driver: bridge
@@ -229,6 +216,5 @@ networks:
 volumes:
   postgres-data:
   ha-config:
-  qdrant-data:
   letta-data:
   ollama-data:

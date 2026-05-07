@@ -11,7 +11,7 @@ except ImportError:
     pass
 
 from redisvl.extensions.llmcache import SemanticCache
-from redisvl.utils.vectorize import OpenAITextVectorizer
+from redisvl.utils.vectorize import HFTextVectorizer
 from ..config import settings
 
 log = structlog.get_logger()
@@ -27,10 +27,10 @@ class RockySemanticCache:
             return
 
         try:
-            # Initialize the vectorizer (LiteLLM)
-            # We use LiteLLM to be consistent with the rest of the app
-            self.vectorizer = OpenAITextVectorizer(
-                model=settings.embedding_model or "openai/text-embedding-3-small"
+            # Initialize the vectorizer (Local HuggingFace)
+            # This avoids dependency on external OpenAI keys for the cache
+            self.vectorizer = HFTextVectorizer(
+                model=settings.embedding_model or "sentence-transformers/all-MiniLM-L6-v2"
             )
 
             # Initialize the Semantic Cache
