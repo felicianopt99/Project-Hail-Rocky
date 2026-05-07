@@ -18,6 +18,23 @@ async def get_profile():
     return {"available": True, "memory": memory}
 
 
+class UpdateProfileRequest(BaseModel):
+    persona: str | None = None
+    human: str | None = None
+
+
+@router.patch("/profile")
+async def update_profile(body: UpdateProfileRequest, _user: dict = Depends(get_current_user)):
+    """Update Rocky's core memory (persona or human profile)."""
+    success = await letta_bridge.update_core_memory(
+        persona=body.persona,
+        human=body.human
+    )
+    if not success:
+        raise HTTPException(status_code=503, detail="Letta unavailable — profile not updated.")
+    return {"success": True, "message": "Rocky memory updated."}
+
+
 @router.get("/search")
 async def search_memories(q: str = Query(..., min_length=2)):
     """Semantic search across Rocky's archival memories."""

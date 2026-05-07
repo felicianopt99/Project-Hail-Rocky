@@ -405,6 +405,37 @@ async def get_recent_memories(limit: int = 20) -> list[dict]:
         return []
 
 
+async def update_core_memory(persona: str = None, human: str = None) -> bool:
+    """
+    Update Letta core memory blocks (persona and/or human).
+    This centralizes personality and user profile management in Letta.
+    """
+    agent_id = await get_agent_id()
+    if not agent_id:
+        return False
+    
+    # Letta expects a dict with the block names to update
+    payload = {}
+    if persona:
+        payload["persona"] = persona
+    if human:
+        payload["human"] = human
+        
+    if not payload:
+        return True
+        
+    try:
+        c = _get_letta_client()
+        # PATCH /v1/agents/{agent_id}/core-memory updates the specified blocks
+        r = await c.patch(_url(f"/v1/agents/{agent_id}/core-memory"), json=payload)
+        r.raise_for_status()
+        log.info("letta_core_memory_updated", persona_updated=bool(persona), human_updated=bool(human))
+        return True
+    except Exception as e:
+        log.error("letta_update_core_memory_failed", error=str(e))
+        return False
+
+
 async def forget_all() -> bool:
     """Delete and recreate Rocky agent — full memory reset."""
     global _agent_id
