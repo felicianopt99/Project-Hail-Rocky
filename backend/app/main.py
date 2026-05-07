@@ -9,6 +9,7 @@ from .api import dashboard, socketio_handlers, auth, skills, settings_api, speak
 from .config import settings
 from .workers.scheduler import setup as setup_scheduler, shutdown as shutdown_scheduler
 from .core.http_client import AsyncHTTPClient
+from .bridges.letta_bridge import close_client as close_letta_client
 import structlog
 
 setup_logging()
@@ -46,6 +47,7 @@ async def lifespan(app: FastAPI):
     await shutdown_scheduler()
     await semantic_cache.close()
     await AsyncHTTPClient.close_client()
+    await close_letta_client()
     
     try:
         await asyncio.wait_for(worker_task, timeout=5.0)

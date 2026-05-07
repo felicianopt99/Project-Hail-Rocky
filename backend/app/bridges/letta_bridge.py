@@ -47,6 +47,36 @@ def _url(path: str) -> str:
     return f"{base}{path}"
 
 
+def _get_llm_config() -> dict:
+    if settings.groq_api_key:
+        return {
+            "model": "llama-3.1-8b-instant",
+            "model_endpoint_type": "openai",
+            "model_endpoint": "https://api.groq.com/openai/v1",
+            "context_window": 32000,
+        }
+    if settings.gemini_api_key:
+        return {
+            "model": "gemini-2.0-flash",
+            "model_endpoint_type": "google_ai",
+            "model_endpoint": "https://generativelanguage.googleapis.com",
+            "context_window": 32000,
+        }
+    if settings.nvidia_api_key:
+        return {
+            "model": "meta/llama-3.1-70b-instruct",
+            "model_endpoint_type": "openai",
+            "model_endpoint": "https://integrate.api.nvidia.com/v1",
+            "context_window": 32000,
+        }
+    return {
+        "model": LETTA_LLM_MODEL,
+        "model_endpoint_type": "openai",
+        "model_endpoint": "https://api.groq.com/openai/v1",
+        "context_window": 32000,
+    }
+
+
 # ── Availability check ────────────────────────────────────────────────────
 
 async def is_available() -> bool:
@@ -80,7 +110,7 @@ async def _get_or_create_mcp_server() -> str | None:
         payload = {
             "name": HA_MCP_SERVER_NAME,
             "config": {
-                "mcp_server_type": "streamable_http",
+                "mcp_server_type": "sse",
                 "server_url": settings.ha_mcp_url,
             }
         }
@@ -90,7 +120,10 @@ async def _get_or_create_mcp_server() -> str | None:
         log.info("letta_mcp_server_registered", srv_id=srv_id)
         return srv_id
     except Exception as e:
-        log.warning("letta_mcp_registration_failed", error=str(e))
+        if hasattr(e, "response") and e.response:
+            log.warning("letta_mcp_registration_failed", error=str(e), body=e.response.text)
+        else:
+            log.warning("letta_mcp_registration_failed", error=str(e))
         return None
 
 
@@ -163,12 +196,7 @@ async def _create_agent() -> str | None:
                     "human": {"value": INITIAL_HUMAN_BLOCK, "limit": 2000},
                 }
             },
-            "llm_config": {
-                "model": LETTA_LLM_MODEL,
-                "model_endpoint_type": "openai",
-                "model_endpoint": "https://api.groq.com/openai/v1",
-                "context_window": 32000,
-            },
+            "llm_config": _get_llm_config(),
             "embedding_config": {
                 "embedding_model": LETTA_EMBEDDING_MODEL,
                 "embedding_dim": 1024,
@@ -182,7 +210,10 @@ async def _create_agent() -> str | None:
         return agent_id
 
     except Exception as e:
-        log.error("letta_create_agent_failed", error=str(e))
+        if hasattr(e, "response") and e.response:
+            log.error("letta_create_agent_failed", error=str(e), body=e.response.text)
+        else:
+            log.error("letta_create_agent_failed", error=str(e))
         return None
 
 
@@ -224,16 +255,19 @@ async def send_message(text: str, role: str = "user") -> str | None:
     if role == "user":
         cached = await semantic_cache.check(text)
         if cached:
-            return cached
+            return cached["response"]
 
     agent_id = await get_agent_id()
     if not agent_id:
         return None
 
+    data = None
+    result = None
+    tool_used = False
     try:
         trace_id = get_trace_id()
         payload = {
-            "messages": [{"role": role, "content": text}], 
+            "messages": [{"role": role, "content": text}],
             "stream": False,
             "metadata": {"trace_id": trace_id} if trace_id else {},
             "tags": [f"trace_id:{trace_id}"] if trace_id else []
@@ -244,39 +278,27 @@ async def send_message(text: str, role: str = "user") -> str | None:
         r.raise_for_status()
         data = r.json()
 
-        # Extract assistant response from messages list
+        # Single pass: capture first assistant reply and whether any tool was called
         for msg in data.get("messages", []):
-            if msg.get("message_type") == "assistant_message":
-                return msg.get("content", "").strip()
-            # Older Letta API format
-            if msg.get("role") == "assistant" and msg.get("content"):
-                return msg["content"].strip()
+            if msg.get("message_type") == "tool_call":
+                tool_used = True
+            elif msg.get("message_type") == "assistant_message" and result is None:
+                result = msg.get("content", "").strip() or None
+            elif msg.get("role") == "assistant" and msg.get("content") and result is None:
+                # Older Letta API format
+                result = msg["content"].strip()
 
-        log.warning("letta_no_assistant_message", data=str(data)[:200])
-        return None
+        if result is None:
+            log.warning("letta_no_assistant_message", data=str(data)[:200])
+        return result
 
     except Exception as e:
         log.error("letta_send_failed", error=str(e), agent_id=agent_id)
         return None
-    
+
     finally:
-        # Store in cache if we have a valid response
-        if role == "user" and 'data' in locals() and data:
-            tool_used = False
-            res = None
-            # Need to find the response again to store it
-            for msg in data.get("messages", []):
-                if msg.get("message_type") == "tool_call":
-                    tool_used = True
-                    break
-                
-                if msg.get("message_type") == "assistant_message":
-                    res = msg.get("content", "").strip()
-                elif msg.get("role") == "assistant" and msg.get("content"):
-                    res = msg["content"].strip()
-            
-            if res and not tool_used:
-                await semantic_cache.store(text, res)
+        if role == "user" and data and result and not tool_used:
+            await semantic_cache.store(text, result)
 
 
 async def send_message_stream(text: str, role: str = "user") -> AsyncGenerator[str, None]:
@@ -288,7 +310,7 @@ async def send_message_stream(text: str, role: str = "user") -> AsyncGenerator[s
     if role == "user":
         cached = await semantic_cache.check(text)
         if cached:
-            yield cached
+            yield cached["response"]
             return
 
     agent_id = await get_agent_id()
@@ -350,7 +372,7 @@ async def send_message_stream(text: str, role: str = "user") -> AsyncGenerator[s
     
     finally:
         # Store in cache if we accumulated a response and no tools were used
-        if role == "user" and 'full_response' in locals() and full_response and not tool_used:
+        if role == "user" and full_response and not tool_used:
             await semantic_cache.store(text, "".join(full_response))
 
 

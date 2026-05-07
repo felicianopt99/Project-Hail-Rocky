@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     llm_model: str = ""
 
     # Embeddings (for Semantic Cache)
-    embedding_model: str = "groq/llama-3.3-70b-versatile" # Default fallback, better to use a real embedding model
+    embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2" # Default local embedding model
     # Note: Groq doesn't have an embedding model yet, so we should probably use something else or litellm's default
     semantic_cache_enabled: bool = True
     semantic_cache_threshold: float = 0.95
@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     # Home Assistant
     ha_base_url: str = ""       # e.g. http://192.168.1.100:8123
     ha_access_token: str = ""   # Long-Lived Access Token from HA profile page
-    ha_mcp_url: str = "http://ha-mcp:8000" # MCP server for Home Assistant
+    ha_mcp_url: str = "http://ha-mcp:3000" # MCP server for Home Assistant
 
     # Redis
     redis_url: str = "redis://rocky-redis:6381"
@@ -71,7 +71,7 @@ class Settings(BaseSettings):
         return bool(self.groq_api_key or self.gemini_api_key or self.nvidia_api_key or self.llm_model)
 
     def has_stt(self) -> bool:
-        return bool(self.groq_api_key)
+        return bool(self.groq_api_key and self.groq_stt_model)
 
     def has_tts(self) -> bool:
         return bool(self.voice_engine_url)
