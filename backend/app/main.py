@@ -10,6 +10,7 @@ from .config import settings
 from .workers.scheduler import setup as setup_scheduler, shutdown as shutdown_scheduler
 from .core.http_client import AsyncHTTPClient
 from .bridges.letta_bridge import close_client as close_letta_client
+from .core.alarm_watcher import start as start_alarm_watcher
 import structlog
 
 setup_logging()
@@ -36,26 +37,27 @@ from .core.semantic_cache import semantic_cache
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     worker = setup_scheduler()
-    # Start worker in the background
     worker_task = asyncio.create_task(worker.start())
-    
+    alarm_task = start_alarm_watcher(sio)
+
     yield
-    
+
     # Graceful shutdown
     log.info("application_shutdown_started")
+    alarm_task.cancel()
     await worker.stop()
     await shutdown_scheduler()
     await semantic_cache.close()
     await AsyncHTTPClient.close_client()
     await close_letta_client()
-    
+
     try:
         await asyncio.wait_for(worker_task, timeout=5.0)
     except asyncio.TimeoutError:
         log.warning("worker_shutdown_timeout")
     except Exception as e:
         log.error("worker_shutdown_error", error=str(e))
-    
+
     log.info("application_shutdown_complete")
 
 

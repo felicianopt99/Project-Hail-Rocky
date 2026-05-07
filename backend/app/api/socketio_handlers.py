@@ -16,7 +16,6 @@ from ..rocky.personality import (
 )
 from ..bridges import letta_bridge, azure_speaker
 from ..voice.tts import synthesize_chunks, SAMPLE_RATE
-from ..tools.definitions import get_tools
 from ..tools.executor import run as run_tool
 from . import skills as skills_api
 from ..core.trace import set_trace_id, get_trace_id
@@ -61,7 +60,7 @@ async def _chat(sid: str, content: str, sio: socketio.AsyncServer, language: str
 
     current_state = await states.load(sid, redis)
     score = await intimacy.load(user_id, redis)
-    new_state = states.detect(content, current_state)
+    new_state = await states.detect(content, current_state)
     await states.save(sid, new_state, redis)
     score = await intimacy.update(user_id, content, redis)
 
@@ -179,12 +178,7 @@ async def _try_tools(
     model = settings.get_llm_model()
 
     try:
-        # Filter out disabled tools (respects Skills page toggle)
-        tools = await get_tools()
-        active_tools = [
-            t for t in tools
-            if skills_api._overrides.get(t["function"]["name"], {}).get("enabled", True)
-        ]
+        active_tools = await skills_api.get_active_tools()
         
         # Stream the first call to detect tools early
         response = await litellm.acompletion(

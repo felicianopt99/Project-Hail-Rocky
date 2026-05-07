@@ -7,6 +7,7 @@ from typing import Optional, Dict
 
 from ..config import settings
 from ..core.trace import get_trace_id, set_trace_id
+from ..core.redis_client import get_redis
 from ..schemas import socket_schemas
 
 log = structlog.get_logger()
@@ -36,6 +37,7 @@ class PipecatBridge:
 
     async def _get_connection(self, sid: str):
         if sid not in self._sessions:
+            trace_id = await self._load_trace_id(sid) or get_trace_id() or set_trace_id()
             self._sessions[sid] = {
                 "ws": None,
                 "task": None,
@@ -43,9 +45,37 @@ class PipecatBridge:
                 "starting": False,
                 "queue": asyncio.Queue(),
                 "retry_count": 0,
-                "trace_id": get_trace_id() or set_trace_id()
+                "trace_id": trace_id,
             }
         return self._sessions[sid]
+
+    async def _load_trace_id(self, sid: str) -> str | None:
+        try:
+            redis = await get_redis()
+            if redis:
+                return await redis.get(f"rocky:bridge:trace:{sid}")
+        except Exception:
+            pass
+        return None
+
+    async def _persist_session(self, sid: str) -> None:
+        session = self._sessions.get(sid)
+        if not session:
+            return
+        try:
+            redis = await get_redis()
+            if redis:
+                await redis.setex(f"rocky:bridge:trace:{sid}", 1800, session["trace_id"])
+        except Exception:
+            pass
+
+    async def _clear_session(self, sid: str) -> None:
+        try:
+            redis = await get_redis()
+            if redis:
+                await redis.delete(f"rocky:bridge:trace:{sid}")
+        except Exception:
+            pass
 
     async def start(self, sid: str):
         self._running = True # Mark as running immediately when starting/connecting
@@ -72,6 +102,7 @@ class PipecatBridge:
                 session["running"] = True
                 self._running = True
                 session["task"] = asyncio.create_task(self._listen(sid))
+                await self._persist_session(sid)
                 log.info("pipecat_bridge_started", sid=sid, trace_id=trace_id)
                 
                 if settings.voice_debug_events:
@@ -254,10 +285,8 @@ class PipecatBridge:
         if session["task"]:
             session["task"].cancel()
             session["task"] = None
-        
-        # Keep the session entry for potential trace_id reuse if disconnected briefly,
-        # but usually we want to clear it on disconnect.
-        # self._sessions.pop(sid, None)
+
+        await self._clear_session(sid)
 
     async def stop_all(self):
         sids = list(self._sessions.keys())

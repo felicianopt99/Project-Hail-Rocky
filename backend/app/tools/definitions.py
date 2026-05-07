@@ -9,20 +9,131 @@ BASE_TOOLS: list[dict] = [
         "type": "function",
         "function": {
             "name": "set_timer",
-            "description": "Set a countdown timer that fires an alert when done.",
+            "description": (
+                "Set a countdown timer that fires an alert when done. "
+                "Use `preset` for common cooking times — overrides duration_seconds: "
+                "pasta/spaghetti=10min, rice=18min, eggs=6min, ramen=3min, noodles=5min, "
+                "oatmeal=5min, pizza=12min, cookies=12min, tea=5min, coffee=4min, "
+                "steak=8min, potato=20min, bread=35min, cake=40min, chicken=25min."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "duration_seconds": {
                         "type": "integer",
-                        "description": "Timer duration in seconds. Convert 'minutes' and 'hours' accordingly.",
+                        "description": "Timer duration in seconds. Ignored if preset is provided.",
                     },
                     "label": {
                         "type": "string",
                         "description": "Short label for the timer (e.g. 'pasta', 'meeting').",
                     },
+                    "preset": {
+                        "type": "string",
+                        "description": "Named cooking/food preset. Overrides duration_seconds.",
+                        "enum": [
+                            "pasta", "spaghetti", "rice", "eggs", "ramen", "noodles",
+                            "oatmeal", "pizza", "cookies", "tea", "coffee", "steak",
+                            "potato", "bread", "cake", "chicken",
+                        ],
+                    },
                 },
-                "required": ["duration_seconds"],
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_alarm",
+            "description": (
+                "Schedule an alarm for a specific date and time. "
+                "Use for 'wake me at 7am', 'alarm for tomorrow at 8:30', etc. "
+                "Convert natural language to ISO 8601 datetime in local time "
+                "(YYYY-MM-DDTHH:MM:SS). Today is available via get_datetime."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "datetime_iso": {
+                        "type": "string",
+                        "description": "Target local datetime, ISO 8601 (e.g. '2026-05-08T07:00:00').",
+                    },
+                    "label": {
+                        "type": "string",
+                        "description": "Name for this alarm (e.g. 'wake up', 'dentist').",
+                    },
+                },
+                "required": ["datetime_iso"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "set_reminder",
+            "description": (
+                "Schedule a reminder at a specific time with a custom message. "
+                "Pass datetime_iso in ISO 8601 format (YYYY-MM-DDTHH:MM:SS) in local time."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "datetime_iso": {
+                        "type": "string",
+                        "description": "Target local datetime, ISO 8601.",
+                    },
+                    "message": {
+                        "type": "string",
+                        "description": "The reminder message (e.g. 'call doctor', 'buy milk').",
+                    },
+                    "label": {
+                        "type": "string",
+                        "description": "Short label for the reminder.",
+                    },
+                },
+                "required": ["datetime_iso", "message"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "list_alarms",
+            "description": "List all pending alarms and reminders.",
+            "parameters": {"type": "object", "properties": {}},
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "cancel_alarm",
+            "description": "Cancel a pending alarm or reminder by label.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "label": {
+                        "type": "string",
+                        "description": "Label of the alarm or reminder to cancel.",
+                    },
+                },
+                "required": ["label"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_weather",
+            "description": "Get current weather and today's forecast for any city.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "city": {
+                        "type": "string",
+                        "description": "City name (e.g. 'Lisbon', 'Porto', 'London').",
+                    },
+                },
+                "required": ["city"],
             },
         },
     },
@@ -40,6 +151,69 @@ BASE_TOOLS: list[dict] = [
                     }
                 },
                 "required": ["query"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "add_to_list",
+            "description": (
+                "Add an item to a named persistent list. "
+                "Use list_name='shopping' for shopping lists, 'todo' for tasks, "
+                "or any custom name. Items persist across sessions."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "list_name": {
+                        "type": "string",
+                        "description": "List name (e.g. 'shopping', 'todo', 'groceries').",
+                    },
+                    "item": {
+                        "type": "string",
+                        "description": "Item to add.",
+                    },
+                },
+                "required": ["list_name", "item"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_list",
+            "description": "Get all items in a named list.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "list_name": {
+                        "type": "string",
+                        "description": "List name (e.g. 'shopping', 'todo').",
+                    },
+                },
+                "required": ["list_name"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "remove_from_list",
+            "description": "Remove an item from a named list.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "list_name": {
+                        "type": "string",
+                        "description": "List name.",
+                    },
+                    "item": {
+                        "type": "string",
+                        "description": "Item to remove (exact or partial match).",
+                    },
+                },
+                "required": ["list_name", "item"],
             },
         },
     },
@@ -81,7 +255,7 @@ async def get_tools() -> list[dict]:
     This allows Rocky to learn new skills simply by adding Docker containers.
     """
     tools = list(BASE_TOOLS)
-    
+
     if not settings.ha_mcp_url:
         return tools
 
@@ -91,7 +265,7 @@ async def get_tools() -> list[dict]:
             r = await client.get(url)
             if r.status_code == 200:
                 mcp_tools = r.json().get("tools", [])
-                
+
                 for t in mcp_tools:
                     # Convert MCP spec to OpenAI/LiteLLM function format
                     tools.append({
@@ -105,5 +279,5 @@ async def get_tools() -> list[dict]:
                 log.info("mcp_discovery_ok", count=len(mcp_tools), url=url)
     except Exception as e:
         log.warning("mcp_discovery_failed", url=settings.ha_mcp_url, error=str(e))
-            
+
     return tools
