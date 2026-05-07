@@ -29,7 +29,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
-    "babel-plugin-react-compiler": "^19.0.0",
+    "babel-plugin-react-compiler": "latest",
     "@types/node": "^22.14.0",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",

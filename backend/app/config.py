@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     ha_mcp_url: str = "http://ha-mcp:3000" # MCP server for Home Assistant
 
     # Redis
-    redis_url: str = "redis://rocky-redis:6381"
+    redis_url: str = "redis://valkey:6381"
 
     # Auth
     secret_key: str = "change-me-in-production-use-openssl-rand-hex-32"
