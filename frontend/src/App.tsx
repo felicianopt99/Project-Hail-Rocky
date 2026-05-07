@@ -144,6 +144,7 @@ export default function App() {
   }, []);
 
   const handleGrantAuth = () => {
+    if (!pendingAuth) return;
     socket.emit("auth_granted", { tool_call_id: pendingAuth.tool_call_id });
     setPendingAuth(null);
   };

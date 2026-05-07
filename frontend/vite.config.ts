@@ -16,11 +16,12 @@ export default defineConfig(() => {
     resolve: {
       alias: {
         '@': path.resolve(__dirname, 'src'),
+        'onnxruntime-web': 'onnxruntime-web/dist/ort.all.bundle.min.mjs',
       },
     },
     assetsInclude: ['**/*.onnx'],
     optimizeDeps: {
-      exclude: ['onnxruntime-web'],
+      include: ['@ricky0123/vad-web', 'onnxruntime-web'],
     },
     server: {
       hmr: true,
