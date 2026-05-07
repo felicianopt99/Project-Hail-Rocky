@@ -4,7 +4,7 @@ from pathlib import Path
 # Paths
 BASE_DIR = Path(__file__).parent.parent
 MODELS_DIR = BASE_DIR
-WAKE_WORD_MODEL_PATH = str(MODELS_DIR / "hey_rocky.onnx")
+WAKE_WORD_MODEL_PATH = str(MODELS_DIR / "models" / "wakeword" / "hey_rocky.onnx")
 ASSETS_DIR = Path(__file__).parent / "assets"
 BEEP_PATH = str(ASSETS_DIR / "beep.wav")
 

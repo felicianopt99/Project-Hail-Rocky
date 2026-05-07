@@ -1,0 +1,51 @@
+{
+  "timestamp": "2026-05-07T13:57:39.896220",
+  "levels": {
+    "Health Checks": {
+      "passed": true,
+      "backend": true,
+      "voice": true
+    },
+    "API Functional": {
+      "passed": false,
+      "duration_sec": 0.79,
+      "stdout": "OCI runtime exec failed: exec failed: unable to start container process: exec: \"pytest\": executable file not found in $PATH\n",
+      "stderr": ""
+    },
+    "Socket.IO Integration": {
+      "passed": false,
+      "duration_sec": 0.62,
+      "stdout": "OCI runtime exec failed: exec failed: unable to start container process: exec: \"pytest\": executable file not found in $PATH\n",
+      "stderr": ""
+    },
+    "VUI Industry Benchmarks": {
+      "passed": true,
+      "duration_sec": 0.95,
+      "stdout": "\n============================================================\n\u2705 TEST COMPLETE: 0/9 Passed\n\ud83c\udfad Personality Accuracy: 0.0%\n\n\ud83d\udce2 VUI BENCHMARK (ALEXA VS ROCKY)\n------------------------------------------------------------\nMetric                    | Alexa Standard  | Rocky (Avg)\n------------------------------------------------------------\nTTFT (LLM Response)       | ~1.5s - 2.2s    | 0         ms\nTTRS (Speech Start)       | ~2.0s - 3.0s    | 0         ms\nJitter (Stability)        | < 200ms         | 0         ms\n------------------------------------------------------------\n\ud83d\ude80 STATUS: ROCKY IS FASTER THAN ALEXA!\n\n\ud83d\ude80 Avg TPS: 0 tokens/sec\n\ud83d\udcc1 Report: /home/feli/Documents/Coding_projects/Project-Hail-Rocky/tests/benchmarks/reports/report_20260507_135742.json\n============================================================\n\n",
+      "stderr": "6-05-07 13:57:42 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-07 13:57:42 [INFO] TestBattery: Finished [HOME-002] -> ERROR (Score: 0.0)\n2026-05-07 13:57:42 [INFO] TestBattery: Starting [HOME-STATE-002] Bedroom Door Status\n2026-05-07 13:57:42 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-07 13:57:42 [INFO] TestBattery: Finished [HOME-STATE-001] -> ERROR (Score: 0.0)\n2026-05-07 13:57:42 [INFO] TestBattery: Starting [KNOW-001] Moon Landing\n2026-05-07 13:57:42 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-07 13:57:42 [INFO] TestBattery: Finished [HOME-STATE-002] -> ERROR (Score: 0.0)\n2026-05-07 13:57:42 [INFO] TestBattery: Starting [GREET-002] Standard Greeting EN\n2026-05-07 13:57:42 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-07 13:57:42 [INFO] TestBattery: Finished [KNOW-001] -> ERROR (Score: 0.0)\n2026-05-07 13:57:42 [INFO] TestBattery: Starting [HOME-STATE-003] Outdoor Humidity EN\n2026-05-07 13:57:42 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-07 13:57:42 [INFO] TestBattery: Finished [GREET-002] -> ERROR (Score: 0.0)\n2026-05-07 13:57:42 [INFO] TestBattery: Starting [HOME-STATE-004] All Lights Status EN\n2026-05-07 13:57:42 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-07 13:57:42 [INFO] TestBattery: Finished [HOME-STATE-003] -> ERROR (Score: 0.0)\n2026-05-07 13:57:42 [INFO] TestBattery: Starting [PERS-002] Rocky Origin EN\n2026-05-07 13:57:42 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-07 13:57:42 [INFO] TestBattery: Finished [HOME-STATE-004] -> ERROR (Score: 0.0)\n2026-05-07 13:57:42 [INFO] httpx: HTTP Request: POST http://127.0.0.1:8881/synthesize \"HTTP/1.1 200 OK\"\n2026-05-07 13:57:42 [INFO] TestBattery: Finished [PERS-002] -> ERROR (Score: 0.0)\n"
+    },
+    "Ground Truth Quality": {
+      "passed": false,
+      "duration_sec": 0.52,
+      "stdout": "",
+      "stderr": "Traceback (most recent call last):\n  File \"/home/feli/Documents/Coding_projects/Project-Hail-Rocky/tests/quality/personality_eval.py\", line 7, in <module>\n    from deepeval.models import DeepEvalBaseLLM\nModuleNotFoundError: No module named 'deepeval'\n"
+    },
+    "STT Accuracy (English)": {
+      "passed": true,
+      "duration_sec": 12.11,
+      "stdout": "\ud83d\ude80 Starting STT Regression: google/fleurs [en_us]\n\ud83d\udce6 Split: test | Model: whisper-large-v3-turbo | Limit: 10\n\n\u2705 Regression Complete!\n\ud83d\udcca AVG WER: 7.51%\n\ud83d\udcca AVG CER: 2.89%\n\ud83d\udcc1 Detailed Report: /home/feli/Documents/Coding_projects/Project-Hail-Rocky/tests/quality/../../scripts/reports/stt_regression_en_us_20260507_135754.json\n\ud83d\udcdd Summary: /home/feli/Documents/Coding_projects/Project-Hail-Rocky/tests/quality/../../scripts/reports/stt_regression_en_us_20260507_135754.md\n\n\ud83d\udd0d Quality Gates Check:\n   WER: 7.51% (threshold: 15.00%)\n   CER: 2.89% (threshold: 10.00%)\n   RTF: 0.050 (threshold: 0.500)\n\u2705 All quality gates passed!\n",
+      "stderr": "\nProcessing samples:   0%|          | 0/10 [00:00<?, ?it/s]\nProcessing samples:  10%|\u2588         | 1/10 [00:04<00:36,  4.04s/it]\nProcessing samples:  20%|\u2588\u2588        | 2/10 [00:04<00:15,  1.90s/it]\nProcessing samples:  30%|\u2588\u2588\u2588       | 3/10 [00:04<00:08,  1.22s/it]\nProcessing samples:  40%|\u2588\u2588\u2588\u2588      | 4/10 [00:05<00:05,  1.13it/s]\nProcessing samples:  50%|\u2588\u2588\u2588\u2588\u2588     | 5/10 [00:05<00:03,  1.48it/s]\nProcessing samples:  60%|\u2588\u2588\u2588\u2588\u2588\u2588    | 6/10 [00:06<00:02,  1.50it/s]\nProcessing samples:  70%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588   | 7/10 [00:06<00:01,  1.75it/s]\nProcessing samples:  80%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  | 8/10 [00:06<00:00,  2.00it/s]\nProcessing samples:  90%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588 | 9/10 [00:07<00:00,  1.86it/s]\nProcessing samples: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 10/10 [00:07<00:00,  1.97it/s]\nProcessing samples: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 10/10 [00:07<00:00,  1.26it/s]\n"
+    },
+    "STT Accuracy (Portuguese)": {
+      "passed": true,
+      "duration_sec": 11.22,
+      "stdout": "\ud83d\ude80 Starting STT Regression: google/fleurs [pt_br]\n\ud83d\udce6 Split: test | Model: whisper-large-v3-turbo | Limit: 10\n\n\u2705 Regression Complete!\n\ud83d\udcca AVG WER: 6.50%\n\ud83d\udcca AVG CER: 2.67%\n\ud83d\udcc1 Detailed Report: /home/feli/Documents/Coding_projects/Project-Hail-Rocky/tests/quality/../../scripts/reports/stt_regression_pt_br_20260507_135806.json\n\ud83d\udcdd Summary: /home/feli/Documents/Coding_projects/Project-Hail-Rocky/tests/quality/../../scripts/reports/stt_regression_pt_br_20260507_135806.md\n\n\ud83d\udd0d Quality Gates Check:\n   WER: 6.50% (threshold: 15.00%)\n   CER: 2.67% (threshold: 10.00%)\n   RTF: 0.033 (threshold: 0.500)\n\u2705 All quality gates passed!\n",
+      "stderr": "\nProcessing samples:   0%|          | 0/10 [00:00<?, ?it/s]\nProcessing samples:  10%|\u2588         | 1/10 [00:03<00:30,  3.34s/it]\nProcessing samples:  20%|\u2588\u2588        | 2/10 [00:03<00:13,  1.64s/it]\nProcessing samples:  30%|\u2588\u2588\u2588       | 3/10 [00:04<00:08,  1.20s/it]\nProcessing samples:  40%|\u2588\u2588\u2588\u2588      | 4/10 [00:04<00:05,  1.12it/s]\nProcessing samples:  50%|\u2588\u2588\u2588\u2588\u2588     | 5/10 [00:05<00:03,  1.40it/s]\nProcessing samples:  60%|\u2588\u2588\u2588\u2588\u2588\u2588    | 6/10 [00:05<00:02,  1.59it/s]\nProcessing samples:  70%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588   | 7/10 [00:06<00:01,  1.77it/s]\nProcessing samples:  80%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588  | 8/10 [00:06<00:01,  1.91it/s]\nProcessing samples:  90%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588 | 9/10 [00:07<00:00,  2.05it/s]\nProcessing samples: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 10/10 [00:07<00:00,  2.14it/s]\nProcessing samples: 100%|\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588| 10/10 [00:07<00:00,  1.34it/s]\n"
+    }
+  },
+  "summary": {
+    "passed": 4,
+    "failed": 3,
+    "total": 7
+  }
+}

@@ -1,0 +1,351 @@
+{
+  "metadata": {
+    "version": "4.1-vui-benchmarks",
+    "timestamp": "2026-05-07T13:57:42.510700",
+    "duration_seconds": 0.088509,
+    "concurrency": 5
+  },
+  "summary": {
+    "total": 9,
+    "passed": 0,
+    "failed": 0,
+    "avg_personality_score": 0.0
+  },
+  "benchmarks": {
+    "stt_latency": {
+      "avg": 0,
+      "p95": 0,
+      "jitter": 0
+    },
+    "llm_ttft": {
+      "avg": 0,
+      "p95": 0,
+      "jitter": 0
+    },
+    "ttrs": {
+      "avg": 0,
+      "p95": 0,
+      "jitter": 0
+    },
+    "tokens_per_second": {
+      "avg": 0,
+      "p95": 0,
+      "jitter": 0
+    }
+  },
+  "raw_results": [
+    {
+      "test_case": {
+        "id": "GREET-001",
+        "name": "Standard Greeting PT",
+        "input": "Ol\u00e1 Rocky, como vai o teu dia?",
+        "expected_keywords": [
+          "ol\u00e1",
+          "rocky",
+          "dia",
+          "bem",
+          "vai"
+        ],
+        "expected_traits": [],
+        "category": "Personality",
+        "intent": "",
+        "language": "pt"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "ttrs_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 8.107185363769531,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0,
+        "intent_match": false
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Audio generation failed",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "HOME-002",
+        "name": "Living Room Temp",
+        "input": "Qual \u00e9 a temperatura da sala?",
+        "expected_keywords": [
+          "temperatura",
+          "sala",
+          "graus",
+          "celsius"
+        ],
+        "expected_traits": [],
+        "category": "Smart Home",
+        "intent": "",
+        "language": "pt"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "ttrs_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 8.421659469604492,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0,
+        "intent_match": false
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Audio generation failed",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "HOME-STATE-001",
+        "name": "Kitchen Fridge Temp",
+        "input": "Qual \u00e9 a temperatura do frigor\u00edfico?",
+        "expected_keywords": [
+          "frigor\u00edfico",
+          "temperatura",
+          "frio",
+          "graus"
+        ],
+        "expected_traits": [],
+        "category": "Smart Home",
+        "intent": "",
+        "language": "pt"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "ttrs_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 3.4742355346679688,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0,
+        "intent_match": false
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Audio generation failed",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "HOME-STATE-002",
+        "name": "Bedroom Door Status",
+        "input": "A porta do quarto est\u00e1 aberta?",
+        "expected_keywords": [
+          "porta",
+          "quarto",
+          "aberta",
+          "fechada"
+        ],
+        "expected_traits": [],
+        "category": "Smart Home",
+        "intent": "",
+        "language": "pt"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "ttrs_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 3.8640499114990234,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0,
+        "intent_match": false
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Audio generation failed",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "KNOW-001",
+        "name": "Moon Landing",
+        "input": "Quem foi o primeiro homem na lua?",
+        "expected_keywords": [
+          "neil",
+          "armstrong",
+          "lua",
+          "homem",
+          "pisar"
+        ],
+        "expected_traits": [],
+        "category": "Knowledge",
+        "intent": "",
+        "language": "pt"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "ttrs_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 4.071950912475586,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0,
+        "intent_match": false
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Audio generation failed",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "GREET-002",
+        "name": "Standard Greeting EN",
+        "input": "Hello Rocky, how are you doing today?",
+        "expected_keywords": [
+          "hello",
+          "rocky",
+          "doing",
+          "today",
+          "good",
+          "well"
+        ],
+        "expected_traits": [],
+        "category": "Personality",
+        "intent": "",
+        "language": "en"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "ttrs_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 3.50189208984375,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0,
+        "intent_match": false
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Audio generation failed",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "HOME-STATE-003",
+        "name": "Outdoor Humidity EN",
+        "input": "What is the humidity outside?",
+        "expected_keywords": [
+          "humidity",
+          "outside",
+          "percent",
+          "wet"
+        ],
+        "expected_traits": [],
+        "category": "Smart Home",
+        "intent": "",
+        "language": "en"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "ttrs_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 2.8815269470214844,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0,
+        "intent_match": false
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Audio generation failed",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "HOME-STATE-004",
+        "name": "All Lights Status EN",
+        "input": "Are any lights on in the house?",
+        "expected_keywords": [
+          "lights",
+          "on",
+          "house",
+          "any"
+        ],
+        "expected_traits": [],
+        "category": "Smart Home",
+        "intent": "",
+        "language": "en"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "ttrs_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 2.8328895568847656,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0,
+        "intent_match": false
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Audio generation failed",
+      "retries_used": 0,
+      "logs": []
+    },
+    {
+      "test_case": {
+        "id": "PERS-002",
+        "name": "Rocky Origin EN",
+        "input": "Where exactly do you come from, Rocky?",
+        "expected_keywords": [
+          "where",
+          "exactly",
+          "come",
+          "from",
+          "rocky",
+          "casa",
+          "home"
+        ],
+        "expected_traits": [],
+        "category": "Personality",
+        "intent": "",
+        "language": "en"
+      },
+      "status": "ERROR",
+      "metrics": {
+        "stt_latency_ms": null,
+        "llm_ttft_ms": null,
+        "ttrs_ms": null,
+        "total_latency_ms": null,
+        "audio_gen_time_ms": 2.1190643310546875,
+        "tokens_count": 0,
+        "tps": null,
+        "personality_score": 0.0,
+        "intent_match": false
+      },
+      "actual_transcript": "",
+      "actual_response": "",
+      "reason": "Audio generation failed",
+      "retries_used": 0,
+      "logs": []
+    }
+  ]
+}

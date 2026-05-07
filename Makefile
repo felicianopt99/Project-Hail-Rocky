@@ -21,6 +21,7 @@ help:
 	@echo "make typecheck       - mypy (backend) + tsc (frontend)"
 	@echo "make check           - Run comprehensive system health check"
 	@echo "make test            - pytest (backend) + vitest (frontend)"
+	@echo "make qa              - Run massive automated QA battery + generate reports"
 	@echo "--- Utils ---"
 	@echo "make hash-password   - Generate bcrypt hash for ADMIN_PASSWORD_HASH"
 	@echo "make backend-shell   - Shell in backend container"
@@ -89,3 +90,6 @@ frontend-shell:
 
 download-models:
 	python3 scripts/download_models.py
+
+qa:
+	python3 scripts/qa_orchestrator.py
