@@ -30,20 +30,17 @@ async def chat(req: BrainRequest):
         raise HTTPException(status_code=400, detail="Content cannot be empty")
     
     # ── Fast-path Semantic Cache check ───────────────────
-    cached = await semantic_cache.check(req.content)
-    if cached:
-        log.info("brain_chat_cache", cache_hit=True, sid=req.sid)
-        # We still want to run the full pipeline in the background to update 
-        # state, intimacy and history, but we can return the cached response 
-        # immediately to the Pipecat pipeline for zero-latency speech.
-        # However, the user said "ignora a chamada ao agente Letta".
-        # Running it in background might still call Letta.
+    cache_hit = await semantic_cache.check(req.content)
+    if cache_hit:
+        cached_resp = cache_hit["response"]
+        score = cache_hit["score"]
+        log.info("cache_check", hit=True, sid=req.sid, score=round(score, 4), prompt=req.content[:50])
         
         # If we return now, we bypass the whole socketio_handlers._chat.
         # To keep it simple and follow the "ignore Letta" instruction:
-        return StreamingResponse(iter([cached]), media_type="text/plain")
+        return StreamingResponse(iter([cached_resp]), media_type="text/plain")
     
-    log.info("brain_chat_cache", cache_hit=False, sid=req.sid)
+    log.info("cache_check", hit=False, sid=req.sid)
 
     # This is a bit tricky because socketio_handlers.py is designed for Socket.io.
     # We'll need a way to run the chat logic and capture the output tokens.

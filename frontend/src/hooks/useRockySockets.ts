@@ -14,7 +14,8 @@ import {
   DeviceUpdated, 
   ProtocolUpdated, 
   ProtocolDeleted,
-  TtsStart
+  TtsStart,
+  EnvironmentalState
 } from "../types/socketEvents";
 
 const NAV_MODES: AppMode[] = ["dashboard", "visualizer", "neural_center"];
@@ -146,7 +147,7 @@ export function useRockySockets(addToast: (msg: string, type: ToastType) => void
 
     const onUiHint = (hint: UiHint) => {
       if (hint.type === "environmental_update") {
-        store.setEnvironmentalState(hint.value as any); // Cast as any for complex state update
+        store.setEnvironmentalState(hint.value);
       }
     };
 
@@ -160,7 +161,7 @@ export function useRockySockets(addToast: (msg: string, type: ToastType) => void
       addToast("Connection lost - reconnecting...", "warning");
     };
 
-    const onConnectError = (error?: Error | any) => {
+    const onConnectError = (error?: Error) => {
       store.setIsConnected(false);
       const msg = error?.message || "Connection error - check OpenClaw gateway";
       addToast(msg, "error");

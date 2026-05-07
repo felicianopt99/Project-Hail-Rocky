@@ -76,7 +76,7 @@ export function useAudioPipeline({
   // Initialization
   useEffect(() => {
     if (!audioCtxRef.current) {
-      const Ctx = window.AudioContext || (window as any).webkitAudioContext;
+      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
       audioCtxRef.current = new Ctx();
     }
     

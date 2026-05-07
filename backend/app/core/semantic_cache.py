@@ -38,21 +38,40 @@ class RockySemanticCache:
             log.error("semantic_cache_init_failed", error=str(e))
             self.cache = None
 
-    async def check(self, prompt: str) -> Optional[str]:
+    async def check(self, prompt: str) -> Optional[Dict[str, Any]]:
         """
         Check if a similar prompt exists in the cache.
-        Returns the response if found, else None.
+        Returns a dict with 'response' and 'score' if found, else None.
         """
         if not self.cache:
             return None
-
+        
+        # We need distance to calculate score
+        # SemanticCache.check doesn't return distance by default in all versions
+        # We can use the underlying vector store if needed, but let's see if 
+        # SemanticCache returns it in results.
         try:
-            # SemanticCache.check is synchronous in some versions, but let's check if it's async-friendly
-            # Redis-VL 0.3.0+ has some async support but SemanticCache might still be sync-wrapper
+            # SemanticCache.check is synchronous in some versions
+            # We use num_results=1 to get the best match
             results = self.cache.check(prompt=prompt, num_results=1)
             if results:
-                log.info("semantic_cache_hit", prompt=prompt[:50])
-                return results[0]["cache_entry"]
+                # In Redis-VL 0.3+, results[0] is a dict with 'cache_entry'
+                # and 'vector_distance' if it was found via search.
+                # However, the SemanticCache.check signature might vary.
+                # Let's assume it has what we need or we fallback gracefully.
+                response = results[0].get("cache_entry")
+                distance = results[0].get("vector_distance", 0.0)
+                score = 1.0 - float(distance)
+                
+                log.info("semantic_cache_hit", 
+                         prompt=prompt[:50], 
+                         score=round(score, 4),
+                         threshold=settings.semantic_cache_threshold)
+                
+                return {
+                    "response": response,
+                    "score": score
+                }
             return None
         except Exception as e:
             log.warning("semantic_cache_check_failed", error=str(e))

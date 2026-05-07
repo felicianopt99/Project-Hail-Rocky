@@ -76,18 +76,15 @@ async def _chat(sid: str, content: str, sio: socketio.AsyncServer, language: str
     )
     await sio.emit("system_state_update", state_update.model_dump(exclude_none=True), to=sid)
 
-    # ── Tool calling ───────────────────────────────────────
-    # We try tools first. If no tool is needed, _try_tools returns False and we proceed.
-    tool_response = await _try_tools(sid, content, new_state, score, session, sio, user_id=user_id)
-    if tool_response:
-        log.info("decision_pipeline_tool_handled", sid=sid)
-        return # Tool was handled
-
     # ── Semantic Cache check ───────────────────────────────
     # We check the cache before calling Letta or LiteLLM to save latency and cost.
-    cached = await semantic_cache.check(content)
-    if cached:
-        log.info("decision_pipeline_cache", cache_hit=True, sid=sid)
+    # Score 0.95 similarity is enforced by the cache threshold in settings.
+    cache_hit = await semantic_cache.check(content)
+    if cache_hit:
+        cached_resp = cache_hit["response"]
+        score = cache_hit["score"]
+        
+        log.info("cache_check", hit=True, sid=sid, score=round(score, 4), prompt=content[:50])
         
         # Check if Pipecat is active to determine how to emit the response
         bridge = session.get("pipecat_bridge")
@@ -96,26 +93,32 @@ async def _chat(sid: str, content: str, sio: socketio.AsyncServer, language: str
         # If Pipecat is NOT active, we send the full response via socket
         if not is_pipecat_active:
             # For immediate display, we can also emit the "tokens" (the whole thing)
-            await sio.emit("chat_token", cached, to=sid)
+            await sio.emit("chat_token", cached_resp, to=sid)
             
-            resp = socket_schemas.ChatResponse(text=cached)
+            resp = socket_schemas.ChatResponse(text=cached_resp)
             await sio.emit("chat_response", resp.model_dump(), to=sid)
             await sio.emit("status_update", "idle", to=sid)
             
             # Also handle TTS for cached responses if enabled
             if settings.has_tts():
-                await _emit_tts(sid, cached, sio, new_state)
+                await _emit_tts(sid, cached_resp, sio, new_state)
         else:
             # If Pipecat is active, we just emit the token for brain.py to capture it
-            # brain.py yields tokens from the queue when event == "chat_token"
-            await sio.emit("chat_token", cached, to=sid)
+            await sio.emit("chat_token", cached_resp, to=sid)
             # Signal end for mock_sio in brain.py
-            await sio.emit("chat_response", {"text": cached}, to=sid)
+            await sio.emit("chat_response", {"text": cached_resp}, to=sid)
 
-        session["history"].append({"role": "assistant", "content": cached})
+        session["history"].append({"role": "assistant", "content": cached_resp})
         return
 
-    log.info("decision_pipeline_cache", cache_hit=False, sid=sid)
+    log.info("cache_check", hit=False, sid=sid)
+
+    # ── Tool calling ───────────────────────────────────────
+    # We try tools first. If no tool is needed, _try_tools returns False and we proceed.
+    tool_response = await _try_tools(sid, content, new_state, score, session, sio, user_id=user_id)
+    if tool_response:
+        log.info("decision_pipeline_tool_handled", sid=sid)
+        return # Tool was handled
 
     # ── Letta / LiteLLM ────────────────────────────────────
     if settings.has_letta and await letta_bridge.is_available():

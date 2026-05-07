@@ -9,8 +9,10 @@ from .api import dashboard, socketio_handlers, auth, skills, settings_api, speak
 from .config import settings
 from .workers.scheduler import setup as setup_scheduler, shutdown as shutdown_scheduler
 from .core.http_client import AsyncHTTPClient
+import structlog
 
 setup_logging()
+log = structlog.get_logger(__name__)
 
 sio = socketio.AsyncServer(
     async_mode="asgi",

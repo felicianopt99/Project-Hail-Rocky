@@ -26,10 +26,15 @@ export interface ServiceStatus {
   ok: boolean;
 }
 
-export interface UiHint {
-  type: string;
-  value: unknown;
+export interface EnvironmentalState {
+  noiseFloor: number;
+  isNoisy: boolean;
+  detectedTypes: string[];
 }
+
+export type UiHint = 
+  | { type: "environmental_update"; value: EnvironmentalState }
+  | { type: string; value: unknown };
 
 export interface SoundTrigger {
   type: "accept" | "success" | "error";
@@ -112,9 +117,9 @@ export interface ServerToClientEvents {
 
 export interface ClientToServerEvents {
   chat_request: (data: { content: string }) => void;
-  manual_stop: (data?: unknown) => void;
-  voice_interrupt: (data?: unknown) => void;
-  manual_activation: (data?: unknown) => void;
+  manual_stop: () => void;
+  voice_interrupt: () => void;
+  manual_activation: () => void;
   auth_granted: (data: { tool_call_id: string }) => void;
   ping: (data: number) => void;
 }
