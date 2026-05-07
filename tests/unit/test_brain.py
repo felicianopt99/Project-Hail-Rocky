@@ -1,68 +1,82 @@
 import pytest
-from unittest.mock import AsyncMock, patch, MagicMock
+import httpx
+from unittest.mock import AsyncMock, patch
 from fastapi.testclient import TestClient
 from app.main import app as fastapi_app
 
 client = TestClient(fastapi_app)
 
-@pytest.mark.asyncio
-async def test_brain_chat_endpoint_structure():
-    """Test that the /api/brain/chat endpoint handles requests and returns a stream."""
-    # We mock the generate function inside brain.py or the socketio_handlers._chat it calls
-    with patch("app.api.socketio_handlers._chat", new_callable=AsyncMock) as mock_chat:
-        # Mocking the session to avoid Redis/Session errors
-        with patch("app.api.socketio_handlers._session", return_value={"history": [], "state": "neutral"}):
-            # We don't actually need to run the full generate loop in this unit test
-            # but we check if the endpoint is reachable
-            payload = {
-                "sid": "test-session",
-                "content": "Hello Rocky",
-                "emotional_state": "happy"
-            }
-            
-            # Since it's a StreamingResponse, we use stream=True or just check initial response
-            response = client.post("/api/brain/chat", json=payload)
-            
-            assert response.status_code == 200
-            assert response.headers["content-type"] == "text/plain; charset=utf-8"
 
 @pytest.mark.asyncio
-async def test_brain_chat_validation():
-    """Test validation errors for /api/brain/chat."""
-    # Missing content
-    payload = {"sid": "test"}
-    response = client.post("/api/brain/chat", json=payload)
+async def test_brain_chat_cache_hit():
+    """Cache hit path returns immediately without invoking _chat."""
+    cache_result = {"response": "Yes, human?", "score": 0.99}
+    with patch("app.api.brain.semantic_cache.check", new_callable=AsyncMock, return_value=cache_result):
+        transport = httpx.ASGITransport(app=fastapi_app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+            response = await ac.post(
+                "/api/brain/chat",
+                json={"sid": "test-sid", "content": "Hello Rocky", "emotional_state": "neutral"},
+            )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "text/plain; charset=utf-8"
+    assert "Yes, human?" in response.text
+
+
+@pytest.mark.asyncio
+async def test_brain_chat_cache_miss_streams():
+    """Cache miss path: _chat emits tokens via MockSio and they appear in the response."""
+    async def fake_chat(sid, content, sio, language="en"):
+        await sio.emit("chat_token", "Amaze!")
+        await sio.emit("chat_response", {"text": "Amaze!"})
+
+    with patch("app.api.brain.semantic_cache.check", new_callable=AsyncMock, return_value=None), \
+         patch("app.api.socketio_handlers._chat", side_effect=fake_chat):
+        transport = httpx.ASGITransport(app=fastapi_app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+            response = await ac.post(
+                "/api/brain/chat",
+                json={"sid": "test-sid", "content": "Hello Rocky"},
+            )
+    assert response.status_code == 200
+    assert "Amaze!" in response.text
+
+
+def test_brain_chat_validation_missing_content():
+    """Pydantic validation: missing 'content' field → 422."""
+    response = client.post("/api/brain/chat", json={"sid": "test"})
     assert response.status_code == 422
-    
-    # Missing sid
-    payload = {"content": "hi"}
-    response = client.post("/api/brain/chat", json=payload)
+
+
+def test_brain_chat_validation_missing_sid():
+    """Pydantic validation: missing 'sid' field → 422."""
+    response = client.post("/api/brain/chat", json={"content": "hi"})
     assert response.status_code == 422
 
+
+def test_brain_chat_empty_content():
+    """Blank content string raises 400 before any service call."""
+    response = client.post("/api/brain/chat", json={"sid": "test", "content": "   "})
+    assert response.status_code == 400
+
+
 @pytest.mark.asyncio
-async def test_brain_mcp_tool_trigger():
-    """
-    Unit test to verify that asking about smart home status triggers
-    the expected tool call simulation in our mock.
-    """
-    from app.api.brain import BrainRequest
-    
-    payload = {
-        "sid": "test-mcp",
-        "content": "Quais são as luzes da sala?",
-        "emotional_state": "neutral"
-    }
+async def test_brain_chat_tool_call_in_response():
+    """When _chat streams a tool-call token it appears in the HTTP response body."""
+    tool_token = "[Tool Call: ha-mcp:search_entities] "
 
-    async def mock_letta_stream(msg):
-        yield "Checking Home Assistant... "
-        yield "[Tool Call: ha-mcp:search_entities] "
-        yield "The lights are off."
+    async def fake_chat_with_tool(sid, content, sio, language="en"):
+        await sio.emit("chat_token", tool_token)
+        await sio.emit("chat_token", "The lights are off.")
+        await sio.emit("chat_response", {"text": tool_token + "The lights are off."})
 
-    with patch("app.api.socketio_handlers.settings.letta_url", "http://mock-letta"), \
-         patch("app.api.socketio_handlers.letta_bridge.is_available", return_value=True), \
-         patch("app.api.socketio_handlers.letta_bridge.send_message_stream", side_effect=mock_letta_stream), \
-         patch("app.api.socketio_handlers._session", return_value={"history": [], "state": "neutral"}):
-            
-        response = client.post("/api/brain/chat", json=payload)
-        assert response.status_code == 200
-        assert "ha-mcp:search_entities" in response.text
+    with patch("app.api.brain.semantic_cache.check", new_callable=AsyncMock, return_value=None), \
+         patch("app.api.socketio_handlers._chat", side_effect=fake_chat_with_tool):
+        transport = httpx.ASGITransport(app=fastapi_app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+            response = await ac.post(
+                "/api/brain/chat",
+                json={"sid": "test-mcp", "content": "Quais são as luzes da sala?"},
+            )
+    assert response.status_code == 200
+    assert "ha-mcp:search_entities" in response.text

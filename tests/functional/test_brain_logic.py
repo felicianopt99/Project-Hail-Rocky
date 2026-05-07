@@ -6,7 +6,7 @@ import threading
 import time
 from fastapi import FastAPI, Request
 from uvicorn import Config, Server
-from unittest.mock import patch
+from unittest.mock import patch, AsyncMock
 from app.main import app as fastapi_app
 from app.config import settings
 from app.bridges import letta_bridge
@@ -153,15 +153,23 @@ async def test_letta_mcp_integration_real():
 
 @pytest.mark.asyncio
 async def test_brain_chat_endpoint_basic():
-    """Simple check for the chat endpoint without complex Letta logic."""
+    """Brain chat endpoint streams a non-empty response (all services mocked)."""
+    async def fake_chat(sid, content, sio, language="en"):
+        await sio.emit("chat_token", "Rocky here. Yes?")
+        await sio.emit("chat_response", {"text": "Rocky here. Yes?"})
+
     payload = {
         "sid": "simple-sid",
         "content": "Olá, quem és?",
-        "emotional_state": "happy"
+        "emotional_state": "happy",
     }
-    
-    transport = httpx.ASGITransport(app=fastapi_app)
-    async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
-        response = await ac.post("/api/brain/chat", json=payload)
-        assert response.status_code == 200
-        assert len(response.text) > 0
+
+    with patch("app.api.brain.semantic_cache.check", new_callable=AsyncMock, return_value=None), \
+         patch("app.api.socketio_handlers._chat", side_effect=fake_chat):
+        transport = httpx.ASGITransport(app=fastapi_app)
+        async with httpx.AsyncClient(transport=transport, base_url="http://test") as ac:
+            response = await ac.post("/api/brain/chat", json=payload)
+
+    assert response.status_code == 200
+    assert len(response.text) > 0
+    assert "Rocky" in response.text

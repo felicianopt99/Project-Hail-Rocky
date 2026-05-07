@@ -581,7 +581,7 @@ def register(sio: socketio.AsyncServer) -> None:
                     session["history"] = []  # fresh context for new speaker
                     change_data = socket_schemas.SpeakerChanged(from_name=old_name, to=name)
                     await sio.emit("speaker_changed", change_data.model_dump(by_alias=True), to=sid)
-                    log.info("speaker_switched", from_=old, to=name, sid=sid)
+                    log.info("speaker_switched", from_=old_name, to=name, sid=sid)
                     # Rocky greets the new person before processing their utterance
                     await _greet_speaker(sid, name, sio)
                 elif session.get("speaker") != name:
