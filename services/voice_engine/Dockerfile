@@ -36,7 +36,13 @@ RUN pip install --no-cache-dir \
     pydantic-settings>=2.1.0 \
     redis[asyncio]>=5.0.0 \
     python-dotenv>=1.0.0 \
-    orjson>=3.9.0
+    orjson>=3.9.0 \
+    redisvl>=0.3.1 \
+    sentence-transformers>=3.0.0 \
+    psutil>=5.9.0 \
+    numpy>=1.24.0 \
+    asyncpg>=0.29.0 \
+    structlog>=24.1.0
 
 COPY app/ ./app/
 
