@@ -22,7 +22,7 @@ from . import skills as skills_api
 from ..core.trace import set_trace_id, get_trace_id
 from ..schemas import socket_schemas
 from ..rocky.graph.workflow import rocky_brain_graph
-from langchain_core.messages import HumanMessage
+from langchain_core.messages import HumanMessage, AIMessage
 
 log = structlog.get_logger()
 
@@ -54,7 +54,7 @@ def _pop_sentence(buf: str, is_first: bool = False) -> Tuple[str, str]:
 
 
 # ── Core chat logic (shared by text and voice paths) ─────────────────────
-async def _chat(sid: str, content: str, sio: socketio.AsyncServer, language: str = "en") -> None:
+async def _chat(sid: str, content: str, sio: socketio.AsyncServer, history: list[dict] | None = None, language: str = "en") -> None:
     session = _session(sid)
     redis = await get_redis()
 
@@ -119,16 +119,30 @@ async def _chat(sid: str, content: str, sio: socketio.AsyncServer, language: str
     log.info("cache_check", hit=False, sid=sid)
 
     # ── Unified LangGraph Brain ──────────────────────────────────────────
-    await _chat_langgraph(sid, content, session, sio)
+    await _chat_langgraph(sid, content, session, sio, history=history)
 
 
-async def _chat_langgraph(sid: str, content: str, session: dict, sio: socketio.AsyncServer) -> None:
+async def _chat_langgraph(sid: str, content: str, session: dict, sio: socketio.AsyncServer, history: list[dict] | None = None) -> None:
     """Chat via LangGraph state machine — unified agentic intelligence."""
     from ..bridges.pipecat_bridge import PipecatBridge
     is_pipecat_active = PipecatBridge().is_session_running(sid)
     
+    # Use provided history (REST/Voice) or session history (Socket.io)
+    msg_source = history if history is not None else session.get("history", [])
+    
+    # Convert history dicts to LangChain messages
+    messages = []
+    for m in msg_source[-15:]: # Keep last 15 for context
+        if m["role"] == "user":
+            messages.append(HumanMessage(content=m["content"]))
+        else:
+            messages.append(AIMessage(content=m["content"]))
+    
+    # Add current message
+    messages.append(HumanMessage(content=content))
+
     initial_state = {
-        "messages": [HumanMessage(content=content)],
+        "messages": messages,
         "sid": sid,
         "tools_called": []
     }

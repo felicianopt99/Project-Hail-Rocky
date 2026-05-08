@@ -20,6 +20,7 @@ class BrainRequest(BaseModel):
     sid: str
     content: str
     emotional_state: str = "neutral"
+    context: list[dict] | None = None
 
 @router.post("/chat")
 async def chat(req: BrainRequest):
@@ -67,7 +68,7 @@ async def chat(req: BrainRequest):
         mock_sio = MockSio()
         
         # Run chat in background — this now handles LangGraph vs Legacy automatically
-        task = asyncio.create_task(socketio_handlers._chat(req.sid, req.content, mock_sio))
+        task = asyncio.create_task(socketio_handlers._chat(req.sid, req.content, mock_sio, history=req.context))
         
         try:
             loop = asyncio.get_event_loop()

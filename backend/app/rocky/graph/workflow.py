@@ -7,7 +7,7 @@ from .nodes import (
     execute_tools, 
     update_memory
 )
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 
 def should_continue(state: RockyState):
     """
@@ -58,14 +58,29 @@ workflow.add_edge("update_mem", END)
 # Compile the graph
 rocky_brain_graph = workflow.compile()
 
-async def run_rocky_brain(content: str, role: str = "user", sid: str = "system") -> str:
+async def run_rocky_brain(
+    content: str, 
+    role: str = "user", 
+    sid: str = "system",
+    history: list[dict] = None
+) -> str:
     """
     Run the Rocky brain graph to completion and return the final text response.
     Suitable for background tasks and non-streaming REST calls.
     """
     msg_class = HumanMessage if role == "user" else SystemMessage
+    messages = []
+    if history:
+        for m in history:
+            if m.get("role") == "user":
+                messages.append(HumanMessage(content=m["content"]))
+            elif m.get("role") == "assistant":
+                messages.append(AIMessage(content=m["content"]))
+    
+    messages.append(msg_class(content=content))
+    
     initial_state = {
-        "messages": [msg_class(content=content)],
+        "messages": messages,
         "sid": sid,
         "tools_called": []
     }

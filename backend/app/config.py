@@ -95,7 +95,7 @@ class Settings(BaseSettings):
     def has_letta(self) -> bool:
         return bool(self.letta_url)
 
-    use_langgraph_brain: bool = False
+    use_langgraph_brain: bool = True
 
     def has_speaker_id(self) -> bool:
         return bool(self.azure_speaker_key)
