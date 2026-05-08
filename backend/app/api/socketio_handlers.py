@@ -205,7 +205,7 @@ async def _chat_langgraph(sid: str, content: str, session: dict, sio: socketio.A
 
     except Exception as exc:
         log.error("langgraph_chat_error", error=str(exc), sid=sid)
-        err = socket_schemas.ChatError(message=f"Brain Error: {exc}")
+        err = socket_schemas.ChatError(message=f"Brain Error: {exc}", code="graph_error")
         await sio.emit("chat_error", err.model_dump(), to=sid)
         await sio.emit("status_update", "error", to=sid)
 

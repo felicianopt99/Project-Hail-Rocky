@@ -6,6 +6,7 @@ class ChatResponse(BaseModel):
 
 class ChatError(BaseModel):
     message: str
+    code: Optional[str] = None
 
 class SpeakerIdentified(BaseModel):
     name: str

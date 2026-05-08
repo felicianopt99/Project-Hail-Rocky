@@ -46,28 +46,8 @@ async def chat(req: BrainRequest):
     log.info("cache_check", hit=False, sid=req.sid)
 
     async def generate():
-        if settings.use_langgraph_brain:
-            log.info("using_langgraph_brain", sid=req.sid)
-            initial_state = {
-                "messages": [HumanMessage(content=req.content)],
-                "sid": req.sid,
-                "tools_called": []
-            }
-            
-            # Use astream_events to get tokens in real-time
-            async for event in rocky_brain_graph.astream_events(initial_state, version="v1"):
-                kind = event["event"]
-                if kind == "on_chat_model_stream":
-                    content = event["data"]["chunk"].content
-                    if content:
-                        yield content
-                elif kind == "on_tool_start":
-                    # Optional: emit thinking event via socket.io if we had access to it here
-                    # For now, just logging is fine
-                    log.info("graph_tool_start", tool=event["name"])
-            return
-
-        # Mocking a socketio server to capture emissions
+        # Mocking a socketio server to capture emissions.
+        # This allows us to use the same logic for both REST and Socket.io paths.
         class MockSio:
             def __init__(self):
                 self.tokens = asyncio.Queue()
@@ -76,7 +56,7 @@ async def chat(req: BrainRequest):
             async def emit(self, event, data=None, to=None):
                 if event == "chat_token":
                     await self.tokens.put(data)
-                elif event == "chat_response":
+                elif event in ["chat_response", "chat_error"]:
                     await self.tokens.put(None) # Signal end
                     self.done.set()
                 elif event == "status_update" and data == "idle":
@@ -86,24 +66,22 @@ async def chat(req: BrainRequest):
 
         mock_sio = MockSio()
         
-        # Run chat in background
+        # Run chat in background — this now handles LangGraph vs Legacy automatically
         task = asyncio.create_task(socketio_handlers._chat(req.sid, req.content, mock_sio))
         
         try:
             loop = asyncio.get_event_loop()
-            deadline = loop.time() + 60.0  # 60s total budget, not per-token
+            deadline = loop.time() + 60.0
             while True:
                 try:
                     remaining = deadline - loop.time()
                     if remaining <= 0:
-                        log.warning("brain_chat_total_timeout", sid=req.sid)
                         break
                     token = await asyncio.wait_for(mock_sio.tokens.get(), timeout=min(remaining, 10.0))
                     if token is None:
                         break
                     yield token
                 except asyncio.TimeoutError:
-                    log.warning("brain_chat_timeout", sid=req.sid)
                     break
         finally:
             if not task.done():
@@ -112,7 +90,6 @@ async def chat(req: BrainRequest):
                     await task
                 except asyncio.CancelledError:
                     pass
-            # Ensure the queue doesn't leak or hang next calls
             while not mock_sio.tokens.empty():
                 mock_sio.tokens.get_nowait()
 
