@@ -184,11 +184,14 @@ services:
       - "8881:8881"
     networks:
       - rocky_net
+    environment:
+      - PYTHONPATH=/app
     env_file:
       - .env
     volumes:
       - ./models:/models
       - ./services/voice_engine/app:/app/app
+      - ./backend:/app/backend
     command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8881"]
     restart: unless-stopped
     healthcheck:

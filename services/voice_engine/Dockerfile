@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
     espeak-ng \
@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install ONNX runtime and pedalboard (CPU optimized)
+# Install ONNX runtime and dependencies (CPU optimized)
 RUN pip install --no-cache-dir \
     pipecat-ai[daily,deepgram,openai,kokoro]>=0.0.45 \
     pipecat-ai-flows \
@@ -27,11 +27,16 @@ RUN pip install --no-cache-dir \
     coverage>=7.4.0 \
     pytest-cov>=5.0.0 \
     requests \
-    openwakeword>=0.6.0
-
-# Download openwakeword base models (melspectrogram.onnx, embedding model)
-# These are not bundled in the pip package and are required for inference.
-RUN python3 -c "import openwakeword; openwakeword.utils.download_models()"
+    openwakeword>=0.6.0 \
+    langgraph>=0.0.10 \
+    langchain>=0.1.0 \
+    langchain-core>=0.1.0 \
+    litellm>=1.30.0 \
+    asyncpg>=0.29.0 \
+    pydantic-settings>=2.1.0 \
+    redis[asyncio]>=5.0.0 \
+    python-dotenv>=1.0.0 \
+    orjson>=3.9.0
 
 COPY app/ ./app/
 
