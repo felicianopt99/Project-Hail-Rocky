@@ -11,7 +11,7 @@ services:
     environment:
       - REDIS_URL=redis://rocky-redis-test:6381/1
       - LETTA_URL=http://rocky-letta-test:8283
-      - MCP_URL=http://rocky-ha-mcp-test:3000
+      - HA_MCP_URL=http://rocky-ha-mcp-test:3000
       - NODE_ENV=test
       - LOG_LEVEL=DEBUG
       - PYTHONPATH=/app

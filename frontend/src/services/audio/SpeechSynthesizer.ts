@@ -13,14 +13,15 @@ export class SpeechSynthesizer {
   }
 
   private setupListeners() {
-    eventBus.on(RockyEvents.LLM_SENTENCE, ({ sessionId, text }) => {
+    eventBus.on(RockyEvents.LLM_SENTENCE, (args: unknown) => {
+      const { sessionId, text } = args as { sessionId: any; text: any };
       this.speak(sessionId, text).catch(err => {
         log.error("Synthesis failed", { sessionId, error: err.message });
       });
     });
 
-    eventBus.on(RockyEvents.INTERRUPT, (sessionId) => {
-      this.interrupt(sessionId);
+    eventBus.on(RockyEvents.INTERRUPT, (args: unknown) => {
+      this.interrupt(args as string);
     });
   }
 
@@ -34,7 +35,7 @@ export class SpeechSynthesizer {
     const queue = this.queues.get(sessionId) || Promise.resolve();
     const nextSpeech = queue.then(async () => {
       try {
-        const result = await synthesisPromise;
+        const result = await synthesisPromise as { stream: any; sampleRate: number } | null;
         if (result && result.stream) {
           await this.emitSpeechStream(sessionId, result.stream, result.sampleRate);
         }
@@ -61,7 +62,7 @@ export class SpeechSynthesizer {
     eventBus.emit(RockyEvents.TTS_END, { sessionId, interrupted: true });
   }
 
-  private async prepareSpeech(sessionId: string, text: string) {
+  private async prepareSpeech(sessionId: string, _text: string) {
     const isActive = () => this.activeStreams.get(sessionId) !== false;
     if (!isActive()) return null;
     return null;

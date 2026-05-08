@@ -1,64 +1,73 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 from app.rocky.personality.emotional_states import detect, load, save, STATES
+import app.rocky.personality.emotional_states as _es_module
+
+
+@pytest.fixture(autouse=True)
+def clear_detect_cache():
+    _es_module._cache.clear()
+    yield
 
 
 class TestDetect:
-    def _at_hour(self, hour: int, message: str, current: str = "neutral") -> str:
+    async def _at_hour(self, hour: int, message: str, current: str = "neutral") -> str:
         mock_now = MagicMock()
         mock_now.hour = hour
-        with patch("app.rocky.personality.emotional_states.datetime") as mock_dt:
+        with patch("app.rocky.personality.emotional_states.datetime") as mock_dt, \
+             patch("app.rocky.personality.emotional_states.litellm.acompletion",
+                   new_callable=AsyncMock, side_effect=Exception("no llm in tests")):
             mock_dt.now.return_value = mock_now
-            return detect(message, current)
+            return await detect(message, current)
 
-    def test_tired_late_night(self):
-        assert self._at_hour(23, "hello") == "tired"
+    async def test_tired_late_night(self):
+        assert await self._at_hour(23, "hello") == "tired"
 
-    def test_tired_early_morning(self):
-        assert self._at_hour(3, "hello") == "tired"
+    async def test_tired_early_morning(self):
+        assert await self._at_hour(3, "hello") == "tired"
 
-    def test_tired_at_midnight(self):
-        assert self._at_hour(0, "hello") == "tired"
+    async def test_tired_at_midnight(self):
+        assert await self._at_hour(0, "hello") == "tired"
 
-    def test_not_tired_at_daytime(self):
-        assert self._at_hour(10, "hello") != "tired"
+    async def test_not_tired_at_daytime(self):
+        assert await self._at_hour(10, "hello") != "tired"
 
-    def test_focused_on_python_keyword(self):
-        assert self._at_hour(14, "debug this python code") == "focused"
+    async def test_focused_on_python_keyword(self):
+        assert await self._at_hour(14, "debug this python code") == "focused"
 
-    def test_focused_on_docker(self):
-        assert self._at_hour(10, "docker container is failing") == "focused"
+    async def test_focused_on_docker(self):
+        assert await self._at_hour(10, "docker container is failing") == "focused"
 
-    def test_focused_on_api(self):
-        assert self._at_hour(12, "the api endpoint broke") == "focused"
+    async def test_focused_on_api(self):
+        assert await self._at_hour(12, "the api endpoint broke") == "focused"
 
-    def test_excited_wow(self):
-        assert self._at_hour(14, "that is wow amazing") == "excited"
+    async def test_excited_wow(self):
+        assert await self._at_hour(14, "that is wow amazing") == "excited"
 
-    def test_excited_multilingual(self):
-        assert self._at_hour(14, "isso é incrível") == "excited"
+    async def test_excited_multilingual(self):
+        assert await self._at_hour(14, "isso é incrível") == "excited"
 
-    def test_excited_french(self):
-        assert self._at_hour(14, "c'est incroyable") == "excited"
+    async def test_excited_french(self):
+        assert await self._at_hour(14, "c'est incroyable") == "excited"
 
-    def test_curious_question_mark(self):
-        assert self._at_hour(14, "what time is it?") == "curious"
+    async def test_curious_question_mark(self):
+        assert await self._at_hour(14, "what time is it?") == "curious"
 
-    def test_curious_keyword(self):
-        assert self._at_hour(14, "how does this work") == "curious"
+    async def test_curious_keyword(self):
+        assert await self._at_hour(14, "how does this work") == "curious"
 
-    def test_curious_multilingual(self):
-        assert self._at_hour(14, "porquê aconteceu isso") == "curious"
+    async def test_curious_multilingual(self):
+        assert await self._at_hour(14, "porquê aconteceu isso") == "curious"
 
-    def test_falls_back_to_current_state(self):
-        assert self._at_hour(14, "just a normal sentence", "excited") == "excited"
+    async def test_falls_back_to_current_state(self):
+        assert await self._at_hour(14, "just a normal sentence", "excited") == "excited"
 
-    def test_tech_takes_priority_over_excited(self):
+    async def test_tech_takes_priority_over_excited(self):
         # "amazing python" has both excited and tech keywords → focused wins
-        assert self._at_hour(14, "amazing python code") == "focused"
+        assert await self._at_hour(14, "amazing python code") == "focused"
 
-    def test_multiple_question_marks(self):
-        assert self._at_hour(14, "why why why???") == "curious"
+    async def test_multiple_question_marks(self):
+        assert await self._at_hour(14, "why why why???") == "curious"
 
 
 @pytest.mark.asyncio

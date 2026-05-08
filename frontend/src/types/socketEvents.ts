@@ -122,4 +122,16 @@ export interface ClientToServerEvents {
   manual_activation: () => void;
   auth_granted: (data: { tool_call_id: string }) => void;
   ping: (data: number) => void;
+  set_proactivity: (data?: any) => void;
+  set_sensitivity: (data?: any) => void;
+  control_device: (data?: any) => void;
+  add_log: (data?: any) => void;
+  execute_routine: (data?: any) => void;
+  get_routines: (data?: any) => void;
+  sync_ha: (data?: any) => void;
+  save_protocol: (data?: any) => void;
+  create_protocol: (data?: any) => void;
+  delete_protocol: (data?: any) => void;
+  set_mode: (data?: any) => void;
+  save_routine: (data?: any) => void;
 }

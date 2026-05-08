@@ -49,26 +49,29 @@ export function useAudioPipeline({
 }: AudioPipelineOptions) {
   const [isAudioReady, setIsAudioReady] = useState(false);
   const internalAudioCtxRef = useRef<AudioContext | null>(null);
-  
+
   // Audio nodes
   const audioCtxRef = externalAudioCtxRef || internalAudioCtxRef;
   const analyzerRef = useRef<AnalyserNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
-  
+
   // WebRTC
   const pcRef = useRef<RTCPeerConnection | null>(null);
   const isSpeakingRef = useRef(false);
 
+  // PCM chunk scheduling for fallback (non-WebRTC) TTS path
+  const nextPlayTimeRef = useRef<number>(0);
+
   const handleStopSpeaking = useCallback(() => {
+    // Only interrupt if Rocky is actually speaking — prevents killing the voice
+    // pipeline when status_update arrives during LLM generation (not TTS).
+    if (!isSpeakingRef.current) return;
+
     console.log("[Rocky] Interrupting speech...");
-    
-    // Notify backend to stop the pipeline
     if (socket) {
       socket.emit("voice_interrupt");
     }
     eventBus.emit(RockyEvents.INTERRUPT);
-    
-    // We don't close the PC here, just let the track stop sending data
     isSpeakingRef.current = false;
     setStatus((prev: RockyStatus) => (prev === "synthesizing_tts" ? "idle" : prev));
   }, [setStatus, socket]);
@@ -98,6 +101,14 @@ export function useAudioPipeline({
     setIsAudioReady(true);
   }, []);
 
+  // Sync the external analyzer when useAudioManager finishes its async init.
+  // The init effect above runs once on mount when externalAnalyzerRef may still be null.
+  useEffect(() => {
+    if (externalAnalyzerRef && analyzerRef.current !== externalAnalyzerRef) {
+      analyzerRef.current = externalAnalyzerRef;
+    }
+  }, [externalAnalyzerRef]);
+
   // WebRTC Connection Logic
   const startWebRTC = useCallback(async (micStream?: MediaStream) => {
     if (!audioCtxRef.current) return;
@@ -114,18 +125,11 @@ export function useAudioPipeline({
     });
     pcRef.current = pc;
 
-    // 1. Add Mic Track (if available) to send to backend for STT/VAD
-    // Re-enforce DSP constraints at track level before handing off to PC
+    // 1. Add Mic Track (if available) to send to backend for STT/VAD.
+    // Do NOT call applyConstraints here — on Linux/PulseAudio it overrides
+    // the browser AGC pipeline and reduces gain to near-zero amplitude.
     if (micStream) {
-      const dspConstraints: MediaTrackConstraints = {
-        echoCancellation: { exact: true },
-        noiseSuppression: { exact: true },
-        autoGainControl: { exact: true },
-      };
       for (const track of micStream.getAudioTracks()) {
-        await track.applyConstraints(dspConstraints).catch(err =>
-          console.warn("[Rocky] Could not enforce DSP constraints on mic track:", err)
-        );
         pc.addTrack(track, micStream);
       }
     }
@@ -190,23 +194,57 @@ export function useAudioPipeline({
 
   // Socket Event Listeners for Status/Metadata
   useEffect(() => {
-    const onTtsStart = () => {
+    const ttsRateRef_inner = { current: 24000 };
+
+    const onTtsStart = (data: { sampleRate?: number }) => {
+      if (data?.sampleRate) ttsRateRef_inner.current = data.sampleRate;
       if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
+      nextPlayTimeRef.current = 0;
       isSpeakingRef.current = true;
       setStatus("synthesizing_tts");
     };
 
     const onTtsEnd = () => {
       console.log("[Rocky] TTS stream finished.");
+      nextPlayTimeRef.current = 0;
       isSpeakingRef.current = false;
       setStatus("idle");
-      // Close WebRTC to release the mic — Porcupine can now reclaim the hardware
-      // for the next wake-word cycle without mic contention.
+      // Close WebRTC to release the mic for the next wake-word cycle.
       if (pcRef.current) {
         pcRef.current.close();
         pcRef.current = null;
         console.log("[Rocky] WebRTC closed — mic released for wake word.");
       }
+    };
+
+    // Fallback PCM playback: used when TTS audio arrives via Socket.IO instead of
+    // WebRTC (text chat path, or when WebRTC audio track is not yet established).
+    const onTtsChunk = (chunk: ArrayBuffer | Uint8Array) => {
+      if (!audioCtxRef.current) return;
+      const ctx = audioCtxRef.current;
+      if (ctx.state === 'suspended') { void ctx.resume(); }
+
+      let raw: Int16Array;
+      if (chunk instanceof ArrayBuffer) {
+        raw = new Int16Array(chunk);
+      } else {
+        raw = new Int16Array(chunk.buffer, chunk.byteOffset, Math.floor(chunk.byteLength / 2));
+      }
+      if (raw.length === 0) return;
+
+      const float32 = Float32Array.from(raw, s => s / 32768);
+
+      const buffer = ctx.createBuffer(1, float32.length, ttsRateRef_inner.current);
+      buffer.getChannelData(0).set(float32);
+
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(gainNodeRef.current ?? ctx.destination);
+
+      const now = ctx.currentTime;
+      const startTime = Math.max(now, nextPlayTimeRef.current);
+      source.start(startTime);
+      nextPlayTimeRef.current = startTime + buffer.duration;
     };
 
     const onTtsError = () => {
@@ -244,12 +282,12 @@ export function useAudioPipeline({
       }
     };
 
-    socket.on("status_update", (status: RockyStatus) => {
-      if (status === "thinking_llm") {
-        handleStopSpeaking();
-      }
-    });
+    const onStatusForPipeline = (status: RockyStatus) => {
+      if (status === "thinking_llm") handleStopSpeaking();
+    };
+    socket.on("status_update", onStatusForPipeline);
     socket.on("tts_start", onTtsStart);
+    socket.on("tts_chunk", onTtsChunk);
     socket.on("tts_error", onTtsError);
     socket.on("tts_end", onTtsEnd);
     socket.on("set_volume", onSetVolume);
@@ -260,10 +298,10 @@ export function useAudioPipeline({
       setStatus("processing_stt");
     });
 
-    // Cleanup listeners
     return () => {
-      socket.off("status_update");
+      socket.off("status_update", onStatusForPipeline);
       socket.off("tts_start", onTtsStart);
+      socket.off("tts_chunk", onTtsChunk);
       socket.off("tts_error", onTtsError);
       socket.off("tts_end", onTtsEnd);
       socket.off("set_volume", onSetVolume);

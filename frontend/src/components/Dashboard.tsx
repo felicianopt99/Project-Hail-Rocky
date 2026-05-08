@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Cloud, RefreshCw, Activity, ListTodo, Cpu } from "lucide-react";
 import socket from "../lib/socket";
 import { motion } from "motion/react";
-import { useRockyStore, LightState, useStats, useLogs, useLights, useWeather, useIsConnected, useLatency, useServiceStatus, useRoutines } from "../store/useRockyStore";
+import { LightState, useStats, useLogs, useLights, useWeather, useIsConnected, useLatency, useServiceStatus, useRoutines } from "../store/useRockyStore";
 import RoutineEditor from "./RoutineEditor";
 import { LightButton } from "./LightButton";
 import { Settings2 } from "lucide-react";
@@ -76,10 +76,11 @@ export default function Dashboard() {
 
   const [isSyncing, setIsSyncing] = useState(false);
   const [isRoutineEditorOpen, setIsRoutineEditorOpen] = useState(false);
-  const syncTimerRef = useRef<NodeJS.Timeout>();
+  const syncTimerRef = useRef<NodeJS.Timeout | undefined>(undefined);
 
   useEffect(() => {
     socket.emit("get_routines", {});
+    socket.emit("sync_ha", {});
   }, []);
 
   useEffect(() => {
@@ -117,7 +118,7 @@ export default function Dashboard() {
       if (!rooms[areaName]) rooms[areaName] = [];
       rooms[areaName].push(id);
     } else {
-      const name = light.name.toLowerCase();
+      const name = light?.name?.toLowerCase() ?? "";
       const roomList = ["Living Room", "Bedroom", "Kitchen", "Bathroom", "Office", "Studio", "Hallway", "Garage", "Garden"];
       const roomMatch = roomList.find(r => name.includes(r.toLowerCase()));
       if (roomMatch) {
@@ -128,7 +129,7 @@ export default function Dashboard() {
         if (idNamePart) {
           const parts = idNamePart.split("_");
           if (parts.length > 1) {
-            const room = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+            const room = (parts[0]?.charAt(0).toUpperCase() ?? "") + (parts[0]?.slice(1) ?? "");
             if (!rooms[room]) rooms[room] = [];
             rooms[room].push(id);
           } else {
@@ -271,7 +272,7 @@ export default function Dashboard() {
                       <LightButton
                         key={id}
                         id={id}
-                        state={lights[id]}
+                        state={lights[id]!}
                         onToggle={toggleLight}
                         onUpdate={updateLight}
                       />
@@ -296,7 +297,7 @@ export default function Dashboard() {
                     <LightButton
                       key={id}
                       id={id}
-                      state={lights[id]}
+                      state={lights[id]!}
                       onUpdate={updateLight}
                       onToggle={toggleLight}
                     />

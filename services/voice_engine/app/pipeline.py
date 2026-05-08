@@ -6,18 +6,17 @@ import numpy as np
 from typing import AsyncGenerator
 
 from pipecat.frames.frames import (
-    AudioRawFrame, 
-    CancelFrame, 
-    ControlFrame, 
-    EndFrame, 
-    ErrorFrame, 
-    Frame, 
-    StartFrame, 
-    TextFrame, 
-    TranscriptionFrame, 
-    TTSStartedFrame, 
+    AudioRawFrame,
+    CancelFrame,
+    ControlFrame,
+    EndFrame,
+    ErrorFrame,
+    Frame,
+    StartFrame,
+    TextFrame,
+    TranscriptionFrame,
+    TTSStartedFrame,
     TTSStoppedFrame,
-    UserStoppedSpeakingFrame
 )
 from pipecat.pipeline.pipeline import Pipeline
 from pipecat.pipeline.task import PipelineTask
@@ -28,12 +27,9 @@ from pipecat.services.groq.stt import GroqSTTService
 from pipecat.transports.websocket.fastapi import FastAPIWebsocketTransport, FastAPIWebsocketParams
 from pipecat.audio.vad.silero import SileroVADAnalyzer
 from pipecat.audio.vad.vad_analyzer import VADParams
-from pipecat.processors.aggregators.llm_response_universal import LLMContextAggregatorPair, LLMUserAggregatorParams
+from pipecat.processors.aggregators.llm_response_universal import LLMContextAggregatorPair
 from pipecat.processors.aggregators.llm_context import LLMContext
-from pipecat.turns.user_mute import AlwaysUserMuteStrategy
-from pipecat.turns.user_turn_strategies import UserTurnStrategies
-from pipecat_flows import FlowManager
-from .flow_config import get_flow_config
+from .processors.raw_audio_serializer import RawAudioSerializer
 
 import structlog
 log = structlog.get_logger()
@@ -79,7 +75,7 @@ class JsonMessageRelay(FrameProcessor):
             # Relay tokens to the frontend so the user sees the response forming
             await self._ws.send_text(json.dumps({"type": "chat_token", "token": frame.text}))
         elif isinstance(frame, TTSStartedFrame):
-            await self._ws.send_text(json.dumps({"type": "tts_start", "sample_rate": SAMPLE_RATE}))
+            await self._ws.send_text(json.dumps({"type": "tts_start", "sampleRate": SAMPLE_RATE}))
         elif isinstance(frame, TTSStoppedFrame):
             await self._ws.send_text(json.dumps({"type": "tts_end"}))
         elif isinstance(frame, Frame) and hasattr(frame, "type") and frame.type == "voice_debug":
@@ -163,44 +159,40 @@ class ErrorRelay(FrameProcessor):
         self._ws = websocket
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
-        # 1. Pass-through control frames immediately to prevent pipeline stalls
         if isinstance(frame, (StartFrame, EndFrame, CancelFrame, ControlFrame)):
-            yield frame
+            await self.push_frame(frame, direction)
             return
 
         try:
             if isinstance(frame, ErrorFrame):
                 error_msg = str(frame.error)
                 log.error("pipeline_error_detected", error=error_msg)
-                
-                # Specific handling for common errors
+
                 code = "PIPELINE_ERROR"
                 user_msg = f"Voice Pipeline Error: {error_msg}"
-                
+
                 if "401" in error_msg or "unauthorized" in error_msg.lower():
                     code = "STT_UNAUTHORIZED"
                     user_msg = "Groq STT unauthorized. Check GROQ_API_KEY."
                 elif "429" in error_msg or "rate limit" in error_msg.lower():
                     code = "STT_RATE_LIMIT"
                     user_msg = "Groq STT rate limited. Please wait."
-                
+
                 try:
                     await self._ws.send_text(json.dumps({
                         "type": "voice_error",
                         "code": code,
                         "message": user_msg
                     }))
-                except:
+                except Exception:
                     pass
-                
-                # 2. Consume handled error frames (don't yield them to the next processor)
+                # Consume the error frame — don't propagate downstream
                 return
-            
-            # 3. Passthrough for other frames (Audio, Text, etc.)
-            yield frame
+
+            await self.push_frame(frame, direction)
         except Exception as e:
             log.error("error_relay_exception", error=str(e))
-            yield frame
+            await self.push_frame(frame, direction)
 
 async def run_voice_pipeline(websocket, sid: str = "default", emotional_state: str = "neutral"):
     log.info("voice_pipeline_starting", sid=sid, state=emotional_state)
@@ -213,9 +205,10 @@ async def run_voice_pipeline(websocket, sid: str = "default", emotional_state: s
             audio_in_enabled=True,
             audio_in_sample_rate=16000,
             vad_enabled=True,
-            vad_analyzer=SileroVADAnalyzer(params=VADParams(confidence=0.6)), # Better balance between sensitivity and noise rejection
+            vad_analyzer=SileroVADAnalyzer(params=VADParams(confidence=0.4)),
             vad_audio_passthrough=True,
-            add_wav_header=False
+            add_wav_header=False,
+            serializer=RawAudioSerializer(),
         )
     )
 
@@ -237,8 +230,8 @@ async def run_voice_pipeline(websocket, sid: str = "default", emotional_state: s
     stt = GroqSTTService(
         api_key=groq_key,
         model=os.getenv("GROQ_STT_MODEL", "whisper-large-v3-turbo"),
-        language="en", 
-        initial_prompt="Rocky, a digital assistant for technical mission control. Clear English transcription. Ignore any Portuguese input."
+        language="en",
+        initial_prompt="Rocky, a digital assistant for technical mission control. Clear English transcription."
     )
     
     # Brain (Backend Bridge)
@@ -259,13 +252,10 @@ async def run_voice_pipeline(websocket, sid: str = "default", emotional_state: s
     error_relay = ErrorRelay(websocket)
 
     # 3. Context & Aggregators
-    # Standard Pipecat pattern for robust turn-taking and interruption handling
+    # Simple VAD-based turn detection — Silero fires UserStoppedSpeakingFrame
+    # which triggers LLMContextFrame → brain processor.
     context = LLMContext(messages=[])
-    user_params = LLMUserAggregatorParams(
-        user_mute_strategies=[AlwaysUserMuteStrategy()], # Native echo prevention
-        user_turn_strategies=UserTurnStrategies()
-    )
-    user_aggregator, assistant_aggregator = LLMContextAggregatorPair(context, user_params=user_params)
+    user_aggregator, assistant_aggregator = LLMContextAggregatorPair(context)
     
     # 5. Pipeline setup
     # Ordering is critical for interruption handling
@@ -286,34 +276,11 @@ async def run_voice_pipeline(websocket, sid: str = "default", emotional_state: s
         assistant_aggregator         # Track assistant responses for context
     ])
 
-    task = PipelineTask(pipeline)
-
-    # 6. WebSocket Message Handler
-    # Listen for custom JSON messages from the backend bridge (e.g. cancel, end_of_turn)
-    @transport.event_handler("on_client_message")
-    async def on_client_message(transport, data):
-        try:
-            msg = json.loads(data)
-            msg_type = msg.get("type")
-            if msg_type == "cancel":
-                log.info("pipeline_cancel_received_from_client")
-                await task.queue_frame(CancelFrame())
-            elif msg_type == "end_of_turn":
-                log.info("pipeline_eot_received_from_client")
-                await task.queue_frame(UserStoppedSpeakingFrame())
-        except Exception as e:
-            log.error("pipeline_message_handler_error", error=str(e))
-
-    # 4. Flow Management
-    # Initialize the FlowManager with our nodes
-    flow_manager = FlowManager(
-        task=task,
-        llm=None, # The backend handles the LLM
-        context_aggregator=user_aggregator
-    )
-    configs = get_flow_config()
-    await flow_manager.initialize(configs["idle"])
-    brain.set_flow_manager(flow_manager)
+    # disable_rtvi: Rocky uses a custom WebSocket bridge (pipecat_bridge.py),
+    # not an RTVI-compatible client. Enabling RTVI (the default in Pipecat 1.x)
+    # injects RTVIProcessor which waits for a client-ready handshake before
+    # passing audio — causing an idle timeout when raw PCM arrives instead.
+    task = PipelineTask(pipeline, enable_rtvi=False)
 
     runner = PipelineRunner()
     

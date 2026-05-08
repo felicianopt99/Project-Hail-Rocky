@@ -60,13 +60,17 @@ export function useRockySockets(addToast: (msg: string, type: ToastType) => void
       if (newStatus === "error" && store.status !== "error") {
         addToast("System error detected", "error");
       }
-      
+
+      if (newStatus === "thinking_llm") {
+        store.setIsTyping(true);
+      }
+
       // Prevent reverting to idle if audio is still physically playing
       if (newStatus === "idle" && isAudioActive()) {
         console.debug("[Rocky] Ignoring 'idle' status from server because audio is still playing.");
         return;
       }
-      
+
       store.setStatus(newStatus);
     };
 
@@ -75,38 +79,40 @@ export function useRockySockets(addToast: (msg: string, type: ToastType) => void
     const onTranscriptResult = (text: string) => store.setInputValue(text);
 
     const onChatToken = (token: string) => {
-      // If we interrupted the assistant, ignore tokens until a new TTS segment starts
+      // If we interrupted the assistant, ignore tokens until next response starts
       if (isInterruptedRef.current) return;
 
       store.setMessages(prev => {
         const lastMsg = prev[prev.length - 1];
         if (lastMsg && lastMsg.role === "model") {
-          let displayBuffer = lastMsg.text + token;
-          // Filter out raw JSON/tool dumps
-          displayBuffer = displayBuffer.replace(/```json[\s\S]*?(```|$)/g, "");
-          displayBuffer = displayBuffer.replace(/\{[\s\S]*?"device"[\s\S]*?(\}|$)/g, "");
           const newHistory = [...prev];
-          newHistory[newHistory.length - 1] = { ...lastMsg, text: displayBuffer.trim() || lastMsg.text };
+          newHistory[newHistory.length - 1] = { ...lastMsg, text: lastMsg.text + token };
           return newHistory;
-        } else {
-          if (token.includes("```json") || token.includes("{\"device\"")) return prev;
-          return [...prev, { role: "model", text: token, timestamp: Date.now() }];
         }
+        return [...prev, { role: "model", text: token, timestamp: Date.now() }];
       });
     };
 
     const onChatResponse = (data: ChatResponse) => {
+      // Reset interruption flag — new response starting
+      isInterruptedRef.current = false;
       store.setMessages(prev => {
         const newHistory = [...prev];
         const lastMsg = newHistory[newHistory.length - 1];
+        // Replace streamed tokens with clean final text from backend
+        const cleanText = data.text
+          .replace(/```json[\s\S]*?(```|$)/g, "")
+          .replace(/\{[\s\S]*?"device"[\s\S]*?(\}|$)/g, "")
+          .trim();
         if (lastMsg && lastMsg.role === "model") {
-          newHistory[newHistory.length - 1] = { role: "model", text: data.text, timestamp: Date.now() };
+          newHistory[newHistory.length - 1] = { role: "model", text: cleanText || data.text, timestamp: Date.now() };
           return newHistory;
         }
-        return [...prev, { role: "model", text: data.text, timestamp: Date.now() }];
+        return [...prev, { role: "model", text: cleanText || data.text, timestamp: Date.now() }];
       });
       store.setIsTyping(false);
-      store.setStatus("idle");
+      // Only set idle if audio isn't physically playing (guard against TTS overlap)
+      if (!isAudioActive()) store.setStatus("idle");
     };
 
     const onChatError = (error: ChatError) => {
@@ -147,7 +153,7 @@ export function useRockySockets(addToast: (msg: string, type: ToastType) => void
 
     const onUiHint = (hint: UiHint) => {
       if (hint.type === "environmental_update") {
-        store.setEnvironmentalState(hint.value);
+        store.setEnvironmentalState(hint.value as EnvironmentalState);
       }
     };
 

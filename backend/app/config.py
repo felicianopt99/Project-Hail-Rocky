@@ -1,4 +1,4 @@
-from pydantic import ConfigDict, computed_field
+from pydantic import ConfigDict, computed_field, field_validator
 from pydantic_settings import BaseSettings
 
 
@@ -40,9 +40,20 @@ class Settings(BaseSettings):
     redis_url: str = "redis://valkey:6381"
 
     # Auth
-    secret_key: str = "change-me-in-production-use-openssl-rand-hex-32"
+    secret_key: str = ""
     admin_username: str = "admin"
     admin_password_hash: str = ""
+
+    @field_validator("secret_key")
+    @classmethod
+    def secret_key_must_be_secure(cls, v: str) -> str:
+        placeholders = {"change-me-in-production-use-openssl-rand-hex-32", "change-me-use-openssl-rand-hex-32"}
+        if not v or v in placeholders or len(v) < 32:
+            raise ValueError(
+                "SECRET_KEY is not set or is using the placeholder value. "
+                "Generate a secure key with: openssl rand -hex 32"
+            )
+        return v
 
     # Letta memory server
     letta_url: str = ""  # e.g. http://127.0.0.1:8283; empty = Letta disabled

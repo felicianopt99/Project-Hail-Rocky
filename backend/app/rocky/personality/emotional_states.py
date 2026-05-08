@@ -1,5 +1,7 @@
+import asyncio
 import time
 from datetime import datetime
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import litellm
 import structlog
@@ -76,8 +78,12 @@ _SYSTEM_PROMPT = (
 
 
 async def detect(message: str, current: str = "neutral") -> str:
-    # Time-of-day gate: always tired late at night / early morning
-    hour = datetime.now().hour
+    # Time-of-day gate: always tired late at night / early morning (user's local timezone)
+    try:
+        tz = ZoneInfo(settings.timezone)
+    except (ZoneInfoNotFoundError, Exception):
+        tz = ZoneInfo("UTC")
+    hour = datetime.now(tz).hour
     if hour >= 22 or hour < 6:
         return "tired"
 
@@ -89,21 +95,24 @@ async def detect(message: str, current: str = "neutral") -> str:
     model = settings.get_llm_model() or "groq/llama-3.1-8b-instant"
 
     try:
-        response = await litellm.acompletion(
-            model=model,
-            messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user", "content": message[:500]},
-            ],
-            max_tokens=5,
-            temperature=0.0,
+        response = await asyncio.wait_for(
+            litellm.acompletion(
+                model=model,
+                messages=[
+                    {"role": "system", "content": _SYSTEM_PROMPT},
+                    {"role": "user", "content": message[:500]},
+                ],
+                max_tokens=5,
+                temperature=0.0,
+            ),
+            timeout=8.0,
         )
         raw = response.choices[0].message.content or ""
         state = raw.strip().lower().split()[0] if raw.strip() else ""
         if state not in STATES:
             log.warning("emotional_state_llm_invalid", raw=raw, fallback="keyword")
             state = _keyword_detect(message, current)
-    except Exception as exc:
+    except (asyncio.TimeoutError, Exception) as exc:
         log.warning("emotional_state_llm_error", error=str(exc), fallback="keyword")
         state = _keyword_detect(message, current)
 

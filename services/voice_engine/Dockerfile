@@ -26,7 +26,12 @@ RUN pip install --no-cache-dir \
     pytest-asyncio>=0.23.0 \
     coverage>=7.4.0 \
     pytest-cov>=5.0.0 \
-    requests
+    requests \
+    openwakeword>=0.6.0
+
+# Download openwakeword base models (melspectrogram.onnx, embedding model)
+# These are not bundled in the pip package and are required for inference.
+RUN python3 -c "import openwakeword; openwakeword.utils.download_models()"
 
 COPY app/ ./app/
 

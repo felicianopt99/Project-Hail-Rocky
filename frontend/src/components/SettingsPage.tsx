@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from "react";
 import { motion } from "motion/react";
 import {
   Cpu, Mic, Volume2, Database, Wifi, CheckCircle2, XCircle,
-  User, Zap, Bell, Sliders, ChevronRight, RefreshCw, Loader2,
+  Zap, Sliders, ChevronRight, RefreshCw, Loader2,
   Server, Brain, Activity, Home,
 } from "lucide-react";
 import socket from "../lib/socket";

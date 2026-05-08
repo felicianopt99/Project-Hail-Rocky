@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useMemo } from "react";
+import { useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
-import { Send, X, Cpu, Sparkles, Activity, Mic, GripHorizontal } from "lucide-react";
+import { Send, X, Cpu, Sparkles, Activity, Mic } from "lucide-react";
 import { useMessages, useInputValue, useIsTyping, useRockyStore } from "../store/useRockyStore";
 import RichCard from "./widgets/RichCard";
 

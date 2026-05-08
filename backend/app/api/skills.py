@@ -4,8 +4,9 @@ import json
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from ..config import settings
 from ..core.redis_client import get_redis
-from ..tools.definitions import get_tools
+from ..tools.definitions import get_tools, BASE_TOOL_NAMES, invalidate_tools_cache
 from .auth import get_current_user
 
 router = APIRouter()
@@ -26,11 +27,24 @@ _TOOL_META: dict[str, dict] = {
     "search_wikipedia":   {"category": "knowledge",    "description": "Wikipedia summaries."},
     "execute_python":     {"category": "productivity", "description": "Run Python code for analysis/math."},
     "check_server_health": {"category": "system",      "description": "Monitor Optiplex hardware health."},
-    "control_lights":     {"category": "home",         "description": "Control smart home lights."},
-    "activate_scene":     {"category": "home",         "description": "Activate a Home Assistant scene."},
+    # Aggregate entry — not a real tool, represents the full HA MCP integration
+    "home_assistant":     {"category": "home",         "description": "Control Home Assistant devices and automations via MCP."},
 }
 
 _REDIS_KEY = "rocky:skills:override:{}"
+
+# Only these HA MCP tools are sent to the LLM for tool calling.
+# The full 83-tool list from HA MCP is ~46k tokens — well beyond Groq's limits.
+# Other HA tools remain available for direct calls but not in LLM context.
+_HA_ESSENTIAL_TOOLS = {
+    "ha_call_service",      # primary action: turn on/off, set brightness, etc.
+    "ha_get_state",         # read current entity state
+    "ha_search_entities",   # find entities by name or domain
+    "ha_config_list_areas", # list rooms/areas
+    "ha_bulk_control",      # control multiple entities at once
+    "ha_get_overview",      # quick home summary
+    "ha_list_services",     # discover available services
+}
 
 
 async def _load_overrides(tool_names: list[str]) -> dict[str, dict]:
@@ -47,22 +61,39 @@ async def _load_overrides(tool_names: list[str]) -> dict[str, dict]:
 
 
 async def get_active_tools() -> list[dict]:
-    """Return only tools that are not disabled in Redis (used by the LLM tool-calling path)."""
+    """Return enabled tools for the LLM.
+
+    HA MCP tools are limited to _HA_ESSENTIAL_TOOLS to avoid hitting LLM token
+    limits (the full 83-tool list from HA MCP exceeds 46k tokens per request).
+    """
     tools = await get_tools()
     names = [t["function"]["name"] for t in tools]
-    overrides = await _load_overrides(names)
-    return [t for t in tools if overrides.get(t["function"]["name"], {}).get("enabled", True)]
+    overrides = await _load_overrides(names + ["home_assistant"])
+    ha_enabled = overrides.get("home_assistant", {}).get("enabled", True)
+    return [
+        t for t in tools
+        if overrides.get(t["function"]["name"], {}).get("enabled", True)
+        and (
+            t["function"]["name"] in BASE_TOOL_NAMES
+            or (ha_enabled and t["function"]["name"] in _HA_ESSENTIAL_TOOLS)
+        )
+    ]
 
 
 async def _tool_skills() -> list[dict]:
     tools = await get_tools()
     tool_names = [t["function"]["name"] for t in tools]
-    overrides = await _load_overrides(tool_names)
+    overrides = await _load_overrides(tool_names + ["home_assistant"])
 
     skills = []
+    ha_tool_names: list[str] = []
+
     for tool in tools:
         fn = tool["function"]
         name = fn["name"]
+        if name not in BASE_TOOL_NAMES:
+            ha_tool_names.append(name)
+            continue
         meta = _TOOL_META.get(name, {})
         override = overrides.get(name, {})
         skills.append({
@@ -73,6 +104,21 @@ async def _tool_skills() -> list[dict]:
             "description": meta.get("description", fn.get("description", "")),
             "type":        "tool",
         })
+
+    # Single aggregated entry for the entire HA MCP integration
+    if ha_tool_names or settings.ha_mcp_url:
+        ha_override = overrides.get("home_assistant", {})
+        skills.append({
+            "id":          "home_assistant",
+            "name":        "Home Assistant",
+            "enabled":     ha_override.get("enabled", True),
+            "category":    "home",
+            "description": _TOOL_META["home_assistant"]["description"],
+            "type":        "integration",
+            "deviceCount": len(ha_tool_names),
+            "connected":   bool(ha_tool_names),
+        })
+
     return skills
 
 
@@ -100,6 +146,15 @@ async def toggle_skill(skill_id: str, _user: dict = Depends(get_current_user)):
         await redis.set(key, json.dumps(override))
 
     return {"id": skill_id, "enabled": override["enabled"]}
+
+
+@router.post("/home_assistant/refresh", dependencies=[Depends(get_current_user)])
+async def refresh_ha_tools():
+    """Invalidate MCP discovery cache and re-discover HA tools immediately."""
+    invalidate_tools_cache()
+    tools = await get_tools()
+    ha_count = sum(1 for t in tools if t["function"]["name"] not in BASE_TOOL_NAMES)
+    return {"discovered": ha_count}
 
 
 @router.get("/{skill_id}/settings")

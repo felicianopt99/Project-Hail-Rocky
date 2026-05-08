@@ -1,3 +1,7 @@
+import asyncio
+import json
+import time
+
 import httpx
 import structlog
 from ..config import settings
@@ -247,37 +251,81 @@ BASE_TOOLS: list[dict] = [
     },
 ]
 
+BASE_TOOL_NAMES: frozenset[str] = frozenset(t["function"]["name"] for t in BASE_TOOLS)
+
+_tools_cache: list[dict] | None = None
+_tools_cache_ts: float = 0.0
+_TOOLS_CACHE_TTL = 60.0
+_tools_lock = asyncio.Lock()
+
+
+def invalidate_tools_cache() -> None:
+    global _tools_cache, _tools_cache_ts
+    _tools_cache = None
+    _tools_cache_ts = 0.0
+
 
 async def get_tools() -> list[dict]:
     """
     Dynamic Skill Discovery (MCP):
     Returns a union of hardcoded BASE_TOOLS and dynamic tools from MCP servers.
-    This allows Rocky to learn new skills simply by adding Docker containers.
+    Results are cached for 60 s to avoid an HTTP round-trip on every LLM request.
     """
-    tools = list(BASE_TOOLS)
+    global _tools_cache, _tools_cache_ts
 
-    if not settings.ha_mcp_url:
-        return tools
+    async with _tools_lock:
+        now = time.monotonic()
+        if _tools_cache is not None and (now - _tools_cache_ts) < _TOOLS_CACHE_TTL:
+            return list(_tools_cache)
 
-    try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            url = f"{settings.ha_mcp_url.rstrip('/')}/tools"
-            r = await client.get(url)
-            if r.status_code == 200:
-                mcp_tools = r.json().get("tools", [])
+        tools = list(BASE_TOOLS)
 
-                for t in mcp_tools:
-                    # Convert MCP spec to OpenAI/LiteLLM function format
-                    tools.append({
-                        "type": "function",
-                        "function": {
-                            "name": t["name"],
-                            "description": t.get("description", ""),
-                            "parameters": t.get("inputSchema", {"type": "object", "properties": {}}),
-                        }
+        if settings.ha_mcp_url:
+            try:
+                _mcp_headers = {"Accept": "application/json, text/event-stream"}
+                async with httpx.AsyncClient(timeout=5.0) as client:
+                    endpoint = f"{settings.ha_mcp_url.rstrip('/')}/mcp"
+
+                    init_r = await client.post(endpoint, headers=_mcp_headers, json={
+                        "jsonrpc": "2.0", "id": 0, "method": "initialize",
+                        "params": {
+                            "protocolVersion": "2025-03-26",
+                            "capabilities": {},
+                            "clientInfo": {"name": "rocky-discovery", "version": "1.0"},
+                        },
                     })
-                log.info("mcp_discovery_ok", count=len(mcp_tools), url=url)
-    except Exception as e:
-        log.warning("mcp_discovery_failed", url=settings.ha_mcp_url, error=str(e))
+                    session_id = init_r.headers.get("mcp-session-id", "") if init_r.status_code == 200 else ""
+                    if not session_id:
+                        log.warning("mcp_init_failed", status=init_r.status_code)
+                    else:
+                        session_headers = {**_mcp_headers, "Mcp-Session-Id": session_id}
+                        await client.post(endpoint, headers=session_headers,
+                                          json={"jsonrpc": "2.0", "method": "notifications/initialized"})
 
-    return tools
+                        r = await client.post(endpoint, headers=session_headers,
+                                              json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}})
+                        if r.status_code == 200:
+                            mcp_tools: list[dict] = []
+                            for line in r.text.splitlines():
+                                if line.startswith("data:"):
+                                    try:
+                                        mcp_tools = json.loads(line[5:].strip()).get("result", {}).get("tools", [])
+                                    except Exception:
+                                        pass
+                                    break
+                            for t in mcp_tools:
+                                tools.append({
+                                    "type": "function",
+                                    "function": {
+                                        "name": t["name"],
+                                        "description": t.get("description", ""),
+                                        "parameters": t.get("inputSchema", {"type": "object", "properties": {}}),
+                                    }
+                                })
+                            log.info("mcp_discovery_ok", count=len(mcp_tools), url=endpoint)
+            except Exception as e:
+                log.warning("mcp_discovery_failed", url=settings.ha_mcp_url, error=str(e))
+
+        _tools_cache = tools
+        _tools_cache_ts = now
+        return list(tools)

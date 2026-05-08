@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import List, Optional, Any, Dict
+from typing import Any, Optional
 
 class ChatResponse(BaseModel):
     text: str
@@ -35,19 +35,19 @@ class SystemStateUpdate(BaseModel):
     emotional_state: Optional[str] = None
     intimacy: Optional[float] = None
     intimacy_label: Optional[str] = None
-    logs: Optional[List[Dict[str, Any]]] = None
-    lights: Optional[Dict[str, Any]] = None
-    areas: Optional[Dict[str, str]] = None
-    weather: Optional[Dict[str, Any]] = None
-    protocols: Optional[List[Dict[str, Any]]] = None
+    logs: Optional[list[dict[str, Any]]] = None
+    lights: Optional[dict[str, Any]] = None
+    areas: Optional[dict[str, str]] = None
+    weather: Optional[dict[str, Any]] = None
+    protocols: Optional[list[dict[str, Any]]] = None
 
 class DeviceUpdated(BaseModel):
     device: str
-    state: Dict[str, Any]
+    state: dict[str, Any]
 
 class ProtocolUpdated(BaseModel):
     id: str
-    settings: Dict[str, Any]
+    settings: dict[str, Any]
 
 class ProtocolDeleted(BaseModel):
     id: str

@@ -62,7 +62,7 @@ export default function Visualizer({ children, analyzerNode }: VisualizerProps) 
 
         if (animate === "reactive" && analyzerNode) {
           const bin = Math.floor(i * (freqData.length * 0.65) / numBars);
-          val = Math.pow(freqData[bin] / 255, 0.7);
+          val = Math.pow((freqData[bin] ?? 0) / 255, 0.7);
         } else if (animate === "compute") {
           val = 0.22 + Math.sin(time * 3.2 + i * 0.26) * 0.17
                      + Math.sin(time * 7.1 + i * 0.62) * 0.07

@@ -1,7 +1,7 @@
-import React, { useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import {
-  Activity, Sliders, Zap, Moon, Sun, Save, Play,
+  Activity, Zap, Moon, Sun, Save, Play,
   Cpu, Plus, Eye, Music2, Film, Sunset
 } from "lucide-react";
 import socket from "../lib/socket";
@@ -310,7 +310,7 @@ export default function NeuralCenter() {
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                         {lightIds.map((id) => {
                           const isSelected = tempSettings.targetLights?.includes(id);
-                          const name = availableLights[id]?.name || (id.includes('.') ? id.split('.')[1].replace(/_/g, ' ') : id);
+                          const name = availableLights[id]?.name || (id.includes('.') ? (id.split('.')[1] ?? id).replace(/_/g, ' ') : id);
                           return (
                             <button
                               key={id}

@@ -1,18 +1,13 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { Socket } from "socket.io-client";
 import { eventBus, RockyEvents } from "../lib/eventBus";
-
-interface CustomSocket {
-  on: (event: string, handler: (data: any) => void) => void;
-  off: (event: string, handler: (data: any) => void) => void;
-  emit: (event: string, data?: any, callback?: any) => void;
-  connected: boolean;
-  id?: string;
-}
+import { DSP_TRACK_CONSTRAINTS } from "../lib/audioConstants";
+import { ServerToClientEvents, ClientToServerEvents } from "../types/socketEvents";
 
 type AudioState = "idle" | "requesting_mic" | "listening" | "processing" | "speaking" | "error";
 
 interface AudioManagerOptions {
-  socket: CustomSocket;
+  socket: Socket<ServerToClientEvents, ClientToServerEvents>;
   addToast: (msg: string, type: "info" | "error" | "warning") => void;
   startWebRTC?: (micStream: MediaStream) => Promise<void>;
 }
@@ -83,20 +78,13 @@ export function useAudioManager({ socket, addToast, startWebRTC }: AudioManagerO
     }
   }, [addToast]);
 
-  const DSP_CONSTRAINTS: MediaTrackConstraints = {
-    echoCancellation: { exact: true },
-    noiseSuppression: { exact: true },
-    autoGainControl: { exact: true },
-    sampleRate: 16000,
-  };
-
   const requestMicrophone = useCallback(async (): Promise<MediaStream | null> => {
     log("info", "Requesting microphone access...");
     setAudioState("requesting_mic");
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: DSP_CONSTRAINTS,
+        audio: DSP_TRACK_CONSTRAINTS,
         video: false,
       });
       streamRef.current = stream;
@@ -140,15 +128,32 @@ export function useAudioManager({ socket, addToast, startWebRTC }: AudioManagerO
       const stream = externalStream ?? await requestMicrophone();
       if (!stream) return;
 
-      // 1. Local Visualization
-      if (audioCtxRef.current && analyzerRef.current) {
-        if (audioCtxRef.current.state === "suspended") await audioCtxRef.current.resume();
-        const source = audioCtxRef.current.createMediaStreamSource(stream);
-        source.connect(analyzerRef.current);
-      }
+      // 1. Visualization + software gain boost before WebRTC.
+      // On Linux/PulseAudio the raw mic stream can arrive at near-zero amplitude
+      // (~13/32767) even with AGC enabled. Route through a GainNode to ensure
+      // the voice engine receives sufficient signal for VAD + STT.
+      if (audioCtxRef.current) {
+        const ctx = audioCtxRef.current;
+        if (ctx.state === "suspended") await ctx.resume();
 
-      // 2. Delegate WebRTC connection to AudioPipeline
-      if (startWebRTC) {
+        const source = ctx.createMediaStreamSource(stream);
+        const gain = ctx.createGain();
+        gain.gain.value = 4.0;  // 4× software boost — compensates for Linux/PulseAudio low-gain
+        const dest = ctx.createMediaStreamDestination();
+
+        source.connect(gain);
+        gain.connect(dest);
+
+        // Visualization: connect original (unboosted) source to analyzer
+        if (analyzerRef.current) {
+          source.connect(analyzerRef.current);
+        }
+
+        // 2. WebRTC uses the boosted stream
+        if (startWebRTC) {
+          await startWebRTC(dest.stream);
+        }
+      } else if (startWebRTC) {
         await startWebRTC(stream);
       }
 
@@ -172,7 +177,7 @@ export function useAudioManager({ socket, addToast, startWebRTC }: AudioManagerO
       if (!isCapturingRef.current) return;
       log("info", "VAD speech end — signalling backend to stop.");
       socket.emit("manual_stop");
-      setAudioState("processing");
+      stopAudioCapture("processing");
     };
 
     eventBus.on(RockyEvents.VAD_SPEECH_START, onVADSpeechStart);
@@ -182,16 +187,16 @@ export function useAudioManager({ socket, addToast, startWebRTC }: AudioManagerO
       eventBus.off(RockyEvents.VAD_SPEECH_START, onVADSpeechStart);
       eventBus.off(RockyEvents.VAD_SPEECH_STOP, onVADSpeechStop);
     };
-  }, [socket, startAudioCapture]);
+  }, [socket, startAudioCapture, stopAudioCapture]);
 
   const handleManualTrigger = useCallback(() => {
-    if (audioState === "listening" || audioState === "processing") {
+    if (isCapturingRef.current || audioState === "listening" || audioState === "processing") {
       socket.emit("manual_stop");
-      setAudioState("processing");
+      stopAudioCapture("processing");
     } else {
       startAudioCapture();
     }
-  }, [audioState, startAudioCapture, socket]);
+  }, [audioState, startAudioCapture, stopAudioCapture, socket]);
 
   // Socket Listeners for UI State
   useEffect(() => {
@@ -208,16 +213,18 @@ export function useAudioManager({ socket, addToast, startWebRTC }: AudioManagerO
       }
     };
 
-    socket.on("status_update", onStatusUpdate);
-    socket.on("disconnect", () => {
+    const onDisconnect = () => {
       log("warn", "Socket disconnected — resetting audio state.");
       setAudioState("idle");
       stopAudioCapture();
-    });
+    };
+
+    socket.on("status_update", onStatusUpdate);
+    socket.on("disconnect", onDisconnect);
 
     return () => {
       socket.off("status_update", onStatusUpdate);
-      socket.off("disconnect");
+      socket.off("disconnect", onDisconnect);
     };
   }, [socket, stopAudioCapture]);
 

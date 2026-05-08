@@ -1,6 +1,6 @@
 import structlog
 import numpy as np
-from typing import Optional, List, Dict, Any
+from typing import Any, Optional
 
 # Workaround for redisvl 0.2.1 / redis-py 5.x compatibility
 try:
@@ -47,7 +47,7 @@ class RockySemanticCache:
             log.error("semantic_cache_init_failed", error=str(e))
             self.cache = None
 
-    async def check(self, prompt: str) -> Optional[Dict[str, Any]]:
+    async def check(self, prompt: str) -> Optional[dict[str, Any]]:
         """
         Check if a similar prompt exists in the cache.
         Returns a dict with 'response' and 'score' if found, else None.
@@ -86,7 +86,7 @@ class RockySemanticCache:
             log.warning("semantic_cache_check_failed", error=str(e))
             return None
 
-    async def store(self, prompt: str, response: str, metadata: Optional[Dict[str, Any]] = None):
+    async def store(self, prompt: str, response: str, metadata: Optional[dict[str, Any]] = None):
         """
         Store a prompt-response pair in the cache.
         """

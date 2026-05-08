@@ -60,12 +60,10 @@ async def test_unknown_tool_falls_through_to_mcp():
     mock_response.status_code = 200
     mock_response.json.return_value = {"content": [{"type": "text", "text": "done"}]}
     mock_client = AsyncMock()
-    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client.__aexit__ = AsyncMock(return_value=None)
     mock_client.post = AsyncMock(return_value=mock_response)
 
     with patch("app.tools.executor.settings") as mock_settings, \
-         patch("app.tools.executor.httpx.AsyncClient", return_value=mock_client):
+         patch("app.tools.executor.get_http_client", new_callable=AsyncMock, return_value=mock_client):
         mock_settings.ha_mcp_url = "http://mcp:3000"
         result = await run("call_service", {"domain": "light", "service": "turn_on"}, bypass_auth=True)
     assert "done" in result
@@ -98,11 +96,21 @@ async def test_set_timer_only_seconds():
 
 @pytest.mark.asyncio
 async def test_set_timer_emits_event_when_sio_given():
-    mock_sio = AsyncMock()
-    await _set_timer(0, label="instant", sio=mock_sio)
-    # task fires immediately (0s), await gives event loop a chance to run it
     import asyncio
-    await asyncio.sleep(0.05)
+    pending: list[asyncio.Task] = []  # type: ignore
+    original_create_task = asyncio.create_task
+
+    def _capture(coro, **kw):
+        t = original_create_task(coro, **kw)
+        pending.append(t)
+        return t
+
+    mock_sio = AsyncMock()
+    with patch("app.tools.executor.asyncio.sleep", new_callable=AsyncMock), \
+         patch("app.tools.executor.asyncio.create_task", side_effect=_capture):
+        await _set_timer(1, label="instant", sio=mock_sio)
+
+    await asyncio.gather(*pending)
     mock_sio.emit.assert_called_once_with("timer_fired", {"label": "instant"})
 
 
@@ -116,11 +124,9 @@ async def test_proxy_mcp_call_returns_text_on_200():
         "content": [{"type": "text", "text": "light on"}]
     }
     mock_client = AsyncMock()
-    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client.__aexit__ = AsyncMock(return_value=None)
     mock_client.post = AsyncMock(return_value=mock_response)
 
-    with patch("app.tools.executor.httpx.AsyncClient", return_value=mock_client):
+    with patch("app.tools.executor.get_http_client", new_callable=AsyncMock, return_value=mock_client):
         result = await _proxy_mcp_call("http://mcp:3000", "call_service", {"domain": "light"})
     assert result == "light on"
 
@@ -130,11 +136,9 @@ async def test_proxy_mcp_call_returns_none_on_404():
     mock_response = MagicMock()
     mock_response.status_code = 404
     mock_client = AsyncMock()
-    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client.__aexit__ = AsyncMock(return_value=None)
     mock_client.post = AsyncMock(return_value=mock_response)
 
-    with patch("app.tools.executor.httpx.AsyncClient", return_value=mock_client):
+    with patch("app.tools.executor.get_http_client", new_callable=AsyncMock, return_value=mock_client):
         result = await _proxy_mcp_call("http://mcp:3000", "unknown_tool", {})
     assert result is None
 
@@ -142,10 +146,9 @@ async def test_proxy_mcp_call_returns_none_on_404():
 @pytest.mark.asyncio
 async def test_proxy_mcp_call_returns_none_on_exception():
     mock_client = AsyncMock()
-    mock_client.__aenter__ = AsyncMock(side_effect=Exception("Connection refused"))
-    mock_client.__aexit__ = AsyncMock(return_value=None)
+    mock_client.post = AsyncMock(side_effect=Exception("Connection refused"))
 
-    with patch("app.tools.executor.httpx.AsyncClient", return_value=mock_client):
+    with patch("app.tools.executor.get_http_client", new_callable=AsyncMock, return_value=mock_client):
         result = await _proxy_mcp_call("http://mcp:3000", "any_tool", {})
     assert result is None
 
@@ -161,10 +164,8 @@ async def test_proxy_mcp_call_multiple_text_blocks():
         ]
     }
     mock_client = AsyncMock()
-    mock_client.__aenter__ = AsyncMock(return_value=mock_client)
-    mock_client.__aexit__ = AsyncMock(return_value=None)
     mock_client.post = AsyncMock(return_value=mock_response)
 
-    with patch("app.tools.executor.httpx.AsyncClient", return_value=mock_client):
+    with patch("app.tools.executor.get_http_client", new_callable=AsyncMock, return_value=mock_client):
         result = await _proxy_mcp_call("http://mcp:3000", "some_tool", {})
     assert result == "line 1\nline 2"

@@ -58,7 +58,7 @@ export const LightButton: React.FC<LightButtonProps> = ({ id, state, onToggle, o
     setLocalHue(hexToHue(state?.color || "#ffffff"));
   }, [state?.brightness, state?.color_temp_kelvin, state?.color]);
 
-  const displayName = state?.name || (id.includes(".") ? id.split(".")[1].replace(/_/g, " ") : id);
+  const displayName = state?.name || (id.includes(".") ? (id.split(".")[1] ?? id).replace(/_/g, " ") : id);
   const isOn = state?.status === "on";
   const color = state?.color || "#ffffff";
 

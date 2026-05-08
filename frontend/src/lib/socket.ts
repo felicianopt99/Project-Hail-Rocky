@@ -9,8 +9,8 @@ const socket: Socket<ServerToClientEvents, ClientToServerEvents> = io(BACKEND_UR
   reconnectionDelay: 1000,
   reconnectionDelayMax: 30000,
   reconnectionAttempts: Infinity,
-  transports: ["websocket", "polling"],
-  timeout: 5000,
+  transports: ["websocket"],  // polling fallback disabled — unacceptable latency for voice
+  timeout: 10000,
 });
 
 export default socket;

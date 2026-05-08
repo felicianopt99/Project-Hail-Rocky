@@ -5,9 +5,10 @@ Uses Letta REST API directly (no SDK dependency).
 Gracefully falls back to None when Letta is unavailable.
 """
 import json
+import time
 import httpx
 import structlog
-from typing import List, Dict, Any, Optional, AsyncGenerator
+from typing import Any, AsyncGenerator, Optional
 
 from ..config import settings
 from ..rocky.letta_config import (
@@ -21,6 +22,11 @@ from ..core.trace import get_trace_id
 log = structlog.get_logger()
 
 _agent_id: str | None = None  # cached after first init
+
+# Tool list cache: avoid re-fetching MCP tool names on every send_message
+_tool_names_cache: list[str] | None = None
+_tool_names_cache_ts: float = 0.0
+_TOOL_CACHE_TTL = 300.0  # 5 minutes
 
 # Singleton client — reuses connections across all Letta API calls
 _client: httpx.AsyncClient | None = None
@@ -99,22 +105,30 @@ async def _get_or_create_mcp_server() -> str | None:
     
     c = _get_letta_client()
     try:
-        # 1. Check if exists
+        # 1. Check if already registered (Letta uses "server_name" as the key)
         r = await c.get(_url("/v1/mcp-servers"))
         r.raise_for_status()
         for srv in r.json():
-            if srv.get("name") == HA_MCP_SERVER_NAME:
+            if srv.get("server_name") == HA_MCP_SERVER_NAME:
                 return srv["id"]
-        
-        # 2. Create if not exists
+
+        # 2. Create if not found
         payload = {
-            "name": HA_MCP_SERVER_NAME,
+            "server_name": HA_MCP_SERVER_NAME,
             "config": {
-                "mcp_server_type": "sse",
-                "server_url": settings.ha_mcp_url,
+                "mcp_server_type": "streamable_http",
+                "server_url": f"{settings.ha_mcp_url.rstrip('/')}/mcp",
             }
         }
         r = await c.post(_url("/v1/mcp-servers"), json=payload)
+        if r.status_code == 409:
+            # Already exists (race or leftover) — fetch the ID again
+            r2 = await c.get(_url("/v1/mcp-servers"))
+            r2.raise_for_status()
+            for srv in r2.json():
+                if srv.get("server_name") == HA_MCP_SERVER_NAME:
+                    return srv["id"]
+            return None
         r.raise_for_status()
         srv_id = r.json()["id"]
         log.info("letta_mcp_server_registered", srv_id=srv_id)
@@ -198,8 +212,10 @@ async def _create_agent() -> str | None:
             },
             "llm_config": _get_llm_config(),
             "embedding_config": {
-                "embedding_model": LETTA_EMBEDDING_MODEL,
-                "embedding_dim": 1024,
+                "embedding_model": "letta-free",
+                "embedding_endpoint_type": "openai",
+                "embedding_endpoint": "https://inference.letta.com/v1/",
+                "embedding_dim": 1536,
             },
         }
         c = _get_letta_client()
@@ -228,21 +244,26 @@ async def get_agent_id() -> str | None:
         _agent_id = await _find_agent() or await _create_agent()
     
     if _agent_id:
-        try:
-            # Dynamic Discovery: Fetch latest tools from MCP and update agent
-            mcp_tools = await _get_mcp_tool_names()
-            core_tools = [
-                "send_message", "core_memory_append", "core_memory_replace",
-                "archival_memory_search", "archival_memory_insert"
-            ]
-            all_tools = list(set(core_tools + mcp_tools))
-            
-            c = _get_letta_client()
-            # Register the tools with the agent in Letta
-            await c.patch(_url(f"/v1/agents/{_agent_id}"), json={"tools": all_tools})
-            log.info("letta_dynamic_discovery_ok", tools_count=len(all_tools), mcp_count=len(mcp_tools))
-        except Exception as e:
-            log.warning("letta_dynamic_discovery_failed", error=str(e))
+        global _tool_names_cache, _tool_names_cache_ts
+        now = time.monotonic()
+        if _tool_names_cache is None or (now - _tool_names_cache_ts) > _TOOL_CACHE_TTL:
+            try:
+                # Dynamic Discovery: Fetch latest tools from MCP and update agent
+                mcp_tools = await _get_mcp_tool_names()
+                core_tools = [
+                    "send_message", "core_memory_append", "core_memory_replace",
+                    "archival_memory_search", "archival_memory_insert"
+                ]
+                all_tools = list(set(core_tools + mcp_tools))
+                _tool_names_cache = all_tools
+                _tool_names_cache_ts = now
+
+                c = _get_letta_client()
+                # Register the tools with the agent in Letta
+                await c.patch(_url(f"/v1/agents/{_agent_id}"), json={"tools": all_tools})
+                log.info("letta_dynamic_discovery_ok", tools_count=len(all_tools), mcp_count=len(mcp_tools))
+            except Exception as e:
+                log.warning("letta_dynamic_discovery_failed", error=str(e))
             
     return _agent_id
 

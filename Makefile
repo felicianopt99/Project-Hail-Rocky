@@ -73,7 +73,7 @@ typecheck:
 	cd frontend && npx tsc --noEmit
 
 test:
-	docker compose exec backend pytest
+	docker compose exec -e PYTHONPATH=/app backend pytest tests/unit tests -v
 	cd frontend && npm test -- --run
 
 check:

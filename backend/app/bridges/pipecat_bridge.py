@@ -3,7 +3,7 @@ import time
 import websockets
 import structlog
 import json
-from typing import Optional, Dict
+from typing import Any, Optional
 
 from ..config import settings
 from ..core.trace import get_trace_id, set_trace_id
@@ -30,7 +30,7 @@ class PipecatBridge:
             self._sio = sio_server
         if self._initialized:
             return
-        self._sessions: Dict[str, Any] = {} # sid -> connection info
+        self._sessions: dict[str, Any] = {}
         self._running = False
         self._initialized = True
         log.info("pipecat_bridge_initialized")
@@ -43,7 +43,7 @@ class PipecatBridge:
                 "task": None,
                 "running": False,
                 "starting": False,
-                "queue": asyncio.Queue(),
+                "queue": asyncio.Queue(maxsize=100),
                 "retry_count": 0,
                 "trace_id": trace_id,
             }
@@ -98,16 +98,16 @@ class PipecatBridge:
         for attempt in range(max_retries):
             try:
                 log.info("pipecat_bridge_connecting", url=url, attempt=attempt+1, sid=sid)
-                session["ws"] = await websockets.connect(url, open_timeout=20)
+                session["ws"] = await websockets.connect(url, open_timeout=20, ping_interval=20, ping_timeout=10)
                 session["running"] = True
                 self._running = True
                 session["task"] = asyncio.create_task(self._listen(sid))
                 await self._persist_session(sid)
                 log.info("pipecat_bridge_started", sid=sid, trace_id=trace_id)
-                
+
                 if settings.voice_debug_events:
                     await self._sio.emit("voice_debug", {"stage": "bridge_started", "timestamp": time.time()}, to=sid)
-                
+
                 # Flush buffered audio
                 while not session["queue"].empty():
                     chunk = await session["queue"].get()
@@ -127,7 +127,7 @@ class PipecatBridge:
                     }, to=sid)
                 else:
                     await asyncio.sleep(backoff)
-                    backoff *= 2
+                    backoff = min(backoff * 2, 30)
             except Exception as e:
                 log.error("pipecat_bridge_unexpected_error", error=str(e), sid=sid)
                 break
@@ -139,7 +139,10 @@ class PipecatBridge:
     async def send_audio(self, sid: str, chunk: bytes):
         session = await self._get_connection(sid)
         if not session["ws"] or not session["running"]:
-            await session["queue"].put(chunk)
+            try:
+                session["queue"].put_nowait(chunk)
+            except asyncio.QueueFull:
+                pass
             if not session["starting"]:
                 await self.start(sid)
             return
@@ -164,14 +167,20 @@ class PipecatBridge:
         if session["ws"]:
             try:
                 await session["ws"].close()
-            except:
+            except Exception:
                 pass
             session["ws"] = None
-        
+
         if session["task"]:
             session["task"].cancel()
             session["task"] = None
-            
+
+        # Discard stale audio buffered from the failed session.
+        # Replaying it into the new pipeline would arrive before StartFrame
+        # and leave every processor in an uninitialised state.
+        while not session["queue"].empty():
+            session["queue"].get_nowait()
+
         # Restart
         await self.start(sid)
 
@@ -217,10 +226,10 @@ class PipecatBridge:
                             await self._sio.emit("status_update", "processing_stt", to=sid)
                         elif msg_type == "chat_token":
                             await self._sio.emit("chat_token", data.get("token"), to=sid)
-                            await self._sio.emit("status_update", "thinking_llm", to=sid)
                         elif msg_type == "chat_response":
                             resp = socket_schemas.ChatResponse(text=data.get("text", ""))
                             await self._sio.emit("chat_response", resp.model_dump(), to=sid)
+                            await self._sio.emit("status_update", "idle", to=sid)
                     except Exception as e:
                         log.warning("pipecat_bridge_parse_error", message=message, error=str(e))
         except websockets.ConnectionClosed as e:
@@ -279,7 +288,7 @@ class PipecatBridge:
             await asyncio.sleep(0.05)
             try:
                 await session["ws"].close()
-            except:
+            except Exception:
                 pass
             session["ws"] = None
         if session["task"]:
@@ -287,6 +296,7 @@ class PipecatBridge:
             session["task"] = None
 
         await self._clear_session(sid)
+        self._sessions.pop(sid, None)
 
     async def stop_all(self):
         sids = list(self._sessions.keys())

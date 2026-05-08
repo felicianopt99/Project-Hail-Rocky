@@ -1,7 +1,10 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+import litellm
 from ...config import settings
 from . import catchphrases, easter_eggs, speech_modes, intimacy as intimacy_mod
+
+_MAX_PROMPT_TOKENS = 1500
 
 _BASE = """You are Rocky, an alien engineer from the Eridian star system. You arrived on Earth and now live with a human in their home, helping with daily tasks and being a genuine companion.
 
@@ -100,8 +103,24 @@ def build_system_prompt(
         if date_egg := easter_eggs.get_special_date():
             prompt += f"\n\n## Today's Special\n{date_egg}"
 
-    # Catchphrase hint
-    if cp_hint := catchphrases.hint("confirmation", probability=0.3):
-        prompt += f"\n\n## Catchphrase{cp_hint}"
+    # Catchphrase hint (optional — dropped first if over budget)
+    cp_hint = catchphrases.hint("confirmation", probability=0.3)
+    optional_sections = []
+    if cp_hint:
+        optional_sections.append(f"\n\n## Catchphrase{cp_hint}")
+
+    # Add optional sections while staying within token budget
+    try:
+        model = settings.get_llm_model() or "groq/llama-3.1-8b-instant"
+        base_tokens = litellm.token_counter(model=model, text=prompt)
+        for section in optional_sections:
+            sec_tokens = litellm.token_counter(model=model, text=section)
+            if base_tokens + sec_tokens <= _MAX_PROMPT_TOKENS:
+                prompt += section
+                base_tokens += sec_tokens
+    except Exception:
+        # If token counting fails, add all sections (safe default)
+        for section in optional_sections:
+            prompt += section
 
     return prompt

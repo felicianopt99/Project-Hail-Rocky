@@ -27,12 +27,12 @@ class LatencyTracker {
 
   getReport(traceId: string): LatencyReport | null {
     const trace = this.traces.get(traceId);
-    if (!trace || !trace.pipeline_start) return null;
+    if (!trace || !trace['pipeline_start']) return null;
 
-    const stt_duration = (trace.stt_end && trace.stt_start) ? trace.stt_end - trace.stt_start : 0;
-    const llm_ttft = (trace.llm_first_token && trace.llm_start) ? trace.llm_first_token - trace.llm_start : 0;
-    const llm_total = (trace.llm_end && trace.llm_start) ? trace.llm_end - trace.llm_start : 0;
-    const total = Date.now() - trace.pipeline_start;
+    const stt_duration = (trace['stt_end'] && trace['stt_start']) ? trace['stt_end'] - trace['stt_start'] : 0;
+    const llm_ttft = (trace['llm_first_token'] && trace['llm_start']) ? trace['llm_first_token'] - trace['llm_start'] : 0;
+    const llm_total = (trace['llm_end'] && trace['llm_start']) ? trace['llm_end'] - trace['llm_start'] : 0;
+    const total = Date.now() - trace['pipeline_start'];
 
     return {
       traceId,

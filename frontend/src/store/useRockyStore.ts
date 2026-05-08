@@ -17,6 +17,10 @@ export interface ProtocolSettings {
   offBeatBrightness?: number;
   targetLights?: string[];
   features?: string[];
+  stages?: any[];
+  duration?: number;
+  presets?: Record<string, any>;
+  algorithm?: string;
 }
 
 export interface Protocol {
@@ -132,12 +136,12 @@ export const useRockyStore = create<RockyState>((set) => ({
   activeProtocolId: null,
   status: "idle",
   messages: [],
-  isConnected: true,
+  isConnected: false,
   latencyMs: null,
   isTyping: false,
   serviceStatus: { voice_engine: false },
   inputValue: "",
-  isListening: false,
+  isListening: true,
   environmentalState: { noiseFloor: 0.005, isNoisy: false, detectedTypes: [] },
 
   stats: { cpu: 0, ram: 0, totalRam: 16, temp: 0 },

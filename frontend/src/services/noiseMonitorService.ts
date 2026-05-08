@@ -68,7 +68,6 @@ export class NoiseMonitorService {
 
   private evaluateEnvironment(): EnvironmentalState {
     const avgEnergy = this.energyHistory.reduce((a, b) => a + b, 0) / this.energyHistory.length;
-    const avgZcr = this.zcrHistory.reduce((a, b) => a + b, 0) / this.zcrHistory.length;
     
     // Variance in energy (high variance = TV or Speech, low variance = Fan)
     const energyVariance = this.calculateVariance(this.energyHistory);

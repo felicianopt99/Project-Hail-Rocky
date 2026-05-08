@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { useStatus } from '../store/useRockyStore';
 
 const STARS = Array.from({ length: 90 }, () => ({

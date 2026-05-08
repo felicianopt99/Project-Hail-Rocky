@@ -17,7 +17,6 @@ import AmbientBackground from "./components/AmbientBackground";
 import { useAudioManager } from "./hooks/useAudioManager";
 import { useAudioPipeline } from "./hooks/useAudioPipeline";
 import { useRockySockets } from "./hooks/useRockySockets";
-import { useMobile } from "./hooks/useMobile";
 import { useRockyStore } from "./store/useRockyStore";
 import { useWakeWord } from "./hooks/useWakeWord";
 import socket from "./lib/socket";
@@ -40,7 +39,6 @@ const STATUS_BANNER: Record<string, { bg: string; dot: string; text: string }> =
 };
 
 export default function App() {
-  const isMobile = useMobile();
   const { toasts, addToast, removeToast } = useToast();
   const { mode, isConnected, latencyMs, inputValue, setInputValue, setStatus, messages, setMode } = useRockyStore();
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -66,7 +64,7 @@ export default function App() {
   const { audioState, analyzer, audioCtxRef, handleManualTrigger } = useAudioManager({
     socket,
     addToast,
-    startWebRTC: (stream) => startWebRTCRef.current?.(stream)
+    startWebRTC: (stream) => startWebRTCRef.current?.(stream) ?? Promise.resolve()
   });
 
   const { isAudioActive: isPipelineActive, startWebRTC } = useAudioPipeline({ 
@@ -89,7 +87,7 @@ export default function App() {
   }, [isPipelineActive, audioState]);
 
   useRockySockets(addToast, isAudioActive);
-  const { error: wakeWordError } = useWakeWord();
+  const { error: wakeWordError, pauseForManualSession } = useWakeWord();
 
   useEffect(() => {
     if (wakeWordError) {
@@ -127,11 +125,14 @@ export default function App() {
 
   const handleMicClick = useCallback(() => {
     console.log("[App] Mic clicked, audioState:", audioState);
+    // Release the wake word mic stream BEFORE opening the manual session stream,
+    // so that two simultaneous getUserMedia calls don't compete for the hardware.
+    pauseForManualSession();
     if (mode !== "visualizer") {
       useRockyStore.getState().setMode("visualizer");
     }
     handleManualTrigger();
-  }, [audioState, handleManualTrigger, mode]);
+  }, [audioState, handleManualTrigger, mode, pauseForManualSession]);
 
   // VAD speech detected locally → switch to visualizer so the user sees activity
   // (useAudioManager reacts to the same event to start the WebRTC pipeline)

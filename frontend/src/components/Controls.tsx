@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { Music, Power, Settings, X, User, Home, Zap, ShieldCheck, Check, AlertTriangle } from "lucide-react";
 import socket from "../lib/socket";

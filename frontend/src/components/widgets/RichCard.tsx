@@ -1,4 +1,3 @@
-import React from "react";
 import { Cloud, Sparkles, Timer, Zap, MapPin, Wind, Thermometer, Sliders } from "lucide-react";
 import { motion } from "motion/react";
 

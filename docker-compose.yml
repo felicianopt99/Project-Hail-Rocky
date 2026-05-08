@@ -17,6 +17,7 @@ services:
     volumes:
       - ./backend/app:/app/app
       - ./tests/functional:/app/tests
+      - ./tests/unit:/app/tests/unit
     restart: unless-stopped
     depends_on:
       valkey:
@@ -40,6 +41,7 @@ services:
     environment:
       - NODE_ENV=development
       - VITE_BACKEND_URL=http://${LOCAL_IP:-127.0.0.1}:8000
+      - VITE_VOICE_ENGINE_URL=http://${LOCAL_IP:-127.0.0.1}:8881
     env_file:
       - .env
     volumes:
@@ -128,7 +130,7 @@ services:
     environment:
       - HOMEASSISTANT_URL=${HA_BASE_URL}
       - HOMEASSISTANT_TOKEN=${HA_ACCESS_TOKEN}
-      - FASTMCP_TRANSPORT=sse
+      - FASTMCP_TRANSPORT=streamable-http
       - FASTMCP_PORT=3000
       - FASTMCP_HOST=0.0.0.0
     ports:

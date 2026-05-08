@@ -1,7 +1,8 @@
 import asyncio
+import json
 import time
 import re
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Optional, Tuple
 import structlog
 import litellm
 import socketio
@@ -23,15 +24,15 @@ from ..schemas import socket_schemas
 
 log = structlog.get_logger()
 
-_sessions: Dict[str, Dict[str, Any]] = {}
+_sessions: dict[str, dict[str, Any]] = {}
 
 
-def _session(sid: str) -> Dict[str, Any]:
+def _session(sid: str) -> dict[str, Any]:
     return _sessions.setdefault(sid, {"history": [], "state": "neutral", "is_processing": False})
 
 
 # ── Sentence boundary splitter for sentence-level TTS streaming ───────────
-_SENTENCE_END = re.compile(r'(?<=[.!?…])\s+')
+_SENTENCE_END = re.compile(r'(?<=[.!?…])\s+|(?<=\n)\s*')
 
 
 def _pop_sentence(buf: str, is_first: bool = False) -> Tuple[str, str]:
@@ -65,6 +66,8 @@ async def _chat(sid: str, content: str, sio: socketio.AsyncServer, language: str
     score = await intimacy.update(user_id, content, redis)
 
     session["history"].append({"role": "user", "content": content})
+    if len(session["history"]) > 100:
+        session["history"] = session["history"][-80:]
 
     await sio.emit("status_update", "thinking_llm", to=sid)
     
@@ -93,11 +96,11 @@ async def _chat(sid: str, content: str, sio: socketio.AsyncServer, language: str
         if not is_pipecat_active:
             # For immediate display, we can also emit the "tokens" (the whole thing)
             await sio.emit("chat_token", cached_resp, to=sid)
-            
+
             resp = socket_schemas.ChatResponse(text=cached_resp)
             await sio.emit("chat_response", resp.model_dump(), to=sid)
             await sio.emit("status_update", "idle", to=sid)
-            
+
             # Also handle TTS for cached responses if enabled
             if settings.has_tts():
                 await _emit_tts(sid, cached_resp, sio, new_state)
@@ -106,6 +109,7 @@ async def _chat(sid: str, content: str, sio: socketio.AsyncServer, language: str
             await sio.emit("chat_token", cached_resp, to=sid)
             # Signal end for mock_sio in brain.py
             await sio.emit("chat_response", {"text": cached_resp}, to=sid)
+            await sio.emit("status_update", "idle", to=sid)
 
         session["history"].append({"role": "assistant", "content": cached_resp})
         return
@@ -133,7 +137,7 @@ async def _finish_chat_after_tool(
     """Helper to stream the final LLM response after a tool has executed."""
     model = settings.get_llm_model()
     final_response = await litellm.acompletion(
-        model=model, messages=messages, stream=True, temperature=0.8, max_tokens=512,
+        model=model, messages=messages, stream=True, temperature=0.8, max_tokens=1024,
     )
     full_final, buf_final = "", ""
     async for chunk in final_response:
@@ -159,7 +163,7 @@ async def _finish_chat_after_tool(
 
 async def _try_tools(
     sid: str, content: str, state: str, score: float,
-    session: Dict[str, Any], sio: socketio.AsyncServer,
+    session: dict[str, Any], sio: socketio.AsyncServer,
     user_id: Optional[str] = None,
 ) -> bool:
     """
@@ -254,13 +258,18 @@ async def _try_tools(
         return False
 
     except Exception as exc:
-        log.error("tool_error", error=str(exc))
+        err_str = str(exc)
+        if "rate_limit" in err_str.lower() or "RateLimitError" in err_str:
+            log.error("tool_error_rate_limit", error=err_str[:200],
+                      hint="Too many tokens — check get_active_tools() whitelist")
+        else:
+            log.error("tool_error", error=err_str[:300])
         return False  # Fall through to normal chat
 
 
 async def _chat_letta(
     sid: str, content: str, state: str, score: float,
-    session: Dict[str, Any], sio: socketio.AsyncServer,
+    session: dict[str, Any], sio: socketio.AsyncServer,
     user_id: Optional[str] = None,
     language: str = "en"
 ) -> None:
@@ -279,25 +288,21 @@ async def _chat_letta(
         full_reply = ""
         sentence_buf = ""
         
-        # Check if Pipecat is active to prevent redundant emissions
         from ..bridges.pipecat_bridge import PipecatBridge
         is_pipecat_active = PipecatBridge().is_session_running(sid)
 
         async for token in letta_bridge.send_message_stream(msg):
             if not token:
                 continue
-            
+
             full_reply += token
             sentence_buf += token
-            
-            if not is_pipecat_active:
-                # Emit token to frontend for real-time text display
-                await sio.emit("chat_token", token, to=sid)
-            
-            # Sentence-level TTS streaming
-            if settings.has_tts():
+
+            await sio.emit("chat_token", token, to=sid)
+
+            if settings.has_tts() and not is_pipecat_active:
                 sentence, sentence_buf = _pop_sentence(sentence_buf, is_first=(full_reply == token))
-                if sentence and not is_pipecat_active:
+                if sentence:
                     await _emit_tts(sid, sentence, sio, state)
 
         if not full_reply:
@@ -305,15 +310,13 @@ async def _chat_letta(
             await _chat_litellm(sid, content, state, score, session, sio, user_id=user_id)
             return
 
-        # Final cleanup for TTS and history
         if sentence_buf.strip() and settings.has_tts() and not is_pipecat_active:
             await _emit_tts(sid, sentence_buf.strip(), sio, state)
 
         session["history"].append({"role": "assistant", "content": full_reply})
-        if not is_pipecat_active:
-            resp = socket_schemas.ChatResponse(text=full_reply)
-            await sio.emit("chat_response", resp.model_dump(), to=sid)
-            await sio.emit("status_update", "idle", to=sid)
+        resp = socket_schemas.ChatResponse(text=full_reply)
+        await sio.emit("chat_response", resp.model_dump(), to=sid)
+        await sio.emit("status_update", "idle", to=sid)
         
         # Store in semantic cache
         if full_reply:
@@ -330,7 +333,7 @@ async def _chat_letta(
 
 async def _chat_litellm(
     sid: str, content: str, state: str, score: float,
-    session: Dict[str, Any], sio: socketio.AsyncServer,
+    session: dict[str, Any], sio: socketio.AsyncServer,
     user_id: Optional[str] = None,
 ) -> None:
     """
@@ -358,7 +361,9 @@ async def _chat_litellm(
             temperature=0.85,
             max_tokens=1024,
         )
-        # Check if Pipecat is active to prevent redundant emissions
+        # Only gate legacy TTS — pipecat handles audio on voice path.
+        # Tokens and chat_response must always be emitted so that both the frontend
+        # (text chat) and brain.py MockSio (voice path) receive them.
         from ..bridges.pipecat_bridge import PipecatBridge
         is_pipecat_active = PipecatBridge().is_session_running(sid)
 
@@ -368,13 +373,12 @@ async def _chat_litellm(
                 continue
             full_response += token
             sentence_buf += token
-            
-            if not is_pipecat_active:
-                await sio.emit("chat_token", token, to=sid)
-            
-            if settings.has_tts():
+
+            await sio.emit("chat_token", token, to=sid)
+
+            if settings.has_tts() and not is_pipecat_active:
                 sentence, sentence_buf = _pop_sentence(sentence_buf, is_first=(full_response == token))
-                if sentence and not is_pipecat_active:
+                if sentence:
                     await _emit_tts(sid, sentence, sio, state)
 
         if sentence_buf.strip() and settings.has_tts() and not is_pipecat_active:
@@ -382,11 +386,10 @@ async def _chat_litellm(
 
         session["history"].append({"role": "assistant", "content": full_response})
         log.info("emitting_chat_response", sid=sid, length=len(full_response), pipecat_active=is_pipecat_active)
-        
-        if not is_pipecat_active:
-            resp = socket_schemas.ChatResponse(text=full_response)
-            await sio.emit("chat_response", resp.model_dump(), to=sid)
-            await sio.emit("status_update", "idle", to=sid)
+
+        resp = socket_schemas.ChatResponse(text=full_response)
+        await sio.emit("chat_response", resp.model_dump(), to=sid)
+        await sio.emit("status_update", "idle", to=sid)
         
         # Store in semantic cache
         if full_response:
@@ -451,6 +454,94 @@ async def _emit_tts(sid: str, text: str, sio: socketio.AsyncServer, emotional_st
     await task  # await so callers still sequence sentence-by-sentence
 
 
+# ── Home Assistant dashboard helpers ─────────────────────────────────────
+
+def _state_to_light(entity_id: str, state_data: dict) -> dict:
+    """Convert a raw HA state dict to the LightState shape the frontend expects."""
+    attrs = state_data.get("attributes", {})
+    rgb = attrs.get("rgb_color")
+    hex_color = "#ffffff"
+    if rgb and len(rgb) == 3:
+        hex_color = "#{:02x}{:02x}{:02x}".format(*rgb)
+    brightness_raw = attrs.get("brightness")
+    brightness_pct = round((brightness_raw / 255) * 100) if brightness_raw else 0
+    return {
+        "name": attrs.get("friendly_name", entity_id),
+        "status": "on" if state_data.get("state") == "on" else "off",
+        "brightness": brightness_pct,
+        "color": hex_color,
+        "color_temp_kelvin": attrs.get("color_temp_kelvin"),
+        "min_color_temp_kelvin": attrs.get("min_color_temp_kelvin"),
+        "max_color_temp_kelvin": attrs.get("max_color_temp_kelvin"),
+    }
+
+
+async def _fetch_ha_lights() -> tuple[dict, dict]:
+    """Return (lights_dict, areas_dict) by querying the HA MCP server."""
+    from ..tools.executor import _proxy_mcp_call
+    mcp = settings.ha_mcp_url
+
+    # 1. Areas
+    areas: dict[str, str] = {}
+    areas_raw = await _proxy_mcp_call(mcp, "ha_config_list_areas", {})
+    if areas_raw:
+        try:
+            d = json.loads(areas_raw) if isinstance(areas_raw, str) else areas_raw
+            for a in d.get("areas", []):
+                areas[a["area_id"]] = a["name"]
+        except Exception:
+            pass
+
+    # 2. All light entity IDs
+    search_raw = await _proxy_mcp_call(mcp, "ha_search_entities", {"domain_filter": "light"})
+    entity_ids: list[str] = []
+    if search_raw:
+        try:
+            d = json.loads(search_raw) if isinstance(search_raw, str) else search_raw
+            results = (d.get("data") or d).get("results", [])
+            entity_ids = [r["entity_id"] for r in results]
+        except Exception:
+            pass
+
+    if not entity_ids:
+        return {}, areas
+
+    # 3. Batch state fetch
+    states: dict[str, dict] = {}
+    state_raw = await _proxy_mcp_call(mcp, "ha_get_state", {"entity_id": entity_ids})
+    if state_raw:
+        try:
+            d = json.loads(state_raw) if isinstance(state_raw, str) else state_raw
+            states = (d.get("data") or d).get("states", {})
+        except Exception:
+            pass
+
+    # 4. Map entities to areas (one call per area)
+    entity_area: dict[str, str] = {}
+    for area_id in areas:
+        ar_raw = await _proxy_mcp_call(mcp, "ha_search_entities",
+                                       {"domain_filter": "light", "area_filter": area_id})
+        if ar_raw:
+            try:
+                d = json.loads(ar_raw) if isinstance(ar_raw, str) else ar_raw
+                results = (d.get("data") or d).get("results", [])
+                for r in results:
+                    entity_area[r["entity_id"]] = area_id
+            except Exception:
+                pass
+
+    # 5. Build lights dict
+    lights: dict[str, dict] = {}
+    for eid, sd in states.items():
+        light = _state_to_light(eid, sd)
+        area_id = entity_area.get(eid)
+        light["areaId"] = area_id
+        light["areaName"] = areas.get(area_id) if area_id else None
+        lights[eid] = light
+
+    return lights, areas
+
+
 # ── Register handlers ─────────────────────────────────────────────────────
 def register(sio: socketio.AsyncServer) -> None:
     # Import here to avoid circular dependency if needed, though PipecatBridge is usually fine
@@ -458,7 +549,7 @@ def register(sio: socketio.AsyncServer) -> None:
     PipecatBridge(sio)
 
     @sio.event
-    async def connect(sid: str, environ: Dict[str, Any], auth: Optional[Any] = None) -> None:
+    async def connect(sid: str, environ: dict[str, Any], auth: Optional[Any] = None) -> None:
         set_trace_id()
         structlog.contextvars.bind_contextvars(sid=sid, trace_id=get_trace_id())
         _session(sid)
@@ -535,12 +626,13 @@ def register(sio: socketio.AsyncServer) -> None:
         if settings.has_pipecat():
             from ..bridges.pipecat_bridge import PipecatBridge
             bridge = PipecatBridge()
-            # We don't have a direct way to check _running from outside without exposing it, 
-            # but PipecatBridge is a singleton.
-            # Let's assume if it has a session it might be running.
-            # Actually, PipecatBridge already handles session existence.
-            await bridge.send_eot(sid)
-            log.info("manual_stop_signal_sent", sid=sid)
+            if bridge.is_session_running(sid):
+                await bridge.send_eot(sid)
+                log.info("manual_stop_signal_sent", sid=sid)
+                return
+            # Pipecat configurado mas voice engine em baixo — emite idle para desbloqueio do frontend
+            log.warning("pipecat_session_not_running_on_manual_stop", sid=sid)
+            await sio.emit("status_update", "idle", to=sid)
             return
 
         buf: bytearray = session.pop("audio_buf", bytearray())
@@ -612,10 +704,18 @@ def register(sio: socketio.AsyncServer) -> None:
         log.info("manual_activation_received", sid=sid)
         if settings.voice_debug_events:
             await sio.emit("voice_debug", {"stage": "manual_activation_observed", "timestamp": time.time()}, to=sid)
+
+        # Pre-start the Pipecat bridge so the WebSocket connection and StartFrame
+        # are established before the first WebRTC audio frame arrives.
+        from ..bridges.pipecat_bridge import PipecatBridge
+        bridge = PipecatBridge(sio)
+        _session(sid)["pipecat_bridge"] = bridge
+        asyncio.create_task(bridge.start(sid))
+
         await sio.emit("status_update", "listening", to=sid)
 
     @sio.event
-    async def auth_granted(sid: str, data: Dict[str, Any]) -> None:
+    async def auth_granted(sid: str, data: dict[str, Any]) -> None:
         """Resume tool execution after human approval."""
         session = _session(sid)
         pending = session.pop("pending_tool_auth", None)
@@ -639,6 +739,61 @@ def register(sio: socketio.AsyncServer) -> None:
         
         # Finish the chat completion
         await _finish_chat_after_tool(sid, sio, session, messages, pending["state"])
+
+    @sio.event
+    async def sync_ha(sid: str, data: Optional[Any] = None) -> None:
+        """Fetch all light entities + areas from HA and push to the dashboard."""
+        if not settings.ha_mcp_url:
+            return
+        try:
+            lights, areas = await _fetch_ha_lights()
+            update = socket_schemas.SystemStateUpdate(lights=lights, areas=areas)
+            await sio.emit("system_state_update", update.model_dump(exclude_none=True), to=sid)
+            log.info("sync_ha_ok", lights=len(lights), areas=len(areas), sid=sid)
+        except Exception as e:
+            log.error("sync_ha_failed", error=str(e), sid=sid)
+
+    @sio.event
+    async def control_device(sid: str, data: dict[str, Any]) -> None:
+        """Toggle or update a light entity and emit the new state back."""
+        if not settings.ha_mcp_url:
+            return
+        device: str = data.get("device", "")
+        action: str = data.get("action", "toggle")
+        params: dict = data.get("params", {})
+        if not device:
+            return
+
+        from ..tools.executor import _proxy_mcp_call
+        try:
+            if action == "toggle":
+                await _proxy_mcp_call(settings.ha_mcp_url, "ha_call_service",
+                                      {"domain": "light", "service": "toggle", "entity_id": device})
+            elif action == "set":
+                svc_data: dict[str, Any] = {}
+                if "brightness" in params:
+                    svc_data["brightness_pct"] = int(params["brightness"])
+                if "color" in params:
+                    hx = params["color"].lstrip("#")
+                    svc_data["rgb_color"] = [int(hx[i:i+2], 16) for i in (0, 2, 4)]
+                if "color_temp_kelvin" in params:
+                    svc_data["color_temp_kelvin"] = int(params["color_temp_kelvin"])
+                await _proxy_mcp_call(settings.ha_mcp_url, "ha_call_service",
+                                      {"domain": "light", "service": "turn_on",
+                                       "entity_id": device, "data": svc_data})
+
+            # Short wait for HA state to settle, then read back new state
+            await asyncio.sleep(0.4)
+            state_raw = await _proxy_mcp_call(settings.ha_mcp_url, "ha_get_state",
+                                              {"entity_id": device})
+            if state_raw:
+                parsed = json.loads(state_raw) if isinstance(state_raw, str) else state_raw
+                state_data = (parsed.get("data", {}) or {}).get("states", {}).get(device, {})
+                if state_data:
+                    light_state = _state_to_light(device, state_data)
+                    await sio.emit("device_updated", {"device": device, "state": light_state}, to=sid)
+        except Exception as e:
+            log.error("control_device_failed", error=str(e), device=device, sid=sid)
 
     @sio.event
     async def ping(sid: str, data: Optional[Any] = None) -> None:

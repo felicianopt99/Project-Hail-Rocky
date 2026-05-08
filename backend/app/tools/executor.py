@@ -5,6 +5,7 @@ import math
 import operator
 import resource
 import subprocess
+import sys
 import time
 import uuid
 from datetime import datetime, timezone
@@ -18,6 +19,45 @@ from ..core.http_client import get_http_client
 from ..core.redis_client import get_redis
 
 log = structlog.get_logger()
+
+_mcp_sessions: dict[str, str] = {}  # mcp_url → session_id
+_MCP_HEADERS = {"Accept": "application/json, text/event-stream"}
+
+
+def _parse_sse_json(text: str) -> dict | None:
+    """Extract JSON payload from a text/event-stream response body."""
+    for line in text.splitlines():
+        if line.startswith("data:"):
+            try:
+                return json.loads(line[5:].strip())
+            except json.JSONDecodeError:
+                pass
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        return None
+
+
+async def _mcp_init_session(client, endpoint: str) -> str | None:
+    """Initialize an MCP streamable-http session; returns the session ID."""
+    payload = {
+        "jsonrpc": "2.0", "id": 0, "method": "initialize",
+        "params": {
+            "protocolVersion": "2025-03-26",
+            "capabilities": {},
+            "clientInfo": {"name": "rocky", "version": "1.0"},
+        },
+    }
+    r = await client.post(endpoint, json=payload, headers=_MCP_HEADERS)
+    if r.status_code != 200:
+        return None
+    session_id = r.headers.get("mcp-session-id")
+    if not session_id:
+        return None
+    notif = {"jsonrpc": "2.0", "method": "notifications/initialized"}
+    await client.post(endpoint, json=notif,
+                      headers={**_MCP_HEADERS, "Mcp-Session-Id": session_id})
+    return session_id
 
 _TZ = settings.timezone
 try:
@@ -91,27 +131,54 @@ async def run(name: str, args: dict, sio=None, tool_call_id: str = None, bypass_
         return f"Tool '{name}' failed: {e}"
 
 
-async def _proxy_mcp_call(mcp_url: str, name: str, args: dict) -> str | None:
+async def _proxy_mcp_call(mcp_url: str, name: str, args: dict, _retry: bool = True) -> str | None:
     """
-    Proxy a tool call to an MCP server using the streamable_http protocol.
+    Proxy a tool call to an MCP server using the streamable-http transport (JSON-RPC).
     Returns the result string or None if the tool is not found on this server.
     """
     try:
         client = await get_http_client()
-        url = f"{mcp_url.rstrip('/')}/call"
-        payload = {"name": name, "arguments": args}
-        r = await client.post(url, json=payload)
+        endpoint = f"{mcp_url.rstrip('/')}/mcp"
 
-        if r.status_code == 200:
-            data = r.json()
-            content = data.get("content", [])
-            text_results = [c.get("text", "") for c in content if c.get("type") == "text"]
-            return "\n".join(text_results) if text_results else str(data)
+        session_id = _mcp_sessions.get(mcp_url)
+        if not session_id:
+            session_id = await _mcp_init_session(client, endpoint)
+            if not session_id:
+                return None
+            _mcp_sessions[mcp_url] = session_id
+
+        payload = {
+            "jsonrpc": "2.0", "id": 1,
+            "method": "tools/call",
+            "params": {"name": name, "arguments": args},
+        }
+        r = await client.post(endpoint, json=payload,
+                              headers={**_MCP_HEADERS, "Mcp-Session-Id": session_id})
+
+        if r.status_code in (400, 401) and _retry:
+            _mcp_sessions.pop(mcp_url, None)
+            return await _proxy_mcp_call(mcp_url, name, args, _retry=False)
 
         if r.status_code == 404:
             return None
 
-        return f"Error from MCP server: {r.status_code} - {r.text}"
+        if r.status_code != 200:
+            return f"Error from MCP server: {r.status_code} - {r.text}"
+
+        data = _parse_sse_json(r.text)
+        if not data:
+            return None
+
+        error = data.get("error")
+        if error:
+            if error.get("code") == -32601:  # Unknown tool
+                return None
+            return f"MCP error: {error.get('message', str(error))}"
+
+        content = data.get("result", {}).get("content", [])
+        text_results = [c.get("text", "") for c in content if c.get("type") == "text"]
+        return "\n".join(text_results) if text_results else str(data.get("result", data))
+
     except Exception as e:
         log.debug("mcp_proxy_attempt_failed", url=mcp_url, tool=name, error=str(e))
         return None
@@ -482,7 +549,7 @@ async def _execute_python(code: str) -> str:
 
     try:
         process = await asyncio.create_subprocess_exec(
-            "python3", "-c", code,
+            sys.executable, "-c", code,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             env=_sandbox_env,

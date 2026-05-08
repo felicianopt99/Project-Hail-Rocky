@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import { useState } from "react";
 import { motion } from "motion/react";
 import { X, Save, Plus, Trash2, Sliders, Zap } from "lucide-react";
 import { useRockyStore, Routine, RoutineAction } from "../store/useRockyStore";
@@ -23,7 +23,7 @@ export default function RoutineEditor({ isOpen, onClose }: RoutineEditorProps) {
 
   const addAction = () => {
     if (!editingRoutine) return;
-    const firstLight = Object.keys(lights)[0];
+    const firstLight = Object.keys(lights)[0] ?? "";
     const newAction: RoutineAction = { device: firstLight, action: "on", params: { brightness: 100 } };
     setEditingRoutine({ ...editingRoutine, actions: [...editingRoutine.actions, newAction] });
   };
@@ -136,7 +136,7 @@ export default function RoutineEditor({ isOpen, onClose }: RoutineEditorProps) {
                              <input 
                               type="number" min="0" max="100"
                               className="bg-white/5 border border-white/10 rounded-lg px-3 py-1.5 text-[10px] font-mono w-20 outline-none"
-                              value={a.params?.brightness || 100}
+                              value={(a.params?.['brightness'] as number) || 100}
                               placeholder="Bri"
                               onChange={e => {
                                 const next = [...editingRoutine.actions];

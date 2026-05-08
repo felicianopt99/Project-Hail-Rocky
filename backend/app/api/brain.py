@@ -69,10 +69,15 @@ async def chat(req: BrainRequest):
         task = asyncio.create_task(socketio_handlers._chat(req.sid, req.content, mock_sio))
         
         try:
+            loop = asyncio.get_event_loop()
+            deadline = loop.time() + 60.0  # 60s total budget, not per-token
             while True:
                 try:
-                    # Timeout after 30s of silence if we haven't finished
-                    token = await asyncio.wait_for(mock_sio.tokens.get(), timeout=30.0)
+                    remaining = deadline - loop.time()
+                    if remaining <= 0:
+                        log.warning("brain_chat_total_timeout", sid=req.sid)
+                        break
+                    token = await asyncio.wait_for(mock_sio.tokens.get(), timeout=min(remaining, 10.0))
                     if token is None:
                         break
                     yield token
@@ -84,7 +89,7 @@ async def chat(req: BrainRequest):
                 task.cancel()
                 try:
                     await task
-                except:
+                except asyncio.CancelledError:
                     pass
             # Ensure the queue doesn't leak or hang next calls
             while not mock_sio.tokens.empty():

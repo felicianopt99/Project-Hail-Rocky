@@ -1,10 +1,12 @@
 import asyncio
 import structlog
 import numpy as np
+from math import gcd
 from fastapi import APIRouter, Request
 from aiortc import RTCPeerConnection, RTCSessionDescription
 from aiortc.mediastreams import MediaStreamTrack, AudioStreamTrack
 from av import AudioFrame
+from scipy.signal import resample_poly
 
 from .socketio_handlers import _session
 from ..bridges.pipecat_bridge import PipecatBridge
@@ -27,7 +29,7 @@ class PipecatAudioTrack(AudioStreamTrack):
     """
     def __init__(self):
         super().__init__()
-        self._queue = asyncio.Queue()
+        self._queue = asyncio.Queue(maxsize=200)
         self._next_pts = 0
 
     async def recv(self):
@@ -55,6 +57,8 @@ class PipecatAudioTrack(AudioStreamTrack):
             frame.time_base = 1 / sample_rate
             
             self._queue.put_nowait(frame)
+        except asyncio.QueueFull:
+            log.warning("webrtc_audio_queue_full_dropping_frame")
         except Exception as e:
             log.error("webrtc_add_audio_error", error=str(e))
 
@@ -107,16 +111,60 @@ async def offer(request: Request):
         "type": pc.localDescription.type
     }
 
+_TARGET_RATE = 16000  # Voice engine expects 16kHz mono int16
+
+
+def _to_mono_16k(frame: AudioFrame) -> bytes:
+    """Convert an aiortc AudioFrame to mono 16kHz int16 bytes.
+
+    aiortc decodes Opus to different formats depending on the libav version:
+      s16  — signed 16-bit interleaved, shape (1, samples*channels)
+      s16p — signed 16-bit planar,      shape (channels, samples)
+      fltp — float32 planar,            shape (channels, samples), values in [-1, 1]
+      flt  — float32 packed,            shape (1, samples*channels), values in [-1, 1]
+
+    Treating float32 as int16 directly produces near-zero values (silence), so we
+    must scale to int16 range first.
+    """
+    fmt = frame.format.name
+    src_rate = frame.sample_rate
+    num_channels = len(frame.layout.channels)
+    arr = frame.to_ndarray()
+
+    if "flt" in fmt:
+        # Float32 planar (fltp) or packed (flt): values in [-1.0, 1.0]
+        arr_i16 = np.clip(arr * 32768.0, -32768, 32767).astype(np.int16)
+        if arr_i16.ndim > 1 and arr_i16.shape[0] > 1:
+            mono = arr_i16.mean(axis=0).astype(np.int16)
+        else:
+            mono = arr_i16.flatten()
+    elif fmt == "s16p":
+        # Int16 planar: shape (channels, samples)
+        mono = arr.mean(axis=0).astype(np.int16) if arr.shape[0] > 1 else arr.flatten()
+    else:
+        # s16 interleaved: shape (1, samples*channels)
+        flat = arr.flatten().astype(np.int16)
+        mono = flat.reshape(-1, num_channels).mean(axis=1).astype(np.int16) if num_channels > 1 else flat
+
+    # Resample using float32 to avoid clipping artefacts
+    if src_rate != _TARGET_RATE:
+        g = gcd(_TARGET_RATE, src_rate)
+        resampled = resample_poly(mono.astype(np.float32), _TARGET_RATE // g, src_rate // g)
+        mono = np.clip(resampled, -32768, 32767).astype(np.int16)
+
+    return mono.tobytes()
+
+
 async def process_audio_track(track: MediaStreamTrack, sid: str):
     """
-    Consumes the WebRTC audio track and pipes PCM chunks to the Pipecat Bridge.
-    This replaces the WebSocket-based pcm-processor.
+    Consumes the WebRTC audio track, converts to 16kHz mono int16,
+    and pipes PCM chunks to the Pipecat Bridge → Voice Engine.
     """
     log.info("webrtc_audio_processor_started", sid=sid)
-    
+
     session = _session(sid)
     bridge = session.get("pipecat_bridge")
-    
+
     if not bridge:
         if sio_instance:
             log.info("webrtc_init_bridge", sid=sid)
@@ -127,19 +175,43 @@ async def process_audio_track(track: MediaStreamTrack, sid: str):
             log.error("webrtc_bridge_fail_no_sio", sid=sid)
             return
 
+    frames_seen = 0
     try:
         while True:
             frame = await track.recv()
-            
-            # Extract raw PCM data from incoming track (User -> Backend)
-            # to_ndarray() returns (channels, samples)
-            data = frame.to_ndarray().tobytes()
-            
-            if bridge:
-                # Note: bridge is now a singleton manager, but we stored it in session for convenience
-                # We could also just call PipecatBridge().send_audio(sid, data)
-                await bridge.send_audio(sid, data)
-                
+
+            # One-shot diagnostic on the first frame: tells us if aiortc decoded
+            # the Opus stream as s16, fltp, etc., and the actual amplitude range.
+            if frames_seen == 0:
+                arr = frame.to_ndarray()
+                log.info(
+                    "webrtc_first_frame_diagnostic",
+                    sid=sid,
+                    fmt=frame.format.name,
+                    rate=frame.sample_rate,
+                    channels=len(frame.layout.channels),
+                    shape=str(arr.shape),
+                    dtype=str(arr.dtype),
+                    abs_max=float(np.abs(arr).max()),
+                    abs_mean=float(np.abs(arr).mean()),
+                )
+
+            data = _to_mono_16k(frame)
+
+            # Periodic amplitude check: if the audio is silence the int16 max
+            # will hover around 0, otherwise it climbs into the thousands.
+            if frames_seen % 200 == 0:
+                samples = np.frombuffer(data, dtype=np.int16)
+                log.info(
+                    "webrtc_audio_amplitude",
+                    sid=sid,
+                    frame=frames_seen,
+                    int16_abs_max=int(np.abs(samples).max()) if samples.size else 0,
+                    int16_abs_mean=int(np.abs(samples).mean()) if samples.size else 0,
+                )
+
+            frames_seen += 1
+            await bridge.send_audio(sid, data)
+
     except Exception as e:
-        # Expected when track ends or connection closes
         log.info("webrtc_audio_processor_stopped", sid=sid, reason=str(e))
