@@ -8,7 +8,8 @@ with the human.
 import structlog
 from datetime import date
 
-from ..bridges.letta_bridge import send_message, is_available
+from ..rocky.graph.workflow import run_rocky_brain
+from ..bridges.letta_bridge import is_available
 
 log = structlog.get_logger()
 
@@ -30,7 +31,9 @@ async def run(ctx: dict) -> None:
     today = date.today().isoformat()
     prompt = _DIARY_PROMPT.format(date=today)
 
-    response = await send_message(prompt, role="system")
+    # Using the unified LangGraph brain
+    response = await run_rocky_brain(prompt, role="system", sid="worker_diary_writer")
+    
     if response:
         log.info("diary_written", date=today, preview=response[:80])
     else:

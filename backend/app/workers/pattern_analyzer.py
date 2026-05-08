@@ -6,7 +6,8 @@ in the past week and update the "human" core memory block with new insights.
 """
 import structlog
 
-from ..bridges.letta_bridge import send_message, is_available
+from ..rocky.graph.workflow import run_rocky_brain
+from ..bridges.letta_bridge import is_available
 
 log = structlog.get_logger()
 
@@ -25,7 +26,9 @@ async def run(ctx: dict) -> None:
         log.warning("pattern_analyzer_skipped", reason="Letta unavailable")
         return
 
-    response = await send_message(_PATTERN_PROMPT, role="system")
+    # Using the unified LangGraph brain
+    response = await run_rocky_brain(_PATTERN_PROMPT, role="system", sid="worker_pattern_analyzer")
+    
     if response:
         log.info("pattern_analyzed", preview=response[:80])
     else:

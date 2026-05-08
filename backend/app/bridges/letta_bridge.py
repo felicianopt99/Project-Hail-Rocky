@@ -23,11 +23,6 @@ log = structlog.get_logger()
 
 _agent_id: str | None = None  # cached after first init
 
-# Tool list cache: avoid re-fetching MCP tool names on every send_message
-_tool_names_cache: list[str] | None = None
-_tool_names_cache_ts: float = 0.0
-_TOOL_CACHE_TTL = 300.0  # 5 minutes
-
 # Singleton client — reuses connections across all Letta API calls
 _client: httpx.AsyncClient | None = None
 
@@ -96,73 +91,6 @@ async def is_available() -> bool:
         return False
 
 
-# ── MCP Integration ───────────────────────────────────────────────────────
-
-async def _get_or_create_mcp_server() -> str | None:
-    """Ensure the HA MCP server is registered in Letta."""
-    if not settings.letta_url or not settings.ha_mcp_url:
-        return None
-    
-    c = _get_letta_client()
-    try:
-        # 1. Check if already registered (Letta uses "server_name" as the key)
-        r = await c.get(_url("/v1/mcp-servers"))
-        r.raise_for_status()
-        for srv in r.json():
-            if srv.get("server_name") == HA_MCP_SERVER_NAME:
-                return srv["id"]
-
-        # 2. Create if not found
-        payload = {
-            "server_name": HA_MCP_SERVER_NAME,
-            "config": {
-                "mcp_server_type": "streamable_http",
-                "server_url": f"{settings.ha_mcp_url.rstrip('/')}/mcp",
-            }
-        }
-        r = await c.post(_url("/v1/mcp-servers"), json=payload)
-        if r.status_code == 409:
-            # Already exists (race or leftover) — fetch the ID again
-            r2 = await c.get(_url("/v1/mcp-servers"))
-            r2.raise_for_status()
-            for srv in r2.json():
-                if srv.get("server_name") == HA_MCP_SERVER_NAME:
-                    return srv["id"]
-            return None
-        r.raise_for_status()
-        srv_id = r.json()["id"]
-        log.info("letta_mcp_server_registered", srv_id=srv_id)
-        return srv_id
-    except Exception as e:
-        if hasattr(e, "response") and e.response:
-            log.warning("letta_mcp_registration_failed", error=str(e), body=e.response.text)
-        else:
-            log.warning("letta_mcp_registration_failed", error=str(e))
-        return None
-
-
-async def _get_mcp_tool_names() -> list[str]:
-    """Fetch all tool names from the registered MCP server."""
-    srv_id = await _get_or_create_mcp_server()
-    if not srv_id:
-        return []
-    
-    c = _get_letta_client()
-    try:
-        # Refresh first to ensure we have latest tools
-        await c.patch(_url(f"/v1/mcp-servers/{srv_id}/refresh"))
-        
-        # Get tools
-        r = await c.get(_url(f"/v1/mcp-servers/{srv_id}/tools"))
-        r.raise_for_status()
-        tools = r.json()
-        # tools is usually a list of tool objects with a 'name' field
-        return [t["name"] for t in tools if "name" in t]
-    except Exception as e:
-        log.warning("letta_mcp_tool_fetch_failed", error=str(e))
-        return []
-
-
 # ── Agent lifecycle ───────────────────────────────────────────────────────
 
 async def _find_agent() -> str | None:
@@ -184,26 +112,21 @@ async def _create_agent() -> str | None:
     if not settings.letta_url:
         return None
     try:
-        # Fetch dynamic tools from MCP
-        mcp_tools = await _get_mcp_tool_names()
-        
         # Default Letta core tools (memory management)
         core_tools = [
-            "send_message",
             "core_memory_append",
             "core_memory_replace",
             "archival_memory_search",
             "archival_memory_insert"
         ]
         
-        all_tools = list(set(core_tools + mcp_tools))
-        log.info("letta_agent_creating", tools_count=len(all_tools), mcp_tools=mcp_tools)
+        log.info("letta_agent_creating", tools_count=len(core_tools))
 
         payload = {
             "name": ROCKY_AGENT_NAME,
             "description": AGENT_DESCRIPTION,
             "system": ROCKY_PERSONA,
-            "tools": all_tools,
+            "tools": core_tools,
             "memory": {
                 "memory": {
                     "persona": {"value": ROCKY_PERSONA, "limit": 2000},
@@ -236,165 +159,16 @@ async def _create_agent() -> str | None:
 async def get_agent_id() -> str | None:
     """
     Get the agent ID, creating it if necessary.
-    On every initialization (startup), it syncs tools from the MCP server
-    to ensure Rocky has the latest skills without code changes.
+    Letta is used as a memory backend; reasoning and tools are handled by LangGraph.
     """
     global _agent_id
     if not _agent_id:
         _agent_id = await _find_agent() or await _create_agent()
-    
-    if _agent_id:
-        global _tool_names_cache, _tool_names_cache_ts
-        now = time.monotonic()
-        if _tool_names_cache is None or (now - _tool_names_cache_ts) > _TOOL_CACHE_TTL:
-            try:
-                # Dynamic Discovery: Fetch latest tools from MCP and update agent
-                mcp_tools = await _get_mcp_tool_names()
-                core_tools = [
-                    "send_message", "core_memory_append", "core_memory_replace",
-                    "archival_memory_search", "archival_memory_insert"
-                ]
-                all_tools = list(set(core_tools + mcp_tools))
-                _tool_names_cache = all_tools
-                _tool_names_cache_ts = now
-
-                c = _get_letta_client()
-                # Register the tools with the agent in Letta
-                await c.patch(_url(f"/v1/agents/{_agent_id}"), json={"tools": all_tools})
-                log.info("letta_dynamic_discovery_ok", tools_count=len(all_tools), mcp_count=len(mcp_tools))
-            except Exception as e:
-                log.warning("letta_dynamic_discovery_failed", error=str(e))
-            
     return _agent_id
 
 
-# ── Messaging ─────────────────────────────────────────────────────────────
-
-async def send_message(text: str, role: str = "user") -> str | None:
-    """Send a message to Rocky (Letta) and return the assistant reply."""
-    # 1. Semantic Cache check
-    if role == "user":
-        cached = await semantic_cache.check(text)
-        if cached:
-            return cached["response"]
-
-    agent_id = await get_agent_id()
-    if not agent_id:
-        return None
-
-    data = None
-    result = None
-    tool_used = False
-    try:
-        trace_id = get_trace_id()
-        payload = {
-            "messages": [{"role": role, "content": text}],
-            "stream": False,
-            "metadata": {"trace_id": trace_id} if trace_id else {},
-            "tags": [f"trace_id:{trace_id}"] if trace_id else []
-        }
-        headers = {"X-Trace-Id": trace_id} if trace_id else {}
-        c = _get_letta_client()
-        r = await c.post(_url(f"/v1/agents/{agent_id}/messages"), json=payload, headers=headers)
-        r.raise_for_status()
-        data = r.json()
-
-        # Single pass: capture first assistant reply and whether any tool was called
-        for msg in data.get("messages", []):
-            if msg.get("message_type") == "tool_call":
-                tool_used = True
-            elif msg.get("message_type") == "assistant_message" and result is None:
-                result = msg.get("content", "").strip() or None
-            elif msg.get("role") == "assistant" and msg.get("content") and result is None:
-                # Older Letta API format
-                result = msg["content"].strip()
-
-        if result is None:
-            log.warning("letta_no_assistant_message", data=str(data)[:200])
-        return result
-
-    except Exception as e:
-        log.error("letta_send_failed", error=str(e), agent_id=agent_id)
-        return None
-
-    finally:
-        if role == "user" and data and result and not tool_used:
-            await semantic_cache.store(text, result)
-
-
-async def send_message_stream(text: str, role: str = "user") -> AsyncGenerator[str, None]:
-    """
-    Send a message to Rocky (Letta) and yield assistant message tokens in real-time.
-    Uses SSE-style streaming from the Letta API.
-    """
-    # 1. Semantic Cache check
-    if role == "user":
-        cached = await semantic_cache.check(text)
-        if cached:
-            yield cached["response"]
-            return
-
-    agent_id = await get_agent_id()
-    if not agent_id:
-        return
-
-    c = _get_letta_client()
-    url = _url(f"/v1/agents/{agent_id}/messages")
-    trace_id = get_trace_id()
-    payload = {
-        "messages": [{"role": role, "content": text}], 
-        "stream": True,
-        "metadata": {"trace_id": trace_id} if trace_id else {},
-        "tags": [f"trace_id:{trace_id}"] if trace_id else []
-    }
-    headers = {"X-Trace-Id": trace_id} if trace_id else {}
-    full_response = []
-    tool_used = False
-
-    try:
-        async with c.stream("POST", url, json=payload, headers=headers) as r:
-            r.raise_for_status()
-            async for line in r.aiter_lines():
-                if not line or not line.strip():
-                    continue
-                
-                # Letta streams can be SSE (data: ...) or raw JSON chunks
-                if line.startswith("data:"):
-                    line = line[5:].strip()
-                
-                if line == "[DONE]":
-                    break
-                
-                try:
-                    data = json.loads(line)
-                    mtype = data.get("message_type")
-                    
-                    if mtype == "assistant_message":
-                        content = data.get("content", "")
-                        if content:
-                            full_response.append(content)
-                            yield content
-                    elif mtype == "tool_call":
-                        tool_used = True
-                        call = data.get("tool_call", {})
-                        fname = call.get("name")
-                        yield f"\n[Tool Call: {fname}] "
-                    elif mtype == "thought":
-                        thought = data.get("thought", "")
-                        if thought and settings.voice_debug_events:
-                            yield f"\n[Thought: {thought}] "
-                            
-                except json.JSONDecodeError:
-                    continue
-
-    except Exception as e:
-        log.error("letta_stream_failed", error=str(e))
-        yield ""
-    
-    finally:
-        # Store in cache if we accumulated a response and no tools were used
-        if role == "user" and full_response and not tool_used:
-            await semantic_cache.store(text, "".join(full_response))
+# ── Messaging (DEPRECATED) ──────────────────────────────────────────────────
+# All messaging now routes through app/rocky/graph/workflow.py
 
 
 # ── Memory inspection ─────────────────────────────────────────────────────
