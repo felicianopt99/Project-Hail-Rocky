@@ -1,7 +1,6 @@
 import asyncio
 import json
 import structlog
-import litellm
 from typing import Any, Dict, List, Optional
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage, ToolMessage
 from .state import RockyState
@@ -136,13 +135,13 @@ async def execute_tools(state: RockyState) -> Dict[str, Any]:
         log.info("node_execute_tool", name=name, tool_id=tool_id)
         tools_called.append(name)
         
-        # Execute tool
-        # Note: we might need to pass sio if we want real-time timer feedback, 
-        # but for now we keep it simple.
-        result = await executor.run(name, args, bypass_auth=True)
+        # Execute tool using the existing executor
+        # We pass tool_call_id for logging and bypass_auth=True for automated flow
+        result = await executor.run(name, args, tool_call_id=tool_id, bypass_auth=True)
         
+        # Format the result as a string for the ToolMessage content
         if isinstance(result, dict) and result.get("status") == "pending_auth":
-            result_str = "ACTION PENDING: Human confirmation required."
+            result_str = f"ACTION PENDING: {result.get('message', 'Human confirmation required.')}"
         else:
             result_str = str(result)
             

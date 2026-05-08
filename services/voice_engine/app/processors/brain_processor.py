@@ -1,24 +1,33 @@
-import httpx
+import sys
+import os
 import asyncio
 import time
+import json
 import structlog
 from pipecat.frames.frames import Frame, TextFrame, TranscriptionFrame, LLMContextFrame, CancelFrame
 from pipecat.processors.frame_processor import FrameProcessor
+
+# Add repository root to sys.path to allow importing from backend
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../"))
+if ROOT_DIR not in sys.path:
+    sys.path.append(ROOT_DIR)
+
+from backend.app.rocky.graph.workflow import rocky_brain_graph
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 
 log = structlog.get_logger()
 
 class RockyBrainProcessor(FrameProcessor):
     """
-    Pipecat Processor that bridges to the Backend's brain (Letta + Tools).
-    It receives a TranscriptionFrame (from STT) and emits TextFrames (to TTS).
+    Pipecat Processor that bridges to the Backend's brain using LangGraph.
+    It receives a TranscriptionFrame/LLMContextFrame and emits TextFrames via streaming.
     """
 
-    def __init__(self, sid: str, websocket=None, backend_url: str = "http://127.0.0.1:8000"):
+    def __init__(self, sid: str, websocket=None, backend_url: str = None):
         super().__init__()
         self._sid = sid
         self._ws = websocket
-        self._backend_url = backend_url
-        self._client = httpx.AsyncClient(timeout=60.0)
+        # backend_url is kept for signature compatibility but unused
         self._flow_manager = None
         self._is_processing = False
         self._cancel_event = asyncio.Event()
@@ -56,84 +65,94 @@ class RockyBrainProcessor(FrameProcessor):
                     "legendado por", "transcrito por", "obrigado por assistir"
                 ]
                 
-                # Filter if it contains leakage phrases OR is just a single common word/artifact OR is too short
-                # Added more Portuguese common patterns to ignore
                 if (any(phrase in text_lc for phrase in leakage_phrases) or 
                     text_lc in ["you", "bye", "obrigado", "e ai", "e aí", "pessoal", "galera", "boa tarde", "bom dia", "boa noite", 
                                 "oi", "olá", "ola", "tudo bem", "com licença", "por favor", "sim", "não", "nao"]):
                     log.info("brain_input_filtered", text=text, reason="non_english_or_artifact")
                     return
                 
-                # Prepare context for backend
-                # We send the full context (including system prompts from the Flow)
-                backend_payload = {
+                # Convert Pipecat context to LangChain messages
+                messages = []
+                for m in frame.context.messages:
+                    role = m.get("role")
+                    content = m.get("content")
+                    if role == "user":
+                        messages.append(HumanMessage(content=content))
+                    elif role == "assistant":
+                        messages.append(AIMessage(content=content))
+                    elif role == "system":
+                        messages.append(SystemMessage(content=content))
+
+                initial_state = {
+                    "messages": messages,
                     "sid": self._sid,
-                    "content": text,
-                    "context": frame.context.messages # Pass the full Pipecat context to Letta
+                    "tools_called": []
                 }
 
                 if self._ws:
-                    import json
                     await self._ws.send_text(json.dumps({
                         "type": "voice_debug", 
-                        "stage": "llm_request_sent",
+                        "stage": "graph_started",
                         "text": text,
                         "timestamp": time.time()
                     }))
 
-                max_retries = 2
-                for attempt in range(max_retries):
-                    try:
-                        async with self._client.stream(
-                            "POST",
-                            f"{self._backend_url}/api/brain/chat",
-                            json=backend_payload,
-                            timeout=30.0
-                        ) as resp:
-                            resp.raise_for_status()
-                            full_response = ""
-                            text_buffer = ""
-                            async for chunk in resp.aiter_text():
-                                if self._cancel_event.is_set():
-                                    log.info("brain_stream_interrupted_by_cancel_frame")
-                                    break
-                                
-                                if chunk:
-                                    full_response += chunk
-                                    text_buffer += chunk
-                                    
-                                    # Aggregation logic: push to TTS only when we have a natural break (word or sentence)
-                                    # to ensure Rocky finishes words properly and intonation is better.
-                                    if any(p in chunk for p in " .?!,;:\n\r\t"):
-                                        await self.push_frame(TextFrame(text=text_buffer), direction)
-                                        text_buffer = ""
-                            
-                            # Flush any remaining text in the buffer
-                            if text_buffer.strip():
-                                await self.push_frame(TextFrame(text=text_buffer), direction)
-                            
-                            # Post-process response for Flow transitions
-                            # If Rocky says specific keywords, we trigger the FlowManager
-                            if self._flow_manager:
-                                if "entering situation room" in full_response.lower() or "status report" in full_response.lower():
-                                    await self._flow_manager.transition_to("situation_room")
-                                elif "standby" in full_response.lower() or "idle" in full_response.lower():
-                                    await self._flow_manager.transition_to("idle")
-                                elif "executing command" in full_response.lower() or "changing system" in full_response.lower():
-                                    await self._flow_manager.transition_to("active_command")
+                full_response = ""
+                text_buffer = ""
 
-                        break # Success
-                    except Exception as e:
-                        if attempt == max_retries - 1:
-                            log.error("brain_error_final", error=str(e), text=text)
-                            await self.push_frame(TextFrame(text="Rocky brain hurt. Sorry."), direction)
-                        else:
-                            log.warning("brain_retry", attempt=attempt+1, error=str(e))
-                            await asyncio.sleep(0.5)
+                # Consuming the graph via streaming events
+                async for event in rocky_brain_graph.astream_events(initial_state, version='v2'):
+                    if self._cancel_event.is_set():
+                        log.info("brain_stream_interrupted_by_cancel_frame")
+                        break
+
+                    # 1. Handle Streaming Tokens
+                    if event['event'] == 'on_chat_model_stream':
+                        chunk = event['data']['chunk']
+                        # chunk is typically an AIMessageChunk
+                        if hasattr(chunk, 'content') and chunk.content:
+                            content = chunk.content
+                            full_response += content
+                            text_buffer += content
+                            
+                            # Aggregation logic: push to TTS only when we have a natural break
+                            if any(p in content for p in " .?!,;:\n\r\t"):
+                                await self.push_frame(TextFrame(text=text_buffer), direction)
+                                text_buffer = ""
+
+                    # 2. Handle Tool Starts (for UI animations)
+                    elif event['event'] == 'on_tool_start':
+                        log.info("brain_tool_started", tool=event['name'])
+                        if self._ws:
+                            await self._ws.send_text(json.dumps({
+                                "type": "voice_debug",
+                                "stage": "tool_start",
+                                "tool": event['name'],
+                                "timestamp": time.time()
+                            }))
+
+                # Flush any remaining text in the buffer
+                if text_buffer.strip():
+                    await self.push_frame(TextFrame(text=text_buffer), direction)
+                
+                # Post-process response for Flow transitions
+                if self._flow_manager and full_response:
+                    fr_lc = full_response.lower()
+                    if "entering situation room" in fr_lc or "status report" in fr_lc:
+                        await self._flow_manager.transition_to("situation_room")
+                    elif "standby" in fr_lc or "idle" in fr_lc:
+                        await self._flow_manager.transition_to("idle")
+                    elif "executing command" in fr_lc or "changing system" in fr_lc:
+                        await self._flow_manager.transition_to("active_command")
+
+            except Exception as e:
+                log.error("brain_graph_error", error=str(e), text=text)
+                await self.push_frame(TextFrame(text="Rocky's brain encountered a graph error. Checking internal systems."), direction)
             finally:
                 self._is_processing = False
         else:
             await self.push_frame(frame, direction)
 
     async def cleanup(self):
-        await self._client.aclose()
+        # httpx client removed, nothing specific to clean up here for now
+        pass
