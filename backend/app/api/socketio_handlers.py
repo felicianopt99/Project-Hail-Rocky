@@ -118,18 +118,96 @@ async def _chat(sid: str, content: str, sio: socketio.AsyncServer, language: str
 
     log.info("cache_check", hit=False, sid=sid)
 
-    # ── Tool calling ───────────────────────────────────────
+    # ── LangGraph Path ─────────────────────────────────────
+    if settings.use_langgraph_brain:
+        await _chat_langgraph(sid, content, session, sio)
+        return
+
+    # ── Tool calling (Legacy) ──────────────────────────────
     # We try tools first. If no tool is needed, _try_tools returns False and we proceed.
     tool_response = await _try_tools(sid, content, new_state, score, session, sio, user_id=user_id)
     if tool_response:
         log.info("decision_pipeline_tool_handled", sid=sid)
         return # Tool was handled
 
-    # ── Letta / LiteLLM ────────────────────────────────────
+    # ── Letta / LiteLLM (Legacy) ───────────────────────────
     if settings.has_letta and await letta_bridge.is_available():
         await _chat_letta(sid, content, new_state, score, session, sio, user_id=user_id, language=language)
     else:
         await _chat_litellm(sid, content, new_state, score, session, sio, user_id=user_id)
+
+
+async def _chat_langgraph(sid: str, content: str, session: dict, sio: socketio.AsyncServer) -> None:
+    """Chat via LangGraph state machine — unified agentic intelligence."""
+    from ..bridges.pipecat_bridge import PipecatBridge
+    is_pipecat_active = PipecatBridge().is_session_running(sid)
+    
+    initial_state = {
+        "messages": [HumanMessage(content=content)],
+        "sid": sid,
+        "tools_called": []
+    }
+    
+    full_response = ""
+    sentence_buf = ""
+    current_emo = "neutral"
+
+    log.info("langgraph_chat_start", sid=sid)
+
+    try:
+        async for event in rocky_brain_graph.astream_events(initial_state, version="v1"):
+            kind = event["event"]
+            
+            # 1. Token streaming
+            if kind == "on_chat_model_stream":
+                token = event["data"]["chunk"].content
+                if token:
+                    full_response += token
+                    sentence_buf += token
+                    await sio.emit("chat_token", token, to=sid)
+                    
+                    if settings.has_tts() and not is_pipecat_active:
+                        sentence, sentence_buf = _pop_sentence(sentence_buf, is_first=(full_response == token))
+                        if sentence:
+                            await _emit_tts(sid, sentence, sio, current_emo)
+            
+            # 2. State updates (personality node)
+            elif kind == "on_chain_end" and event["name"] == "personality":
+                data = event["data"]["output"]
+                current_emo = data.get("emotional_state", "neutral")
+                score = data.get("intimacy_score", 35.0)
+                state_update = socket_schemas.SystemStateUpdate(
+                    emotional_state=current_emo,
+                    intimacy=round(score, 1),
+                    intimacy_label=intimacy.label(score),
+                )
+                await sio.emit("system_state_update", state_update.model_dump(exclude_none=True), to=sid)
+            
+            # 3. Tool execution status
+            elif kind == "on_tool_start":
+                await sio.emit("status_update", "thinking_llm", to=sid) # Re-use thinking status for tool calls
+                log.info("langgraph_tool_start", tool=event["name"])
+
+        # Final TTS chunk
+        if sentence_buf.strip() and settings.has_tts() and not is_pipecat_active:
+            await _emit_tts(sid, sentence_buf.strip(), sio, current_emo)
+
+        session["history"].append({"role": "assistant", "content": full_response})
+        resp = socket_schemas.ChatResponse(text=full_response)
+        await sio.emit("chat_response", resp.model_dump(), to=sid)
+        await sio.emit("status_update", "idle", to=sid)
+        
+        # Store in semantic cache
+        if full_response:
+            await semantic_cache.store(content, full_response)
+            
+        log.info("langgraph_chat_complete", sid=sid, length=len(full_response))
+
+    except Exception as exc:
+        log.error("langgraph_chat_error", error=str(exc), sid=sid)
+        err = socket_schemas.ChatError(message=f"Brain Error: {exc}")
+        await sio.emit("chat_error", err.model_dump(), to=sid)
+        await sio.emit("status_update", "error", to=sid)
 
 
 async def _finish_chat_after_tool(
