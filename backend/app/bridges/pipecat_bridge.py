@@ -26,7 +26,7 @@ class PipecatBridge:
         return cls._instance
 
     def __init__(self, sio_server=None):
-        if sio_server:
+        if sio_server and not hasattr(self, "_sio"):
             self._sio = sio_server
         if self._initialized:
             return
@@ -332,6 +332,12 @@ class PipecatBridge:
             session["ws"] = None
         if session["task"]:
             session["task"].cancel()
+            try:
+                # Graceful Teardown: Avoid Zombie Tasks by awaiting cancellation
+                await asyncio.wait_for(session["task"], timeout=2.0)
+            except (asyncio.CancelledError, Exception):
+                # Cancellation is the expected path, ignore subsequent errors
+                pass
             session["task"] = None
 
         await self._clear_session(sid)

@@ -61,28 +61,28 @@ class VoiceEffectsFrameProcessor(FrameProcessor):
         else:
             await self.push_frame(frame, direction)
 
-class JsonMessageRelay(FrameProcessor):
-    """Relays non-audio frames as JSON control messages over the websocket."""
+class WebsocketEventAggregator(FrameProcessor):
+    """Aggregates and relays pipeline events (Tokens, Text, TTS) to the WebSocket non-blockingly."""
     def __init__(self, websocket):
         super().__init__()
         self._ws = websocket
 
-    async def process_frame(self, frame: Frame, direction):
-        if isinstance(frame, TranscriptionFrame):
-            # Some STT services don't set 'final' correctly, we assume final if it reaches here
-            await self._ws.send_text(json.dumps({"type": "transcript", "text": frame.text}))
-        elif isinstance(frame, TextFrame):
-            # Relay tokens to the frontend so the user sees the response forming
-            await self._ws.send_text(json.dumps({"type": "chat_token", "token": frame.text}))
-        elif isinstance(frame, TTSStartedFrame):
-            await self._ws.send_text(json.dumps({"type": "tts_start", "sampleRate": SAMPLE_RATE}))
-        elif isinstance(frame, TTSStoppedFrame):
-            await self._ws.send_text(json.dumps({"type": "tts_end"}))
-        elif isinstance(frame, Frame) and hasattr(frame, "type") and frame.type == "voice_debug":
-            # Pass through any manual voice_debug frames if we add them later
-            pass
-        
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
         await self.push_frame(frame, direction)
+        
+        msg = None
+        if isinstance(frame, TranscriptionFrame):
+            msg = {"type": "transcript", "text": frame.text}
+        elif isinstance(frame, TextFrame):
+            msg = {"type": "chat_token", "token": frame.text}
+        elif isinstance(frame, TTSStartedFrame):
+            msg = {"type": "tts_start", "sampleRate": SAMPLE_RATE}
+        elif isinstance(frame, TTSStoppedFrame):
+            msg = {"type": "tts_end"}
+            
+        if msg:
+            # Task 2: Use create_task to avoid blocking the audio pipeline
+            asyncio.create_task(self._ws.send_text(json.dumps(msg)))
 
 class InputLogger(FrameProcessor):
     async def process_frame(self, frame: Frame, direction):
@@ -95,57 +95,62 @@ class InputLogger(FrameProcessor):
         await self.push_frame(frame, direction)
 
 class VoiceDebugProcessor(FrameProcessor):
-    """Diagnostic processor to track pipeline stages."""
-    def __init__(self, websocket):
+    """Diagnostic processor to track pipeline stages and silence detection."""
+    def __init__(self, websocket, threshold: float = 0.005, silence_frames: int = 10):
         super().__init__()
         self._ws = websocket
         self._stt_started = False
         self._total_bytes = 0
+        self._threshold = threshold
+        self._silence_frames = silence_frames
+        self._consecutive_silence = 0
 
     async def process_frame(self, frame: Frame, direction: FrameDirection):
         try:
-            if isinstance(frame, StartFrame):
-                log.info("voice_debug_start_frame_received")
-
-            # Only process audio/transcript in the forward direction (input)
             if direction == FrameDirection.DOWNSTREAM:
                 if isinstance(frame, AudioRawFrame):
                     self._total_bytes += len(frame.audio)
-                    # Periodic audio receipt check (every ~16KB)
+                    
+                    # Task 1: RMS (Root Mean Square) calculation via NumPy for robust silence detection
+                    audio_data = np.frombuffer(frame.audio, dtype=np.int16).astype(np.float32) / 32768.0
+                    rms = np.sqrt(np.mean(audio_data**2)) if len(audio_data) > 0 else 0
+                    
+                    if rms < self._threshold:
+                        self._consecutive_silence += 1
+                    else:
+                        self._consecutive_silence = 0
+                        
+                    if self._consecutive_silence == self._silence_frames:
+                         log.info("voice_debug_silence_eot_detected", rms=rms)
+                         asyncio.create_task(self._ws.send_text(json.dumps({
+                            "type": "voice_debug", 
+                            "stage": "end_of_turn_received",
+                            "timestamp": time.time()
+                        })))
+
                     if self._total_bytes % 16384 < len(frame.audio):
-                        log.info("voice_debug_sending_audio_received", bytes=self._total_bytes)
-                        await self._ws.send_text(json.dumps({
+                        asyncio.create_task(self._ws.send_text(json.dumps({
                             "type": "voice_debug", 
                             "stage": "voice_engine_audio_received", 
                             "bytes": self._total_bytes,
                             "timestamp": time.time()
-                        }))
+                        })))
                     
-                    # Check for silence/EOT (if backend sent a chunk of zeros)
-                    if len(frame.audio) >= 3200 and all(b == 0 for b in frame.audio):
-                         log.info("voice_debug_sending_eot_received")
-                         await self._ws.send_text(json.dumps({
-                            "type": "voice_debug", 
-                            "stage": "end_of_turn_received",
-                            "timestamp": time.time()
-                        }))
-
-                    # STT Trigger
-                    if not self._stt_started and self._total_bytes > 0:
+                    if not self._stt_started:
                         self._stt_started = True
-                        await self._ws.send_text(json.dumps({
+                        asyncio.create_task(self._ws.send_text(json.dumps({
                             "type": "voice_debug", 
                             "stage": "stt_started",
                             "timestamp": time.time()
-                        }))
+                        })))
 
                 elif isinstance(frame, TranscriptionFrame):
-                    await self._ws.send_text(json.dumps({
+                    asyncio.create_task(self._ws.send_text(json.dumps({
                         "type": "voice_debug", 
                         "stage": "transcript_emitted",
                         "text": frame.text,
                         "timestamp": time.time()
-                    }))
+                    })))
 
             await self.push_frame(frame, direction)
         except Exception as e:
@@ -274,12 +279,11 @@ async def run_voice_pipeline(websocket, sid: str = "default", emotional_state: s
         stt,                         # Transcription
         user_aggregator,             # Groups transcription into turns
         brain,                       # Chat logic (Backend Bridge)
-        JsonMessageRelay(websocket), # Relay transcripts & tokens
         disfluency,                  # Personality
         tts,                         # Synthesis
         SpeakerTracker(),            # Feedback loop for speaking state
-        JsonMessageRelay(websocket), # Relay TTS lifecycle (start/end)
         effects,                     # Audio effects
+        WebsocketEventAggregator(websocket), # Task 2: Intercept events (Tokens, Text, TTS)
         error_relay,                 # Catch any pipeline errors before output
         transport.output(),          # Send back to client
         assistant_aggregator         # Track assistant responses for context

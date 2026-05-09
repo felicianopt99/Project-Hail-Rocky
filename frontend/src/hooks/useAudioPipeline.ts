@@ -47,11 +47,8 @@ export function useAudioPipeline({
   externalAudioCtxRef,
   externalAnalyzerRef
 }: AudioPipelineOptions) {
-  const [isAudioReady, setIsAudioReady] = useState(false);
-  const internalAudioCtxRef = useRef<AudioContext | null>(null);
-
   // Audio nodes
-  const audioCtxRef = externalAudioCtxRef || internalAudioCtxRef;
+  const audioCtxRef = externalAudioCtxRef;
   const analyzerRef = useRef<AnalyserNode | null>(null);
   const gainNodeRef = useRef<GainNode | null>(null);
 
@@ -60,12 +57,7 @@ export function useAudioPipeline({
   const remoteSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const isSpeakingRef = useRef(false);
 
-  // PCM chunk scheduling for fallback (non-WebRTC) TTS path
-  const nextPlayTimeRef = useRef<number>(0);
-
   const handleStopSpeaking = useCallback(() => {
-    // Only interrupt if Rocky is actually speaking — prevents killing the voice
-    // pipeline when status_update arrives during LLM generation (not TTS).
     if (!isSpeakingRef.current) return;
 
     console.log("[Rocky] Interrupting speech...");
@@ -79,31 +71,27 @@ export function useAudioPipeline({
 
   // Initialization
   useEffect(() => {
-    if (!audioCtxRef.current) {
-      const Ctx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      audioCtxRef.current = new Ctx();
-    }
+    if (!audioCtxRef?.current) return;
     
-    if (!analyzerRef.current && audioCtxRef.current) {
+    const audioCtx = audioCtxRef.current;
+
+    if (!analyzerRef.current) {
       if (externalAnalyzerRef) {
         analyzerRef.current = externalAnalyzerRef;
       } else {
-        analyzerRef.current = audioCtxRef.current.createAnalyser();
+        analyzerRef.current = audioCtx.createAnalyser();
         analyzerRef.current.fftSize = 256;
       }
     }
 
-    if (!gainNodeRef.current && audioCtxRef.current) {
-      gainNodeRef.current = audioCtxRef.current.createGain();
+    if (!gainNodeRef.current) {
+      gainNodeRef.current = audioCtx.createGain();
       gainNodeRef.current.gain.value = 0.8;
-      gainNodeRef.current.connect(audioCtxRef.current.destination);
+      gainNodeRef.current.connect(audioCtx.destination);
     }
-
-    setIsAudioReady(true);
-  }, []);
+  }, [externalAnalyzerRef, audioCtxRef]);
 
   // Sync the external analyzer when useAudioManager finishes its async init.
-  // The init effect above runs once on mount when externalAnalyzerRef may still be null.
   useEffect(() => {
     if (externalAnalyzerRef && analyzerRef.current !== externalAnalyzerRef) {
       analyzerRef.current = externalAnalyzerRef;
@@ -112,10 +100,18 @@ export function useAudioPipeline({
 
   // WebRTC Connection Logic
   const startWebRTC = useCallback(async (micStream?: MediaStream) => {
-    if (!audioCtxRef.current) return;
+    if (!audioCtxRef?.current) return;
     
-    // Close existing connection if any
-    closeWebRTC();
+    // Close existing connection ONLY if it's in a failed state
+    if (pcRef.current && (pcRef.current.connectionState === "failed" || pcRef.current.connectionState === "closed")) {
+      closeWebRTC();
+    }
+    
+    // Reuse existing connection if active
+    if (pcRef.current && pcRef.current.connectionState === "connected") {
+      console.log("[Rocky] Reusing existing WebRTC Pipeline...");
+      return;
+    }
 
     console.log("[Rocky] Initializing WebRTC Audio Pipeline...");
     
@@ -124,16 +120,12 @@ export function useAudioPipeline({
     });
     pcRef.current = pc;
 
-    // 1. Add Mic Track (if available) to send to backend for STT/VAD.
-    // Do NOT call applyConstraints here — on Linux/PulseAudio it overrides
-    // the browser AGC pipeline and reduces gain to near-zero amplitude.
     if (micStream) {
       for (const track of micStream.getAudioTracks()) {
         pc.addTrack(track, micStream);
       }
     }
 
-    // 2. Handle Incoming Track (Rocky's Voice)
     pc.ontrack = (event) => {
       console.log("[Rocky] Assistant audio track received via WebRTC");
       const remoteStream = event.streams[0];
@@ -146,18 +138,15 @@ export function useAudioPipeline({
       const remoteSource = audioCtx.createMediaStreamSource(remoteStream);
       remoteSourceRef.current = remoteSource;
       
-      // Task 2: Route through analyzer for visualizer BEFORE gain node
       if (analyzerRef.current) {
         remoteSource.connect(analyzerRef.current);
       }
       
-      // Route through gain node for volume control
       const destination = gainNodeRef.current ?? audioCtx.destination;
       remoteSource.connect(destination);
     };
 
     try {
-      // 3. Create and Send Offer
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
 
@@ -208,50 +197,17 @@ export function useAudioPipeline({
 
     const onTtsStart = (data: { sampleRate?: number }) => {
       if (data?.sampleRate) ttsRateRef_inner.current = data.sampleRate;
-      if (audioCtxRef.current?.state === 'suspended') audioCtxRef.current.resume();
-      nextPlayTimeRef.current = 0;
+      if (audioCtxRef?.current?.state === 'suspended') audioCtxRef.current.resume();
       isSpeakingRef.current = true;
       setStatus("synthesizing_tts");
     };
 
     const onTtsEnd = () => {
       console.log("[Rocky] TTS stream finished.");
-      nextPlayTimeRef.current = 0;
       isSpeakingRef.current = false;
       setStatus("idle");
-      // Close WebRTC to release the mic for the next wake-word cycle.
-      closeWebRTC();
-      console.log("[Rocky] WebRTC closed — mic released for wake word.");
-    };
-
-    // Fallback PCM playback: used when TTS audio arrives via Socket.IO instead of
-    // WebRTC (text chat path, or when WebRTC audio track is not yet established).
-    const onTtsChunk = (chunk: ArrayBuffer | Uint8Array) => {
-      if (!audioCtxRef.current) return;
-      const ctx = audioCtxRef.current;
-      if (ctx.state === 'suspended') { void ctx.resume(); }
-
-      let raw: Int16Array;
-      if (chunk instanceof ArrayBuffer) {
-        raw = new Int16Array(chunk);
-      } else {
-        raw = new Int16Array(chunk.buffer, chunk.byteOffset, Math.floor(chunk.byteLength / 2));
-      }
-      if (raw.length === 0) return;
-
-      const float32 = Float32Array.from(raw, s => s / 32768);
-
-      const buffer = ctx.createBuffer(1, float32.length, ttsRateRef_inner.current);
-      buffer.getChannelData(0).set(float32);
-
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(gainNodeRef.current ?? ctx.destination);
-
-      const now = ctx.currentTime;
-      const startTime = Math.max(now, nextPlayTimeRef.current);
-      source.start(startTime);
-      nextPlayTimeRef.current = startTime + buffer.duration;
+      // Keeping WebRTC alive for latency optimization (Gold Standard)
+      console.log("[Rocky] WebRTC kept alive for next turn.");
     };
 
     const onTtsError = () => {
@@ -262,14 +218,14 @@ export function useAudioPipeline({
     };
 
     const onSetVolume = (data: SetVolume) => {
-      if (gainNodeRef.current && audioCtxRef.current) {
+      if (gainNodeRef.current && audioCtxRef?.current) {
         gainNodeRef.current.gain.setTargetAtTime(data.level / 100, audioCtxRef.current.currentTime, 0.1);
       }
       addToast(`🔊 Volume: ${data.level}%`, "info");
     };
 
     const playEarcon = async (type: SoundTrigger["type"]) => {
-      if (!audioCtxRef.current) return;
+      if (!audioCtxRef?.current) return;
       const fileMap: Record<SoundTrigger["type"], string> = {
         accept: "/earcons/accept.wav",
         success: "/earcons/success.wav",
@@ -294,7 +250,6 @@ export function useAudioPipeline({
     };
     socket.on("status_update", onStatusForPipeline);
     socket.on("tts_start", onTtsStart);
-    socket.on("tts_chunk", onTtsChunk);
     socket.on("tts_error", onTtsError);
     socket.on("tts_end", onTtsEnd);
     socket.on("set_volume", onSetVolume);
@@ -308,7 +263,6 @@ export function useAudioPipeline({
     return () => {
       socket.off("status_update", onStatusForPipeline);
       socket.off("tts_start", onTtsStart);
-      socket.off("tts_chunk", onTtsChunk);
       socket.off("tts_error", onTtsError);
       socket.off("tts_end", onTtsEnd);
       socket.off("set_volume", onSetVolume);
@@ -316,15 +270,14 @@ export function useAudioPipeline({
       socket.off("sound_trigger");
       socket.off("VOICE_RECOVERING");
     };
-  }, [socket, setStatus, addToast, handleStopSpeaking, lastAssistantTextRef, speakBrowserFallback]);
+  }, [socket, setStatus, addToast, handleStopSpeaking, lastAssistantTextRef, speakBrowserFallback, audioCtxRef]);
 
   return {
     audioCtxRef,
     analyzerRef,
     isSpeakingRef,
     handleStopSpeaking,
-    isAudioReady,
-    startWebRTC, // Exported so AudioManager can trigger it
+    startWebRTC,
     isAudioActive: () => isSpeakingRef.current
   };
 }

@@ -1,10 +1,8 @@
 import asyncio
 import json
 import time
-import re
-from typing import Any, Optional, Tuple
+from typing import Any, Optional
 import structlog
-import litellm
 import socketio
 
 from ..config import settings
@@ -15,10 +13,9 @@ from ..rocky.personality import (
     emotional_states as states,
     intimacy,
 )
-from ..bridges import letta_bridge, azure_speaker
+from ..bridges import azure_speaker
 from ..voice.tts import synthesize_chunks, SAMPLE_RATE
 from ..tools.executor import run as run_tool
-from . import skills as skills_api
 from ..core.trace import set_trace_id, get_trace_id
 from ..schemas import socket_schemas
 from ..rocky.graph.workflow import rocky_brain_graph
@@ -33,23 +30,7 @@ def _session(sid: str) -> dict[str, Any]:
     return _sessions.setdefault(sid, {"history": [], "state": "neutral", "is_processing": False})
 
 
-# ── Sentence boundary splitter for sentence-level TTS streaming ───────────
-# Task 2: Robust punctuation-based splitting (EN/PT support).
-# Ignores abbreviations (Mr., Dr., Sr., etc.) and only splits if followed by an uppercase letter.
-_SENTENCE_END = re.compile(r'(?<!\b(?:Mr|Ms|Mrs|Dr|Dra|Prof|Sr|Sra|Eng|St|Rd|Ave|Blvd))(?<=[.!?…])\s+(?=[A-ZÀ-Ú])|(?<=\n)\s*')
 
-
-def _pop_sentence(buf: str, is_first: bool = False) -> Tuple[str, str]:
-    """Return (completed_sentence, remainder). If is_first, we allow smaller chunks."""
-    parts = _SENTENCE_END.split(buf, maxsplit=1)
-    if len(parts) == 2:
-        return parts[0].strip(), parts[1]
-    
-    # If it's the first chunk and it's long enough (e.g. 2 words), yield it anyway
-    if is_first and len(buf.split()) >= 2:
-         return buf.strip(), ""
-         
-    return "", buf
 
 
 
@@ -167,10 +148,7 @@ async def _chat_langgraph(sid: str, content: str, session: dict, sio: socketio.A
                     sentence_buf += token
                     await sio.emit("chat_token", token, to=sid)
                     
-                    if settings.has_tts() and not is_pipecat_active:
-                        sentence, sentence_buf = _pop_sentence(sentence_buf, is_first=(full_response == token))
-                        if sentence:
-                            await _emit_tts(sid, sentence, sio, current_emo)
+
             
             # 2. State updates (personality node)
             elif kind == "on_chain_end" and event["name"] == "personality":
@@ -418,79 +396,20 @@ def register(sio: socketio.AsyncServer) -> None:
 
     @sio.event
     async def manual_stop(sid: str, data: Optional[Any] = None) -> None:
-        """User stopped speaking — cancel any TTS, then STT + speaker ID → chat."""
+        """User stopped speaking — signal Pipecat to process the turn."""
         log.info("manual_stop_received", sid=sid)
-        if settings.voice_debug_events:
-            await sio.emit("voice_debug", {"stage": "manual_stop_received", "timestamp": time.time()}, to=sid)
-        import asyncio as _asyncio
-        from ..voice.stt import transcribe
-
-        # Interrupt any active TTS first (barge-in when using manual stop flow)
+        
+        # Interrupt any active legacy TTS
         await _cancel_tts(sid, sio)
 
-        session = _session(sid)
-        
-        # Task 1: Pipecat Early Return. If Pipecat is active, it handles STT -> Chat flow.
-        if settings.has_pipecat():
-            from ..bridges.pipecat_bridge import PipecatBridge
-            bridge = PipecatBridge()
-            if bridge.is_session_running(sid):
-                await bridge.send_eot(sid)
-                log.info("manual_stop_signal_sent", sid=sid)
-            else:
-                log.warning("pipecat_session_not_running_on_manual_stop", sid=sid)
-                await sio.emit("status_update", "idle", to=sid)
-            return # Early Return definitivo
-
-        buf: bytearray = session.pop("audio_buf", bytearray())
-
-        pcm = bytes(buf)
-        await sio.emit("status_update", "processing_stt", to=sid)
-        try:
-            session = _session(sid)
-            session["is_processing"] = True
-            
-            async def _no_speaker():
-                return None
-
-            # Run STT and speaker ID concurrently — speaker ID is free if cached
-            transcript, speaker = await _asyncio.gather(
-                transcribe(pcm, filename="audio.raw"),
-                azure_speaker.identify(pcm, sid) if settings.has_speaker_id() else _no_speaker(),
-            )
-            if not transcript:
-                await sio.emit("status_update", "idle", to=sid)
-                session["is_processing"] = False
-                return
-
-            # Handle speaker identification result
-            if speaker:
-                name = speaker["name"]
-                changed = speaker["changed"]
-
-                if changed:
-                    old_name = session.get("speaker", "someone")
-                    session["speaker"] = name
-                    session["history"] = []  # fresh context for new speaker
-                    change_data = socket_schemas.SpeakerChanged(from_name=old_name, to=name)
-                    await sio.emit("speaker_changed", change_data.model_dump(by_alias=True), to=sid)
-                    log.info("speaker_switched", from_=old_name, to=name, sid=sid)
-                    # Rocky greets the new person before processing their utterance
-                    await _greet_speaker(sid, name, sio)
-                elif session.get("speaker") != name:
-                    session["speaker"] = name
-                    identified = socket_schemas.SpeakerIdentified(name=name)
-                    await sio.emit("speaker_identified", identified.model_dump(), to=sid)
-
-            log.info("emitting_transcript_result", sid=sid, length=len(transcript))
-            await sio.emit("transcript_result", transcript, to=sid)
-            await _chat(sid, transcript, sio)
-        except Exception as exc:
-            log.error("stt_error", error=str(exc), sid=sid)
-            await sio.emit("status_update", "error", to=sid)
-        finally:
-            session = _session(sid)
-            session["is_processing"] = False
+        # Pipecat Bridge: Single Source of Truth
+        from ..bridges.pipecat_bridge import PipecatBridge
+        bridge = PipecatBridge()
+        if bridge.is_session_running(sid):
+            await bridge.send_eot(sid)
+            log.info("manual_stop_signal_sent", sid=sid)
+        else:
+            await sio.emit("status_update", "idle", to=sid)
 
     @sio.event
     async def voice_interrupt(sid: str, data: Optional[Any] = None) -> None:
