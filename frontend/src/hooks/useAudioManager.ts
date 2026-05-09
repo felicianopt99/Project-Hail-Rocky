@@ -10,6 +10,8 @@ interface AudioManagerOptions {
   socket: Socket<ServerToClientEvents, ClientToServerEvents>;
   addToast: (msg: string, type: "info" | "error" | "warning") => void;
   startWebRTC?: (micStream: MediaStream) => Promise<void>;
+  closeWebRTC: () => void;
+  getStream: () => Promise<MediaStream>;
 }
 
 const LOG_TAG = "[AudioManager]";
@@ -31,14 +33,15 @@ function log(level: "info" | "warn" | "error", msg: string, data?: any) {
  * Handles microphone permissions, local VAD, and provides the mic stream
  * to the AudioPipeline for WebRTC transmission.
  */
-export function useAudioManager({ socket, addToast, startWebRTC }: AudioManagerOptions) {
+export function useAudioManager({ socket, addToast, startWebRTC, closeWebRTC, getStream }: AudioManagerOptions) {
   const [audioState, setAudioState] = useState<AudioState>("idle");
   const [micAvailable, setMicAvailable] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
 
   const audioCtxRef = useRef<AudioContext | null>(null);
   const [analyzer, setAnalyzer] = useState<AnalyserNode | null>(null);
   const analyzerRef = useRef<AnalyserNode | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
 
   const isCapturingRef = useRef(false);
 
@@ -83,11 +86,9 @@ export function useAudioManager({ socket, addToast, startWebRTC }: AudioManagerO
     setAudioState("requesting_mic");
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: DSP_TRACK_CONSTRAINTS,
-        video: false,
-      });
-      streamRef.current = stream;
+      setIsConnecting(true);
+      const stream = await getStream();
+      micStreamRef.current = stream;
       return stream;
     } catch (err: any) {
       if (err.name === "OverconstrainedError") {
@@ -99,22 +100,21 @@ export function useAudioManager({ socket, addToast, startWebRTC }: AudioManagerO
       }
       setAudioState("error");
       return null;
+    } finally {
+      setIsConnecting(false);
     }
-  }, [addToast]);
+  }, [addToast, getStream]);
 
   const stopAudioCapture = useCallback((nextState: AudioState = "idle") => {
     if (!isCapturingRef.current) return;
     
     log("info", "Stopping audio capture...");
+    closeWebRTC();
     isCapturingRef.current = false;
-
-    if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track: MediaStreamTrack) => track.stop());
-      streamRef.current = null;
-    }
+    micStreamRef.current = null;
 
     setAudioState(nextState);
-  }, []);
+  }, [closeWebRTC]);
 
   const startAudioCapture = useCallback(async (externalStream?: MediaStream) => {
     if (isCapturingRef.current) return;

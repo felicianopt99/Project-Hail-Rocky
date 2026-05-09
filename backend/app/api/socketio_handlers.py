@@ -34,7 +34,9 @@ def _session(sid: str) -> dict[str, Any]:
 
 
 # ── Sentence boundary splitter for sentence-level TTS streaming ───────────
-_SENTENCE_END = re.compile(r'(?<=[.!?…])\s+|(?<=\n)\s*')
+# Task 2: Robust punctuation-based splitting (EN/PT support).
+# Ignores abbreviations (Mr., Dr., Sr., etc.) and only splits if followed by an uppercase letter.
+_SENTENCE_END = re.compile(r'(?<!\b(?:Mr|Ms|Mrs|Dr|Dra|Prof|Sr|Sra|Eng|St|Rd|Ave|Blvd))(?<=[.!?…])\s+(?=[A-ZÀ-Ú])|(?<=\n)\s*')
 
 
 def _pop_sentence(buf: str, is_first: bool = False) -> Tuple[str, str]:
@@ -428,18 +430,17 @@ def register(sio: socketio.AsyncServer) -> None:
 
         session = _session(sid)
         
-        # Se o Pipecat estiver ativo (ou a ligar), deixamos que seja o Pipecat a ditar o fluxo.
+        # Task 1: Pipecat Early Return. If Pipecat is active, it handles STT -> Chat flow.
         if settings.has_pipecat():
             from ..bridges.pipecat_bridge import PipecatBridge
             bridge = PipecatBridge()
             if bridge.is_session_running(sid):
                 await bridge.send_eot(sid)
                 log.info("manual_stop_signal_sent", sid=sid)
-                return
-            # Pipecat configurado mas voice engine em baixo — emite idle para desbloqueio do frontend
-            log.warning("pipecat_session_not_running_on_manual_stop", sid=sid)
-            await sio.emit("status_update", "idle", to=sid)
-            return
+            else:
+                log.warning("pipecat_session_not_running_on_manual_stop", sid=sid)
+                await sio.emit("status_update", "idle", to=sid)
+            return # Early Return definitivo
 
         buf: bytearray = session.pop("audio_buf", bytearray())
 
@@ -498,12 +499,16 @@ def register(sio: socketio.AsyncServer) -> None:
         session = _session(sid)
         session["is_processing"] = False
         
-        # 1. Interrupt Pipecat Bridge
+        # Task 3: Concurrent interruption with exception safety.
         from ..bridges.pipecat_bridge import PipecatBridge
-        await PipecatBridge().send_cancel_frame(sid)
-        
-        # 2. Interrupt Legacy TTS
-        await _cancel_tts(sid, sio)
+        try:
+            await asyncio.gather(
+                PipecatBridge().send_cancel_frame(sid),
+                _cancel_tts(sid, sio),
+                return_exceptions=True
+            )
+        except Exception as e:
+            log.error("voice_interrupt_error", error=str(e), sid=sid)
 
     @sio.event
     async def manual_activation(sid: str, data: Optional[Any] = None) -> None:

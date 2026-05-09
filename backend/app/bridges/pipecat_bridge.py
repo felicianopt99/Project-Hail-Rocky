@@ -33,6 +33,7 @@ class PipecatBridge:
         self._sessions: dict[str, Any] = {}
         self._running = False
         self._initialized = True
+        self._watchdog_task = asyncio.create_task(self._watchdog())
         log.info("pipecat_bridge_initialized")
 
     async def _get_connection(self, sid: str):
@@ -43,9 +44,10 @@ class PipecatBridge:
                 "task": None,
                 "running": False,
                 "starting": False,
-                "queue": asyncio.Queue(maxsize=100),
+                "queue": asyncio.Queue(maxsize=50),
                 "retry_count": 0,
                 "trace_id": trace_id,
+                "last_activity": time.time(),
             }
         return self._sessions[sid]
 
@@ -138,11 +140,21 @@ class PipecatBridge:
 
     async def send_audio(self, sid: str, chunk: bytes):
         session = await self._get_connection(sid)
+        session["last_activity"] = time.time()
+        
         if not session["ws"] or not session["running"]:
+            # Drop oldest frame if queue is full to prevent blocking
+            if session["queue"].full():
+                try:
+                    session["queue"].get_nowait()
+                except asyncio.QueueEmpty:
+                    pass
+            
             try:
                 session["queue"].put_nowait(chunk)
             except asyncio.QueueFull:
                 pass
+
             if not session["starting"]:
                 await self.start(sid)
             return
@@ -171,8 +183,15 @@ class PipecatBridge:
                 pass
             session["ws"] = None
 
+        # Robust cleanup of old task (Requirement 2)
         if session["task"]:
-            session["task"].cancel()
+            task = session["task"]
+            task.cancel()
+            try:
+                # Wait for cancellation with timeout
+                await asyncio.wait_for(task, timeout=2.0)
+            except (asyncio.CancelledError, asyncio.TimeoutError):
+                pass
             session["task"] = None
 
         # Discard stale audio buffered from the failed session.
@@ -197,6 +216,7 @@ class PipecatBridge:
         
         try:
             async for message in session["ws"]:
+                session["last_activity"] = time.time() # Update activity on engine events
                 if isinstance(message, bytes):
                     sess_data = _session(sid)
                     webrtc_track = sess_data.get("webrtc_audio_track")
@@ -242,6 +262,25 @@ class PipecatBridge:
         finally:
             session["running"] = False
             log.info("pipecat_bridge_listen_loop_stopped")
+
+    async def _watchdog(self):
+        """Silently cleans up inactive sessions (Requirement 3)."""
+        while True:
+            try:
+                await asyncio.sleep(30)
+                now = time.time()
+                to_remove = []
+                
+                # Check for inactive sessions (> 120s)
+                for sid, session in list(self._sessions.items()):
+                    if now - session.get("last_activity", 0) > 120:
+                        to_remove.append(sid)
+                
+                for sid in to_remove:
+                    log.info("pipecat_bridge_watchdog_cleanup", sid=sid)
+                    await self.stop(sid)
+            except Exception as e:
+                log.error("pipecat_bridge_watchdog_error", error=str(e))
 
     async def send_cancel_frame(self, sid: str):
         session = await self._get_connection(sid)

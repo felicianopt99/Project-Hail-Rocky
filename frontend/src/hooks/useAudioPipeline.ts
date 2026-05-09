@@ -57,6 +57,7 @@ export function useAudioPipeline({
 
   // WebRTC
   const pcRef = useRef<RTCPeerConnection | null>(null);
+  const remoteSourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const isSpeakingRef = useRef(false);
 
   // PCM chunk scheduling for fallback (non-WebRTC) TTS path
@@ -114,9 +115,7 @@ export function useAudioPipeline({
     if (!audioCtxRef.current) return;
     
     // Close existing connection if any
-    if (pcRef.current) {
-      pcRef.current.close();
-    }
+    closeWebRTC();
 
     console.log("[Rocky] Initializing WebRTC Audio Pipeline...");
     
@@ -141,22 +140,20 @@ export function useAudioPipeline({
       if (!remoteStream) return;
       
       const audioCtx = audioCtxRef.current!;
-      
       if (audioCtx.state === 'suspended') audioCtx.resume();
       
+      if (remoteSourceRef.current) remoteSourceRef.current.disconnect();
       const remoteSource = audioCtx.createMediaStreamSource(remoteStream);
+      remoteSourceRef.current = remoteSource;
       
-      // Route through analyzer for visualizer
+      // Task 2: Route through analyzer for visualizer BEFORE gain node
       if (analyzerRef.current) {
         remoteSource.connect(analyzerRef.current);
       }
       
       // Route through gain node for volume control
-      if (gainNodeRef.current) {
-        remoteSource.connect(gainNodeRef.current);
-      } else {
-        remoteSource.connect(audioCtx.destination);
-      }
+      const destination = gainNodeRef.current ?? audioCtx.destination;
+      remoteSource.connect(destination);
     };
 
     try {
@@ -185,12 +182,25 @@ export function useAudioPipeline({
       console.error("[Rocky] Failed to establish WebRTC connection:", err);
       addToast("Audio pipeline failure", "error");
       setStatus("idle");
-      if (pcRef.current) {
-        pcRef.current.close();
-        pcRef.current = null;
-      }
+      closeWebRTC();
     }
   }, [socket.id, addToast, audioCtxRef]);
+
+  const closeWebRTC = useCallback(() => {
+    if (pcRef.current) {
+      console.log("[Rocky] Closing WebRTC Pipeline...");
+      pcRef.current.getReceivers().forEach(receiver => {
+        if (receiver.track) receiver.track.stop();
+      });
+      pcRef.current.close();
+      pcRef.current = null;
+    }
+
+    if (remoteSourceRef.current) {
+      remoteSourceRef.current.disconnect();
+      remoteSourceRef.current = null;
+    }
+  }, []);
 
   // Socket Event Listeners for Status/Metadata
   useEffect(() => {
@@ -210,11 +220,8 @@ export function useAudioPipeline({
       isSpeakingRef.current = false;
       setStatus("idle");
       // Close WebRTC to release the mic for the next wake-word cycle.
-      if (pcRef.current) {
-        pcRef.current.close();
-        pcRef.current = null;
-        console.log("[Rocky] WebRTC closed — mic released for wake word.");
-      }
+      closeWebRTC();
+      console.log("[Rocky] WebRTC closed — mic released for wake word.");
     };
 
     // Fallback PCM playback: used when TTS audio arrives via Socket.IO instead of

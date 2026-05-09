@@ -20,7 +20,7 @@ const WAKEWORD_WS_URL = RAW_ENGINE_URL
 // "speech"  — utterance captured, WebRTC open, Silero VAD watching for end
 type Stage = "idle" | "keyword" | "speech";
 
-export function useWakeWord() {
+export function useWakeWord({ getStream }: { getStream: () => Promise<MediaStream> }) {
   const [error, setError] = useState<string | null>(null);
   const [isWakeWordReady, setIsWakeWordReady] = useState(false);
 
@@ -55,7 +55,7 @@ export function useWakeWord() {
     kwSourceRef.current = null;
     void kwAudioCtxRef.current?.close().catch(() => {});
     kwAudioCtxRef.current = null;
-    kwMicRef.current?.getTracks().forEach((t) => t.stop());
+    // Task 1: Do NOT stop tracks here to allow reuse in manual session
     kwMicRef.current = null;
   }, []);
 
@@ -63,14 +63,14 @@ export function useWakeWord() {
   const releaseVAD = useCallback(() => {
     vadRef.current?.pause();
     vadRef.current = null;
-    streamRef.current?.getTracks().forEach((t) => t.stop());
+    // Task 1: Do NOT stop tracks here to allow reuse in manual session
     streamRef.current = null;
   }, []);
 
   // ── Speech stage: Silero VAD for end-of-utterance ────────────────────────
   const activateSpeechStage = useCallback(async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
+      const stream = await getStream();
       streamRef.current = stream;
       eventBus.emit(RockyEvents.VAD_SPEECH_START, stream);
 
@@ -128,12 +128,12 @@ export function useWakeWord() {
           ort.env.wasm.numThreads = 1;
         },
         getStream: async () => {
-          const stream = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
+          const stream = await getStream();
           streamRef.current = stream;
           return stream;
         },
         resumeStream: async () => {
-          const stream = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
+          const stream = await getStream();
           streamRef.current = stream;
           return stream;
         },
@@ -174,7 +174,7 @@ export function useWakeWord() {
     stageRef.current = "keyword";
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
+      const stream = await getStream();
       kwMicRef.current = stream;
 
       const ws = new WebSocket(WAKEWORD_WS_URL);

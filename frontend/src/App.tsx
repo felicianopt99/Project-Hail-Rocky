@@ -21,6 +21,7 @@ import { useRockyStore } from "./store/useRockyStore";
 import { useWakeWord } from "./hooks/useWakeWord";
 import socket from "./lib/socket";
 import { eventBus, RockyEvents } from "./lib/eventBus";
+import { MIC_CONSTRAINTS } from "./lib/audioConstants";
 
 const STATUS_LABEL: Record<string, string> = {
   listening: "Audio Input",
@@ -60,14 +61,36 @@ export default function App() {
   }, []);
 
   const startWebRTCRef = useRef<((stream: MediaStream) => Promise<void>) | null>(null);
+  const closeWebRTCRef = useRef<(() => void) | null>(null);
+
+  const sharedMicStreamRef = useRef<MediaStream | null>(null);
+
+  const getSharedMicStream = useCallback(async () => {
+    if (sharedMicStreamRef.current?.active) return sharedMicStreamRef.current;
+    const stream = await navigator.mediaDevices.getUserMedia(MIC_CONSTRAINTS);
+    sharedMicStreamRef.current = stream;
+    return stream;
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      // Final cleanup: release hardware
+      if (sharedMicStreamRef.current) {
+        sharedMicStreamRef.current.getTracks().forEach(t => t.stop());
+        sharedMicStreamRef.current = null;
+      }
+    };
+  }, []);
 
   const { audioState, analyzer, audioCtxRef, handleManualTrigger } = useAudioManager({
     socket,
     addToast,
-    startWebRTC: (stream) => startWebRTCRef.current?.(stream) ?? Promise.resolve()
+    startWebRTC: (stream) => startWebRTCRef.current?.(stream) ?? Promise.resolve(),
+    closeWebRTC: () => closeWebRTCRef.current?.(),
+    getStream: getSharedMicStream
   });
 
-  const { isAudioActive: isPipelineActive, startWebRTC } = useAudioPipeline({ 
+  const { isAudioActive: isPipelineActive, startWebRTC, closeWebRTC } = useAudioPipeline({ 
     socket, 
     addToast, 
     setStatus, 
@@ -77,17 +100,18 @@ export default function App() {
     externalAnalyzerRef: analyzer
   });
 
-  // Keep the ref updated with the latest callback
+  // Keep the refs updated with the latest callbacks
   useEffect(() => {
     startWebRTCRef.current = startWebRTC;
-  }, [startWebRTC]);
+    closeWebRTCRef.current = closeWebRTC;
+  }, [startWebRTC, closeWebRTC]);
 
   const isAudioActive = useCallback(() => {
     return isPipelineActive() || ["speaking", "listening", "processing"].includes(audioState);
   }, [isPipelineActive, audioState]);
 
   useRockySockets(addToast, isAudioActive);
-  const { error: wakeWordError, pauseForManualSession } = useWakeWord();
+  const { error: wakeWordError, pauseForManualSession } = useWakeWord({ getStream: getSharedMicStream });
 
   useEffect(() => {
     if (wakeWordError) {
