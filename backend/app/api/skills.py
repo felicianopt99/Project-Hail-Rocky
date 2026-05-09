@@ -8,6 +8,7 @@ from ..config import settings
 from ..core.redis_client import get_redis
 from ..tools.definitions import get_tools, BASE_TOOL_NAMES, invalidate_tools_cache
 from .auth import get_current_user
+from ..core.plugins.registry import plugin_registry
 
 router = APIRouter()
 
@@ -86,38 +87,67 @@ async def _tool_skills() -> list[dict]:
     overrides = await _load_overrides(tool_names + ["home_assistant"])
 
     skills = []
-    ha_tool_names: list[str] = []
+    
+    # Track which tools belong to plugins so we can group them
+    plugin_tool_map = plugin_registry.get_tool_map()
+    processed_plugins = set()
 
+    # 1. Base Tools
     for tool in tools:
-        fn = tool["function"]
-        name = fn["name"]
-        if name not in BASE_TOOL_NAMES:
-            ha_tool_names.append(name)
-            continue
-        meta = _TOOL_META.get(name, {})
-        override = overrides.get(name, {})
+        name = tool["function"]["name"]
+        if name in BASE_TOOL_NAMES:
+            meta = _TOOL_META.get(name, {})
+            override = overrides.get(name, {})
+            skills.append({
+                "id":          name,
+                "name":        name.replace("_", " ").title(),
+                "enabled":     override.get("enabled", True),
+                "category":    meta.get("category", "utility"),
+                "description": meta.get("description", tool["function"].get("description", "")),
+                "type":        "tool",
+            })
+
+    # 2. Plugins
+    plugins = plugin_registry.list_plugins()
+    for p_id, p_instance in plugins.items():
+        processed_plugins.add(p_id)
+        override = overrides.get(p_id, {})
+        manifest = p_instance.manifest
+        
+        # Determine device count if it's HA
+        device_count = 0
+        if p_id == "home_assistant":
+            # We can try to count tools or use a fixed one
+            device_count = len([t for t in tool_names if t.startswith("ha_") or t in ["list_home_assistant_entities", "call_home_assistant_service"]])
+
         skills.append({
-            "id":          name,
-            "name":        name.replace("_", " ").title(),
+            "id":          p_id,
+            "name":        manifest.metadata.name,
             "enabled":     override.get("enabled", True),
-            "category":    meta.get("category", "utility"),
-            "description": meta.get("description", fn.get("description", "")),
-            "type":        "tool",
+            "category":    "home" if "home" in p_id else "utility",
+            "description": manifest.metadata.description,
+            "type":        "integration",
+            "deviceCount": device_count,
+            "connected":   True, # If it's in registry, it's connected
         })
 
-    # Single aggregated entry for the entire HA MCP integration
-    if ha_tool_names or settings.ha_mcp_url:
-        ha_override = overrides.get("home_assistant", {})
-        skills.append({
-            "id":          "home_assistant",
-            "name":        "Home Assistant",
-            "enabled":     ha_override.get("enabled", True),
-            "category":    "home",
-            "description": _TOOL_META["home_assistant"]["description"],
-            "type":        "integration",
-            "deviceCount": len(ha_tool_names),
-            "connected":   bool(ha_tool_names),
-        })
+    # 3. Leftover MCP tools (not in base, not in plugins)
+    mcp_tools = [t for t in tools if t["function"]["name"] not in BASE_TOOL_NAMES and t["function"]["name"] not in plugin_tool_map]
+    if mcp_tools and "home_assistant" not in processed_plugins:
+        # Legacy HA check if plugin not present
+        ha_mcp_tools = [t for t in mcp_tools if t["function"]["name"].startswith("ha_")]
+        if ha_mcp_tools:
+            ha_override = overrides.get("home_assistant", {})
+            skills.append({
+                "id":          "home_assistant",
+                "name":        "Home Assistant (Legacy)",
+                "enabled":     ha_override.get("enabled", True),
+                "category":    "home",
+                "description": _TOOL_META["home_assistant"]["description"],
+                "type":        "integration",
+                "deviceCount": len(ha_mcp_tools),
+                "connected":   True,
+            })
 
     return skills
 
@@ -152,8 +182,14 @@ async def toggle_skill(skill_id: str, _user: dict = Depends(get_current_user)):
 async def refresh_ha_tools():
     """Invalidate MCP discovery cache and re-discover HA tools immediately."""
     invalidate_tools_cache()
+    
+    # Also sync the HA plugin if it exists
+    ha_plugin = plugin_registry.get_plugin("home_assistant")
+    if ha_plugin and hasattr(ha_plugin, "sync_entities"):
+        await ha_plugin.sync_entities()
+
     tools = await get_tools()
-    ha_count = sum(1 for t in tools if t["function"]["name"] not in BASE_TOOL_NAMES)
+    ha_count = sum(1 for t in tools if t["function"]["name"].startswith("ha_") or t["function"]["name"] in ["list_home_assistant_entities", "call_home_assistant_service"])
     return {"discovered": ha_count}
 
 

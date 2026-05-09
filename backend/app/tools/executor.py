@@ -24,6 +24,7 @@ from ..core.http_client import get_http_client
 from ..core.redis_client import get_redis
 
 from ..bridges.mcp_bridge import mcp_bridge
+from ..core.plugins.registry import plugin_registry
 
 log = structlog.get_logger()
 
@@ -224,6 +225,12 @@ async def run(name: str, args: dict, sio=None, tool_call_id: str = None, bypass_
             case "get_list":            return await _get_list(**args)
             case "remove_from_list":    return await _remove_from_list(**args)
             case _:
+                # 1. Check if it's a tool from a Python Plugin
+                plugin = plugin_registry.get_plugin_by_tool(name)
+                if plugin:
+                    return await plugin.execute_tool(name, args)
+
+                # 2. Check MCP tools
                 if settings.mcp_enabled:
                     mcp_res = await mcp_bridge.call_tool(name, args)
                     if mcp_res is not None:

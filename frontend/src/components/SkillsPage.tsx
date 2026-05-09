@@ -340,6 +340,48 @@ export default function SkillsPage() {
                   );
                 }
 
+                // Other Plugins (Integrations)
+                if (skill.type === "integration") {
+                   const icon = CATEGORY_ICON[skill.category] ?? <Zap size={16} />;
+                   const iconColor = CATEGORY_COLOR[skill.category] ?? "text-white/40";
+                   
+                   return (
+                    <motion.div
+                      key={skill.id}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className={`vibe-card p-4 ${!skill.enabled ? "opacity-50" : ""}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className={`w-9 h-9 rounded-xl bg-black/40 border border-white/5 flex items-center justify-center shrink-0 ${iconColor}`}>
+                          {icon}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-white truncate">{skill.name}</span>
+                            <span className="px-1.5 py-0.5 rounded bg-cyan-500/10 border border-cyan-500/20 text-[8px] font-black uppercase tracking-widest text-cyan-400">
+                              Plugin
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-white/30 truncate">{skill.description}</p>
+                        </div>
+                        <button
+                          onClick={() => toggle(skill.id)}
+                          disabled={toggling === skill.id}
+                          className="w-8 h-8 rounded-xl flex items-center justify-center transition-all"
+                        >
+                          {toggling === skill.id
+                            ? <Loader2 size={18} className="animate-spin text-white/30" />
+                            : skill.enabled
+                              ? <ToggleRight size={22} className="text-amber-400" />
+                              : <ToggleLeft size={22} className="text-white/20" />
+                          }
+                        </button>
+                      </div>
+                    </motion.div>
+                   );
+                }
+
                 const isRocky = ROCKY_IDS.has(skill.id);
                 const iconColor = CATEGORY_COLOR[skill.category] ?? "text-white/40";
                 const icon = CATEGORY_ICON[skill.category] ?? <Zap size={16} />;

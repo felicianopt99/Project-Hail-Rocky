@@ -1,0 +1,14 @@
+{
+  "metadata": {
+    "id": "hello_plugin",
+    "name": "Hello Rocky Plugin",
+    "version": "1.0.0",
+    "description": "A simple verification plugin for the Rocky backend.",
+    "author": "Antigravity",
+    "homepage": "https://github.com/felicianopt99/Project-Hail-Rocky",
+    "license": "MIT"
+  },
+  "enabled": true,
+  "entry_point": "plugin.py",
+  "dependencies": []
+}

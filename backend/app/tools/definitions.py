@@ -6,6 +6,7 @@ import httpx
 import structlog
 from ..config import settings
 from ..bridges.mcp_bridge import mcp_bridge
+from ..core.plugins.manager import plugin_manager
 
 log = structlog.get_logger()
 
@@ -301,6 +302,19 @@ async def get_tools() -> list[dict]:
                 log.info("mcp_discovery_ok", count=len(mcp_tools))
             except Exception as e:
                 log.warning("mcp_discovery_failed", error=str(e))
+
+        # 3. Add tools from custom Python plugins
+        try:
+            plugin_tools = await plugin_manager.get_all_plugin_tools()
+            for t in plugin_tools:
+                # Basic collision check
+                if t["function"]["name"] in BASE_TOOL_NAMES:
+                    log.warning("plugin_tool_collision", name=t["function"]["name"])
+                    continue
+                tools.append(t)
+            log.info("plugin_discovery_ok", count=len(plugin_tools))
+        except Exception as e:
+            log.error("plugin_discovery_failed", error=str(e))
 
         _tools_cache = tools
         _tools_cache_ts = now

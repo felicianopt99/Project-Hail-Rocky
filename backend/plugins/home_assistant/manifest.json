@@ -1,0 +1,24 @@
+{
+  "metadata": {
+    "id": "home_assistant",
+    "name": "Home Assistant",
+    "version": "1.0.0",
+    "description": "Native integration with Home Assistant for smart home automation.",
+    "author": "Rocky Team",
+    "homepage": "https://www.home-assistant.io/",
+    "license": "MIT"
+  },
+  "enabled": true,
+  "entry_point": "plugin.py",
+  "dependencies": ["httpx"],
+  "config_schema": {
+    "type": "object",
+    "properties": {
+      "excluded_entities": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "List of entity IDs to ignore."
+      }
+    }
+  }
+}

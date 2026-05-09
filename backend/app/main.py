@@ -5,12 +5,13 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from .core.logging import setup_logging
-from .api import dashboard, socketio_handlers, auth, skills, settings_api, speaker, memory, brain, webrtc, system
+from .api import dashboard, socketio_handlers, auth, skills, settings_api, speaker, memory, brain, webrtc, system, plugins
 from .config import settings
 from .workers.scheduler import setup as setup_scheduler, shutdown as shutdown_scheduler
 from .core.http_client import AsyncHTTPClient
 from .bridges.letta_bridge import close_client as close_letta_client
 from .bridges.mcp_bridge import mcp_bridge
+from .core.plugins.manager import plugin_manager
 from .core.alarm_watcher import start as start_alarm_watcher
 import structlog
 
@@ -40,6 +41,9 @@ async def lifespan(app: FastAPI):
     worker = setup_scheduler()
     worker_task = asyncio.create_task(worker.start())
     alarm_task = start_alarm_watcher(sio)
+    
+    # Initialize Plugins
+    await plugin_manager.discover_and_load()
 
     yield
 
@@ -93,6 +97,7 @@ fastapi_app.include_router(memory.router, prefix="/api/memory", tags=["memory"])
 fastapi_app.include_router(brain.router, prefix="/api/brain", tags=["brain"])
 fastapi_app.include_router(webrtc.router, prefix="/api/webrtc", tags=["webrtc"])
 fastapi_app.include_router(system.router, prefix="/api/system", tags=["system"])
+fastapi_app.include_router(plugins.router, prefix="/api/plugins", tags=["plugins"])
 
 
 @fastapi_app.get("/api/health")
