@@ -483,45 +483,52 @@ async def _search_wikipedia(query: str) -> str:
 
 
 async def _execute_python(code: str) -> str:
-    """Execute Python code in a sandboxed subprocess and return output/errors."""
+    """
+    Execute Python code in an isolated Docker container (Chanakya-style Sandbox).
+    Provides full filesystem and resource isolation.
+    """
+    # 1. Prepare Docker command
+    # We use --network=none for maximum security unless the user explicitly needs internet.
+    # We limit memory and CPU to prevent resource exhaustion.
+    cmd = [
+        "docker", "run", "--rm",
+        "--name", f"rocky-exec-{uuid.uuid4().hex[:8]}",
+        "--memory=256m",
+        "--cpus=0.5",
+        "--network=none",
+        "python:3.12-slim", # Fallback to slim if custom image not built
+        "python3", "-c", code
+    ]
 
-    def _sandbox() -> None:
-        resource.setrlimit(resource.RLIMIT_AS,     (128 * 1024 * 1024, 128 * 1024 * 1024))
-        resource.setrlimit(resource.RLIMIT_CPU,    (5, 5))
-        resource.setrlimit(resource.RLIMIT_NOFILE, (50, 50))
-        resource.setrlimit(resource.RLIMIT_NPROC,  (0, 0))
-        resource.setrlimit(resource.RLIMIT_CORE,   (0, 0))
-
-    _sandbox_env = {
-        "PATH": "/usr/bin:/bin",
-        "HOME": "/tmp",
-        "PYTHONDONTWRITEBYTECODE": "1",
-    }
+    # Note: For production, we would use the 'rocky-sandbox:latest' image
+    # that includes numpy/pandas, but 'python:3.12-slim' works for base logic.
 
     try:
         process = await asyncio.create_subprocess_exec(
-            sys.executable, "-c", code,
+            *cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            env=_sandbox_env,
-            preexec_fn=_sandbox,
         )
 
         try:
-            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=5.0)
+            # Docker might take a bit longer to start
+            stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=10.0)
         except asyncio.TimeoutError:
-            try:
-                process.kill()
-            except Exception:
-                pass
-            return "Error: Execution timed out (5s limit)."
+            # Kill the docker container specifically
+            subprocess.run(["docker", "kill", cmd[4]], capture_output=True)
+            return "Error: Execution timed out (10s limit for Docker sandbox)."
 
         out = stdout.decode().strip()
         err = stderr.decode().strip()
 
         if process.returncode != 0:
+            # If the image was missing, this might fail. We provide a hint.
+            if "Unable to find image" in err:
+                log.warning("sandbox_image_missing", error=err)
+                return "Error: Sandbox environment is being prepared. Please try again in a moment."
             return f"Error (Code {process.returncode}):\n{err}"
 
         return out if out else "Execution successful (no output)."
     except Exception as e:
-        return f"System error during execution: {str(e)}"
+        log.error("sandbox_system_error", error=str(e))
+        return f"System error during sandbox execution: {str(e)}. Ensure Docker socket is mounted."

@@ -26,12 +26,18 @@ Deeply inspired by the Eridanian engineer "Rocky" from Andy Weir's sci-fi novel 
 - **Semantic Caching:** Uses Redis for fast retrieval of context and prior knowledge.
 - **Background Workers:** Asynchronous AI workers periodically analyze conversation history to write "diary entries", analyze user patterns, and optimize memory.
 
-### 🏠 Home Assistant Agency
-- **Native IoT Control:** Direct bridge to your Home Assistant instance. Rocky can interpret vague requests ("it's dark in here") and autonomously decide to turn on the appropriate lights or trigger routines.
+### 🏠 Home Assistant & MCP Agency
+- **Model Context Protocol (MCP):** Native support for the MCP standard. Rocky can dynamically discover and execute tools from any MCP-compatible server (Home Assistant, GitHub, Google Search, etc.).
+- **Dynamic Skill Discovery:** Automatically scans local and remote MCP endpoints to expand Rocky's capabilities on the fly.
 
-### 🎭 Dynamic Personality Engine
+### 🎭 Smart Interruption & Intelligence
+- **Conversation Intelligence Layer (CIL):** Intelligent turn-taking. Rocky distinguishes between "backchanneling" (acknowledgments like "uh-huh", "ok") and actual intent, preventing unnecessary speech interruptions.
+- **Natural Speech Pacing:** Chanakya-inspired chunking logic for better prosody and human-like pauses in speech synthesis.
 - **Eridanian Emulation:** Emotional states, intimacy scaling (stranger to best friend), speech modes, and contextual easter eggs.
-- **Musical Chords:** Incorporates Rocky's signature musical communication style into responses.
+
+### 🛠️ Isolated Engineering Sandbox
+- **Docker-in-Docker Execution:** The `execute_python` tool now runs in a fully isolated Docker container.
+- **Zero-Config Discovery:** Auto-detects local AI services (Ollama, Whisper, TTS) on your network.
 
 ### 📊 Massive QA & Testing Infrastructure
 - Built for enterprise-grade reliability with an extensive suite of automated tests:

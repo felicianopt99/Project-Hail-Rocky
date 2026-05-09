@@ -48,6 +48,13 @@ async def inject_personality(state: RockyState) -> Dict[str, Any]:
     last_msg = state["messages"][-1].content if state["messages"] else ""
     if last_msg:
         emo = await emotional_states.detect(last_msg, current=emo)
+        
+        # Option 3: High-Fidelity Trigger
+        detailed_keywords = ["detalhado", "explica", "lista", "tudo", "detailed", "explain", "list", "full", "depth"]
+        if any(kw in last_msg.lower() for kw in detailed_keywords):
+            log.info("high_fidelity_mode_triggered", sid=sid)
+            emo = "high_fidelity"
+            
         score = await intimacy.update(sid, last_msg, redis)
         await emotional_states.save(sid, emo, redis)
 

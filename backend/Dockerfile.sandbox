@@ -1,0 +1,23 @@
+FROM python:3.12-slim
+
+# Install common libraries for Rocky's engineering tasks
+RUN pip install --no-cache-dir \
+    numpy \
+    pandas \
+    requests \
+    httpx \
+    scipy \
+    matplotlib \
+    pillow
+
+# Create a non-privileged user
+RUN useradd -m rocky_sandbox
+USER rocky_sandbox
+WORKDIR /home/rocky_sandbox
+
+# Set execution limits via environment if needed (redundant with docker limits but good practice)
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# The code will be passed via stdin or as a command
+ENTRYPOINT ["python3", "-c"]

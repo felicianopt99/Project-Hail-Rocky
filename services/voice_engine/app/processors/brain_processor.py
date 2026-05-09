@@ -4,7 +4,10 @@ import asyncio
 import time
 import json
 import structlog
-from pipecat.frames.frames import Frame, TextFrame, TranscriptionFrame, LLMContextFrame, CancelFrame
+from pipecat.frames.frames import (
+    Frame, TextFrame, TranscriptionFrame, LLMContextFrame, 
+    CancelFrame, TTSStartedFrame, TTSStoppedFrame
+)
 from pipecat.processors.frame_processor import FrameProcessor
 
 # Add repository root to sys.path to allow importing from backend
@@ -20,27 +23,81 @@ log = structlog.get_logger()
 class RockyBrainProcessor(FrameProcessor):
     """
     Pipecat Processor that bridges to the Backend's brain using LangGraph.
-    It receives a TranscriptionFrame/LLMContextFrame and emits TextFrames via streaming.
+    Includes Conversation Intelligence Layer (CIL) for smart interruption.
     """
 
     def __init__(self, sid: str, websocket=None, backend_url: str = None):
         super().__init__()
         self._sid = sid
         self._ws = websocket
-        # backend_url is kept for signature compatibility but unused
         self._flow_manager = None
         self._is_processing = False
+        self._is_speaking = False
         self._cancel_event = asyncio.Event()
 
     def set_flow_manager(self, flow_manager):
         self._flow_manager = flow_manager
 
+    def _classify_intent(self, text: str) -> str:
+        """
+        Classifies user utterance as ACK (Backchannel) or INTENT.
+        Heuristics inspired by Chanakya-Local-Friend.
+        """
+        text_lc = text.strip().lower().strip(" .?!")
+        
+        # Backchannel / Acknowledgment tokens
+        backchannel_tokens = {
+            "ok", "okay", "got it", "entendi", "sim", "hm-mm", "hmmm", "uh-huh",
+            "entendo", "certo", "beleza", "legal", "boa", "yes", "right", "sure"
+        }
+        
+        if text_lc in backchannel_tokens:
+            return "ACK"
+        
+        # If very short but not in tokens, could still be noise or ack
+        if len(text_lc.split()) <= 1 and len(text_lc) < 4:
+            return "ACK"
+            
+        return "INTENT"
+
     async def process_frame(self, frame: Frame, direction):
+        # 1. Track Speaking State (Downstream from TTS)
+        if isinstance(frame, TTSStartedFrame):
+            self._is_speaking = True
+            await self.push_frame(frame, direction)
+            return
+        elif isinstance(frame, TTSStoppedFrame):
+            self._is_speaking = False
+            await self.push_frame(frame, direction)
+            return
+
+        # 2. Handle Explicit Cancellation
         if isinstance(frame, CancelFrame):
             self._cancel_event.set()
             await self.push_frame(frame, direction)
             return
 
+        # 3. Smart Interruption Logic (Transcription Frames)
+        if isinstance(frame, TranscriptionFrame):
+            intent = self._classify_intent(frame.text)
+            
+            if self._is_speaking:
+                if intent == "ACK":
+                    log.info("cil_backchannel_detected", text=frame.text, action="continue_speaking")
+                    # Do NOT propagate to brain to avoid interrupting current LLM flow if any
+                    # and definitely do NOT send CancelFrame
+                    return 
+                else:
+                    log.info("cil_interruption_detected", text=frame.text, action="interrupt_and_process")
+                    # Stop current speech and graph execution
+                    self._cancel_event.set()
+                    await self.push_frame(CancelFrame(), direction)
+            
+            # If not speaking, or if intent was detected, let it pass to aggregators
+            await self.push_frame(frame, direction)
+            return
+
+        # 4. LLM Context / Brain Logic
         if isinstance(frame, LLMContextFrame):
             # Get the last user message
             user_msg = frame.context.messages[-1]
@@ -109,16 +166,24 @@ class RockyBrainProcessor(FrameProcessor):
                     # 1. Handle Streaming Tokens
                     if event['event'] == 'on_chat_model_stream':
                         chunk = event['data']['chunk']
-                        # chunk is typically an AIMessageChunk
                         if hasattr(chunk, 'content') and chunk.content:
                             content = chunk.content
                             full_response += content
                             text_buffer += content
                             
-                            # Aggregation logic: push to TTS only when we have a natural break
-                            if any(p in content for p in " .?!,;:\n\r\t"):
-                                await self.push_frame(TextFrame(text=text_buffer), direction)
-                                text_buffer = ""
+                            # Smart Aggregation (Option 1):
+                            # We flush only on strong punctuation to ensure the TTS (Kokoro)
+                            # has enough context for natural prosody, avoiding "choppy" speech.
+                            if any(p in content for p in ".?!;"):
+                                # If the buffer is very short (e.g., "Yes."), check if we should wait for more
+                                if len(text_buffer.strip()) > 10 or any(p in content for p in ".?!"):
+                                    await self.push_frame(TextFrame(text=text_buffer), direction)
+                                    text_buffer = ""
+                            elif "\n" in content:
+                                # Force flush on paragraph breaks
+                                if text_buffer.strip():
+                                    await self.push_frame(TextFrame(text=text_buffer), direction)
+                                    text_buffer = ""
 
                     # 2. Handle Tool Starts (for UI animations)
                     elif event['event'] == 'on_tool_start':

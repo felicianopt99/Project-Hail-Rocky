@@ -17,132 +17,68 @@ Project Hail Rocky is a self-hosted smart home AI assistant built around the per
                            ▼
 ┌─────────────────────────────────────────────────────────────┐
 │  Backend  FastAPI + python-socketio + aiortc  (Python 3.13) │
-│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────┐ │
-│  │ WebRTC      │  │ Rocky Brain  │  │ Tool Calling       │ │
-│  │ & SocketIO  │  │ Personality  │  │ Lights / Weather / │ │
-│  │ Handlers    │  │ EmotState    │  │ Timer / Wikipedia  │ │
-│  │             │  │ Intimacy     │  │ Calculator / HA    │ │
-│  └──────┬──────┘  └──────┬───────┘  └────────────────────┘ │
-└─────────┼────────────────┼────────────────────────────────-─┘
-          │                │
-    ┌─────▼──────┐   ┌─────▼──────┐   ┌────────────────────┐
-    │  Pipecat   │   │   Letta    │   │  Home Assistant    │
-    │  Service   │   │  (memory)  │   │  (smart home hub)  │
+│  ┌─────────────┐  ┌────    ┌─────▼──────┐   ┌─────▼──────┐   ┌────────────────────┐
+    │  Pipecat   │   │   Letta    │   │  MCP Ecosystem     │
+    │  Service   │   │  (memory)  │   │ (Dynamic Agency)   │
     │            │   │            │   │                    │
-    │ VAD (VAD)  │   │ Core mem.  │   │  Lights / Scenes   │
-    │ Groq STT   │   │ Recall     │   │  2000+ devices     │
-    │ Speaker ID │   │ Archival   │   │  (REST / MCP)      │
-    │ Kokoro TTS │   │ (pgvector) │   │   ↑ ha-mcp SSE     │
-    │ PitchShift │   │ Postgres   │   │                    │
-    │ Reverb     │   │            │   │                    │
-    │ Compress.  │   │            │   │                    │
+    │ VAD (VAD)  │   │ Core mem.  │   │ Home Assistant MCP │
+    │ Groq STT   │   │ Recall     │   │ GitHub / Search MCP│
+    │ CIL Layer  │   │ Archival   │   │ Python Sandbox (D) │
+    │ Kokoro TTS │   │ (pgvector) │   │                    │
     └────────────┘   └────────────┘   └────────────────────┘
           │
     ┌─────▼──────┐   ┌────────────┐   ┌────────────────────┐
-    │  LiteLLM   │   │   Valkey   │   │   Wakeword         │
-    │  Router    │   │            │   │   Detector         │
-    │            │   │  Sessions  │   │   (Vosk, host)     │
-    │ Groq fast  │   │  State     │   │   "Hey Rocky"      │
-    │ NIM smart  │   │  Cache     │   │                    │
-    │ Gemini vis │   │  Quotas    │   │                    │
-    │ Qwen2.5 3B │   │            │   │                    │
+    │  LiteLLM   │   │   Valkey   │   │  Auto-Discovery    │
+    │  Router    │   │            │   │  & Service Scan    │
+    │            │   │  Sessions  │   │ (Ollama/Whisper)   │
     └────────────┘   └────────────┘   └────────────────────┘
 ```
 
 ---
 
-## Voice Pipeline
+## Voice Pipeline & Intelligence (CIL)
 
-**Current state (WebRTC + Pipecat Pipeline):**
+**Current state (WebRTC + Pipecat + CIL):**
 ```
 Browser mic → WebRTC AudioTrack → Backend → Pipecat
   Pipecat: Silero VAD → Azure Speaker ID → Groq Whisper STT
-         → RockyBrainProcessor (Hallucination filter) → Letta (Persistent memory)
-         → LiteLLM (Streaming tokens) → DisfluencyInjector
-         → Kokoro TTS (Sentence-level aggregation)
-         → VoiceEffectsProcessor (Pitch/Reverb/Compression per emotional state)
-         → WebRTC AudioTrack → Frontend (Browser Speakers)
+         → CIL (Conversation Intelligence Layer): Backchannel vs Intent detection
+         → RockyBrainProcessor (Hallucination filter & graph orchestration)
+         → LiteLLM (Streaming tokens) → Natural Speech Pacing (Chunking)
+         → Kokoro TTS → VoiceEffectsProcessor
+         → WebRTC AudioTrack → Frontend
 ```
 
-The pipeline is fully operational via WebRTC, providing ultra-low latency (~400ms start-to-speak). Speaker ID and voice effects are fully integrated.
+The **CIL** distinguishes between acknowledgments ("uh-huh", "ok") and actual interruptions. If a backchannel is detected while Rocky is speaking, the interruption is ignored. If a real intent is detected, Rocky issues a `CancelFrame` to stop the TTS and the current reasoning graph immediately.
 
 ---
 
-## Voice Effects by Emotional State
+## Tools & MCP (Model Context Protocol)
 
-Rocky's voice changes with emotional state via pedalboard (Spotify):
+Rocky's capabilities are a hybrid of built-in functions and dynamic MCP skills:
 
-| State | Pitch | Reverb | Speed | Notes |
-|-------|-------|--------|-------|-------|
-| `neutral` | +2 semitones | light | 1.0× | Default alien timbre |
-| `excited` | +3 semitones | medium | 1.1× | Energy peaks |
-| `curious` | +2 semitones | light | 1.0× | Variable pitch |
-| `tired` | +1 semitone | minimal | 0.85× | Brief, slow |
-| `focused` | +2 semitones | none | 1.0× | Clean, precise |
+| Category | Tool / Source | Description |
+|----------|---------------|-------------|
+| **Core** | `execute_python` | **Sandboxed:** Runs in an isolated Docker container with resource limits. |
+| **MCP** | `Home Assistant` | Control IoT devices, read sensors, trigger scenes. |
+| **MCP** | `Dynamic Registry`| Auto-discovered tools from servers configured in `mcp_config.json`. |
+| **Built-in**| `get_weather` | Open-Meteo current forecast. |
+| **Built-in**| `Wikipedia` | Summary lookup. |
 
----
-
-## Personality System
-
-Rocky's personality is built from several composable layers:
-
-- **System prompt** — built dynamically at runtime from `rocky/personality/system_prompt.py`, incorporating emotional state, intimacy score, time of day, speech mode, and optional easter eggs
-- **Emotional states** — detected heuristically from message content + time; persisted in Redis (30-min TTL)
-- **Intimacy progression** — 0–100 score per speaker, persisted in Redis; shapes formality, easter egg frequency, personal references
-- **Catchphrases** — "Yes?", "Good. Good.", "Amaze.", "Fist bump!" — injected probabilistically
-- **Easter eggs** — references to Astrophage, Eridiani, Taumoeba, Beetles; keyed by conversation topic
-- **Speech modes** — Technical / Formal / Casual — auto-detected from message content + intimacy level
-- **Disfluency** — "Hmm. ", "Rocky think. " — injected via LLM instruction for natural rhythm
+### Isolated Sandbox (Option 1)
+The `execute_python` tool utilizes a dedicated `rocky-sandbox` Docker image. The backend mounts the Docker socket to spawn these ephemeral containers, ensuring that untrusted code cannot access the host filesystem or network (`--network=none`).
 
 ---
 
-## Memory Architecture (Letta)
+## Roadmap
 
-```
-Core Memory (always in context)
-├── Persona block — Rocky's full character description
-├── Human block — user profile, preferences, patterns (edited by agent)
-├── Emotional state — current state + reason
-└── Intimacy score — relationship level
-
-Recall Memory (recent conversations)
-└── Last N messages, textual search
-
-Archival Memory (PostgreSQL + pgvector)
-├── Important facts (score > 0.7)
-├── Preferences, patterns, key events
-└── Semantic search via bge-m3 embeddings
-    — pgvector elimina o serviço Qdrant separado, poupando ~350 MB RAM
-```
-
-Background workers (APScheduler):
-- **Daily 23:00 local** — diary entry: Rocky reflects on the day's conversations
-- **Sunday 04:00 local** — pattern analysis: detect user habits, update Human block
-
----
-
-## LLM Routing (LiteLLM)
-
-| Alias | Model | Provider | Use case |
-|-------|-------|----------|----------|
-| `rocky-fast` | llama-3.3-70b-versatile | Groq | Default conversation |
-| `rocky-smart` | llama-3.1-70b-instruct | NVIDIA NIM | Complex reasoning |
-| `rocky-vision` | gemini-2.0-flash | Google | Images, documents |
-| `rocky-offline` | qwen2.5:3b (Q4\_K\_M) | Ollama | No internet fallback |
-
-Fallback chain: `rocky-fast` → `rocky-smart` → `rocky-vision` → `rocky-offline`
-
-Qwen 2.5 3B substituiu o phi3:mini como modelo offline: melhor instruction-following, tool-calling nativo e suporte multilingual (PT/EN), com footprint idêntico (~2 GB RAM).
-
----
-
-## Tools (LLM Function Calling)
-
-Rocky's capabilities are exposed as LLM tools via OpenAI function calling format:
-
-| Tool | Description |
-|------|-------------|
-| `get_datetime` | Current date and time (timezone-aware) |
+### Recently Completed
+- **MCP Tool Registry** — Transitioned to Model Context Protocol for standardized tool discovery.
+- **Smart Interruption (CIL)** — Implemented backchannel filtering and selective cancellation.
+- **Isolated Code Sandbox** — Docker-based execution for Python tools.
+- **Natural Speech Pacing** — Sentence grouping for better synthesis prosody.
+- **Auto-Discovery** — Zero-config detection of local LLM and speech services.
+are) |
 | `set_timer` | Countdown timer with label |
 | `get_weather` | Current weather + forecast (Open-Meteo, no API key) |
 | `search_wikipedia` | Wikipedia summaries |

@@ -59,6 +59,7 @@ _STATE_MODIFIERS = {
     "curious": "\n\n## Current State: CURIOUS\nYou are very curious right now. Ask at least one follow-up question.",
     "focused": "\n\n## Current State: FOCUSED\nYou are in work mode. Be technical and precise. Skip social catchphrases.",
     "playful": "\n\n## Current State: PLAYFUL\nYou feel playful. More jokes, more easter eggs, more personality.",
+    "high_fidelity": "\n\n## Current State: HIGH FIDELITY\nThe user has requested a detailed or structured response. DO NOT summarize. Provide full technical details, lists, and citations if available. Accuracy and completeness are prioritized over brevity for this turn.",
 }
 
 

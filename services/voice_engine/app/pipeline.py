@@ -152,6 +152,14 @@ class VoiceDebugProcessor(FrameProcessor):
             log.error("voice_debug_processor_error", error=str(e))
             await self.push_frame(frame, direction)
 
+class SpeakerTracker(FrameProcessor):
+    """Pushes TTS status frames upstream so the brain can track speaking state."""
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
+        if isinstance(frame, (TTSStartedFrame, TTSStoppedFrame)):
+            log.debug("speaker_status_upstream", frame=type(frame).__name__)
+            await self.push_frame(frame, FrameDirection.UPSTREAM)
+        await self.push_frame(frame, direction)
+
 class ErrorRelay(FrameProcessor):
     """Processor to relay pipeline errors to the frontend."""
     def __init__(self, websocket):
@@ -269,6 +277,7 @@ async def run_voice_pipeline(websocket, sid: str = "default", emotional_state: s
         JsonMessageRelay(websocket), # Relay transcripts & tokens
         disfluency,                  # Personality
         tts,                         # Synthesis
+        SpeakerTracker(),            # Feedback loop for speaking state
         JsonMessageRelay(websocket), # Relay TTS lifecycle (start/end)
         effects,                     # Audio effects
         error_relay,                 # Catch any pipeline errors before output
