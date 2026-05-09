@@ -5,6 +5,7 @@ import time
 import httpx
 import structlog
 from ..config import settings
+from ..bridges.mcp_bridge import mcp_bridge
 
 log = structlog.get_logger()
 
@@ -268,8 +269,8 @@ def invalidate_tools_cache() -> None:
 async def get_tools() -> list[dict]:
     """
     Dynamic Skill Discovery (MCP):
-    Returns a union of hardcoded BASE_TOOLS and dynamic tools from MCP servers.
-    Results are cached for 60 s to avoid an HTTP round-trip on every LLM request.
+    Returns a union of hardcoded BASE_TOOLS and dynamic tools from multiple MCP servers.
+    Results are cached for 60 s.
     """
     global _tools_cache, _tools_cache_ts
 
@@ -280,51 +281,26 @@ async def get_tools() -> list[dict]:
 
         tools = list(BASE_TOOLS)
 
-        if settings.ha_mcp_url:
+        if settings.mcp_enabled:
             try:
-                _mcp_headers = {"Accept": "application/json, text/event-stream"}
-                async with httpx.AsyncClient(timeout=5.0) as client:
-                    endpoint = f"{settings.ha_mcp_url.rstrip('/')}/mcp"
-
-                    init_r = await client.post(endpoint, headers=_mcp_headers, json={
-                        "jsonrpc": "2.0", "id": 0, "method": "initialize",
-                        "params": {
-                            "protocolVersion": "2025-03-26",
-                            "capabilities": {},
-                            "clientInfo": {"name": "rocky-discovery", "version": "1.0"},
-                        },
+                mcp_tools = await mcp_bridge.get_all_tools()
+                for t in mcp_tools:
+                    # Skip if tool name collides with base tools
+                    if t["name"] in BASE_TOOL_NAMES:
+                        log.warning("mcp_tool_collision", name=t["name"])
+                        continue
+                    
+                    tools.append({
+                        "type": "function",
+                        "function": {
+                            "name": t["name"],
+                            "description": t.get("description", ""),
+                            "parameters": t.get("parameters", {"type": "object", "properties": {}}),
+                        }
                     })
-                    session_id = init_r.headers.get("mcp-session-id", "") if init_r.status_code == 200 else ""
-                    if not session_id:
-                        log.warning("mcp_init_failed", status=init_r.status_code)
-                    else:
-                        session_headers = {**_mcp_headers, "Mcp-Session-Id": session_id}
-                        await client.post(endpoint, headers=session_headers,
-                                          json={"jsonrpc": "2.0", "method": "notifications/initialized"})
-
-                        r = await client.post(endpoint, headers=session_headers,
-                                              json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}})
-                        if r.status_code == 200:
-                            mcp_tools: list[dict] = []
-                            for line in r.text.splitlines():
-                                if line.startswith("data:"):
-                                    try:
-                                        mcp_tools = json.loads(line[5:].strip()).get("result", {}).get("tools", [])
-                                    except Exception:
-                                        pass
-                                    break
-                            for t in mcp_tools:
-                                tools.append({
-                                    "type": "function",
-                                    "function": {
-                                        "name": t["name"],
-                                        "description": t.get("description", ""),
-                                        "parameters": t.get("inputSchema", {"type": "object", "properties": {}}),
-                                    }
-                                })
-                            log.info("mcp_discovery_ok", count=len(mcp_tools), url=endpoint)
+                log.info("mcp_discovery_ok", count=len(mcp_tools))
             except Exception as e:
-                log.warning("mcp_discovery_failed", url=settings.ha_mcp_url, error=str(e))
+                log.warning("mcp_discovery_failed", error=str(e))
 
         _tools_cache = tools
         _tools_cache_ts = now

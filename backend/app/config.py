@@ -39,6 +39,10 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://valkey:6381"
 
+    # MCP (Model Context Protocol)
+    mcp_config_path: str = "mcp_config.json"
+    mcp_enabled: bool = True
+
     # Auth
     secret_key: str = ""
     admin_username: str = "admin"
